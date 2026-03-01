@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
    דמדומים — app.css
-   גרסה מעודכנת: תיקון עמודות בלבד ללא שינוי פריסה כללית
+   גרסה סופית: פריסה מקורית + גרף שבועי מתוקן
    ══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -16,6 +16,7 @@
   --sky:         #5aaed4;
   --green:       #4ec870;
   --amber:       #ff9030;
+  /* dynamic bg — updated by JS */
   --dyn1: rgba(200,60,100,0.17);
   --dyn2: rgba(240,165,50,0.13);
   --dyn3: rgba(60,110,220,0.09);
@@ -34,6 +35,7 @@ body {
   overflow-x: hidden;
 }
 
+/* Background animated glow */
 body::before {
   content: "";
   position: fixed;
@@ -47,12 +49,13 @@ body::before {
   pointer-events: none;
 }
 
+/* ── Typography ── */
 h1, h2, h3, .brand__title, .card__title {
   font-family: 'Cormorant Garamond', serif;
   font-weight: 600;
 }
 
-/* ── Top Bar & Nav ── */
+/* ── Header & Nav ── */
 .top {
   position: sticky;
   top: 0;
@@ -63,12 +66,25 @@ h1, h2, h3, .brand__title, .card__title {
   border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top, 0);
 }
-.top__bar { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
+
+.top__bar {
+  padding: 14px 20px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
 .brand__title { font-size: 22px; color: var(--gold); letter-spacing: 1px; }
 .brand__sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 
-.nav { display: flex; padding: 0 10px 10px; gap: 8px; overflow-x: auto; }
+.nav {
+  display: flex;
+  padding: 0 10px 10px;
+  gap: 8px;
+  overflow-x: auto;
+}
 .nav::-webkit-scrollbar { display: none; }
+
 .nav__item {
   text-decoration: none;
   color: var(--muted);
@@ -78,9 +94,13 @@ h1, h2, h3, .brand__title, .card__title {
   white-space: nowrap;
   transition: all 0.25s;
 }
-.nav__item--active { background: var(--surface); color: var(--gold); box-shadow: 0 0 12px var(--border); }
+.nav__item--active {
+  background: var(--surface);
+  color: var(--gold);
+  box-shadow: 0 0 12px var(--border);
+}
 
-/* ── Weekly Chart - התיקון המדויק כאן ── */
+/* ── Weekly Chart ── */
 .week-chart-section {
   margin: 20px;
   padding: 20px;
@@ -88,16 +108,17 @@ h1, h2, h3, .brand__title, .card__title {
   border: 1px solid var(--border);
   border-radius: 24px;
 }
+
 .week-chart-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; color: var(--gold); }
 .week-chart-sub { font-size: 12px; color: var(--muted); margin-bottom: 15px; }
 
 .chart-bars {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end; /* מעגן את העמודות לרצפה */
-  height: 100px;         /* גובה קבוע למיכל הגרף */
+  align-items: flex-end; /* זה מה שחשוב למשיכת הברים למטה */
+  height: 100px;
   padding: 0 5px;
-  gap: 8px;
+  gap: 6px;
 }
 
 .chart-bar-wrap {
@@ -106,14 +127,14 @@ h1, h2, h3, .brand__title, .card__title {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  height: 100%; /* מאפשר ל-flex-end לעבוד על התוכן */
+  height: 100%; /* מאפשר ל-flex-end לעבוד על הברים */
 }
 
-.chart-bar-score { font-size: 10px; font-weight: bold; color: var(--gold); }
+.chart-bar-score { font-size: 10px; font-weight: bold; }
 
 .chart-bar-outer {
   width: 12px;
-  height: 60px; /* הגובה המקסימלי של העמודה */
+  height: 60px; /* גובה מקסימלי קבוע לגרף */
   background: rgba(255,255,255,0.05);
   border-radius: 10px;
   overflow: hidden;
@@ -125,7 +146,7 @@ h1, h2, h3, .brand__title, .card__title {
 .chart-bar-inner {
   width: 100%;
   border-radius: 10px;
-  transition: height 1s ease-out; /* אנימציית צמיחה חלקה */
+  transition: height 1s ease-out;
 }
 
 .chart-bar-label { font-size: 10px; color: var(--muted); }
@@ -139,6 +160,7 @@ h1, h2, h3, .brand__title, .card__title {
   border-radius: 24px;
 }
 .day-card--today { border-color: var(--border-lit); }
+
 .day-header { display: flex; justify-content: space-between; margin-bottom: 18px; }
 .day-name { font-size: 20px; font-weight: 600; color: var(--gold); }
 .day-date { font-size: 12px; color: var(--muted); }
@@ -165,7 +187,18 @@ h1, h2, h3, .brand__title, .card__title {
 .bar-mild { background: #5b7a9d; }
 .bar-poor { background: #4a5568; }
 
-.accordion-btn { width: 100%; background: none; border: none; color: var(--muted); display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
+.accordion-btn {
+  width: 100%;
+  background: none;
+  border: none;
+  color: var(--muted);
+  display: flex;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  cursor: pointer;
+}
+
 .weather-detail { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
 .weather-detail.open { max-height: 200px; padding-bottom: 10px; }
 
@@ -174,9 +207,42 @@ h1, h2, h3, .brand__title, .card__title {
 .weather-item-text { font-size: 10px; color: var(--muted); }
 .weather-item-text strong { display: block; color: var(--text); font-size: 12px; }
 
-.rating-row { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+.rating-row {
+  margin-top: 15px;
+  padding-top: 15px;
+  border-top: 1px solid rgba(255,255,255,0.05);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
 .rating-star { font-size: 20px; color: rgba(255,255,255,0.1); cursor: pointer; }
 .rating-star.active { color: var(--gold); }
 
-.notif-day-btn { margin-top: 10px; width: 100%; padding: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--muted); font-size: 12px; cursor: pointer; }
-.notif-day-btn.active { border-color: var(--gold); color: var(--gold); }
+/* ── Notifications ── */
+.notif-day-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.12);
+  border-radius: 10px;
+  color: var(--muted);
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+  text-align: center;
+}
+.notif-day-btn:hover { background: rgba(240,165,50,0.12); border-color: rgba(240,165,50,0.3); color: var(--gold); }
+.notif-day-btn.active { background: rgba(240,165,50,0.15); border-color: var(--gold); color: var(--gold); }
+
+/* ── Share nav button ── */
+.nav__share {
+  background: none;
+  border: 1px solid rgba(255,255,255,0.15);
+  border-radius: 22px;
+  color: var(--muted);
+  font-size: 13px;
+  padding: 7px 14px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
