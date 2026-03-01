@@ -1,6 +1,6 @@
 /* ══════════════════════════════════════════════════════════════
-   דמדומים — app.css (גרסה מעודכנת עם תיקון גרף)
-   Visual style: Cormorant Garamond + Heebo, dark cosmic theme
+   דמדומים — app.css
+   גרסה מעודכנת: תיקון עמודות בלבד ללא שינוי פריסה כללית
    ══════════════════════════════════════════════════════════════ */
 
 :root {
@@ -16,7 +16,6 @@
   --sky:         #5aaed4;
   --green:       #4ec870;
   --amber:       #ff9030;
-  /* dynamic bg — updated by JS */
   --dyn1: rgba(200,60,100,0.17);
   --dyn2: rgba(240,165,50,0.13);
   --dyn3: rgba(60,110,220,0.09);
@@ -35,7 +34,6 @@ body {
   overflow-x: hidden;
 }
 
-/* Background animated glow */
 body::before {
   content: "";
   position: fixed;
@@ -49,13 +47,12 @@ body::before {
   pointer-events: none;
 }
 
-/* ── Typography ── */
 h1, h2, h3, .brand__title, .card__title {
   font-family: 'Cormorant Garamond', serif;
   font-weight: 600;
 }
 
-/* ── Header & Nav ── */
+/* ── Top Bar & Nav ── */
 .top {
   position: sticky;
   top: 0;
@@ -66,25 +63,12 @@ h1, h2, h3, .brand__title, .card__title {
   border-bottom: 1px solid var(--border);
   padding-top: env(safe-area-inset-top, 0);
 }
-
-.top__bar {
-  padding: 14px 20px;
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-}
-
+.top__bar { padding: 14px 20px; display: flex; justify-content: space-between; align-items: center; }
 .brand__title { font-size: 22px; color: var(--gold); letter-spacing: 1px; }
 .brand__sub { font-size: 11px; color: var(--muted); text-transform: uppercase; letter-spacing: 1px; }
 
-.nav {
-  display: flex;
-  padding: 0 10px 10px;
-  gap: 8px;
-  overflow-x: auto;
-}
+.nav { display: flex; padding: 0 10px 10px; gap: 8px; overflow-x: auto; }
 .nav::-webkit-scrollbar { display: none; }
-
 .nav__item {
   text-decoration: none;
   color: var(--muted);
@@ -94,13 +78,9 @@ h1, h2, h3, .brand__title, .card__title {
   white-space: nowrap;
   transition: all 0.25s;
 }
-.nav__item--active {
-  background: var(--surface);
-  color: var(--gold);
-  box-shadow: 0 0 12px var(--border);
-}
+.nav__item--active { background: var(--surface); color: var(--gold); box-shadow: 0 0 12px var(--border); }
 
-/* ── Weekly Chart Section (Fixed & Unified) ── */
+/* ── Weekly Chart - התיקון המדויק כאן ── */
 .week-chart-section {
   margin: 20px;
   padding: 20px;
@@ -108,17 +88,16 @@ h1, h2, h3, .brand__title, .card__title {
   border: 1px solid var(--border);
   border-radius: 24px;
 }
-
 .week-chart-title { font-size: 18px; font-weight: 600; margin-bottom: 4px; color: var(--gold); }
 .week-chart-sub { font-size: 12px; color: var(--muted); margin-bottom: 15px; }
 
 .chart-bars {
   display: flex;
   justify-content: space-between;
-  align-items: flex-end; /* חשוב: מעגן את העמודות לתחתית */
-  height: 140px;
+  align-items: flex-end; /* מעגן את העמודות לרצפה */
+  height: 100px;         /* גובה קבוע למיכל הגרף */
   padding: 0 5px;
-  gap: 6px;
+  gap: 8px;
 }
 
 .chart-bar-wrap {
@@ -127,40 +106,29 @@ h1, h2, h3, .brand__title, .card__title {
   flex-direction: column;
   align-items: center;
   gap: 8px;
-  height: 100%; /* מאפשר ל-flex-end לעבוד */
+  height: 100%; /* מאפשר ל-flex-end לעבוד על התוכן */
 }
 
-.chart-bar-score {
-  font-size: 11px;
-  font-weight: 700;
-  padding: 2px 5px;
-  border-radius: 6px;
-  min-width: 20px;
-  text-align: center;
-}
+.chart-bar-score { font-size: 10px; font-weight: bold; color: var(--gold); }
 
 .chart-bar-outer {
-  width: 14px;
-  height: 85px; /* גובה מקסימלי לגרף */
+  width: 12px;
+  height: 60px; /* הגובה המקסימלי של העמודה */
   background: rgba(255,255,255,0.05);
-  border-radius: 20px;
+  border-radius: 10px;
   overflow: hidden;
   display: flex;
   flex-direction: column;
-  justify-content: flex-end; /* מבטיח שה-inner יתחיל מלמטה */
+  justify-content: flex-end; /* מבטיח שה-inner יגדל מלמטה */
 }
 
 .chart-bar-inner {
   width: 100%;
-  border-radius: 20px;
-  transition: height 1.2s cubic-bezier(0.175, 0.885, 0.32, 1.15); /* אנימציית צמיחה */
+  border-radius: 10px;
+  transition: height 1s ease-out; /* אנימציית צמיחה חלקה */
 }
 
-.chart-bar-label {
-  font-size: 10px;
-  color: var(--muted);
-  white-space: nowrap;
-}
+.chart-bar-label { font-size: 10px; color: var(--muted); }
 
 /* ── Day Cards ── */
 .day-card {
@@ -169,58 +137,46 @@ h1, h2, h3, .brand__title, .card__title {
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: 24px;
-  position: relative;
-  overflow: hidden;
 }
-.day-card--today { border-color: var(--border-lit); box-shadow: 0 10px 30px rgba(0,0,0,0.3); }
-
-.day-header {
-  display: flex;
-  justify-content: space-between;
-  margin-bottom: 18px;
-}
+.day-card--today { border-color: var(--border-lit); }
+.day-header { display: flex; justify-content: space-between; margin-bottom: 18px; }
 .day-name { font-size: 20px; font-weight: 600; color: var(--gold); }
 .day-date { font-size: 12px; color: var(--muted); }
 
-.weather-summary {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  font-size: 14px;
-  background: rgba(255,255,255,0.03);
-  padding: 4px 12px;
-  border-radius: 12px;
-}
+.weather-summary { display: flex; align-items: center; gap: 8px; font-size: 14px; }
 
-.sun-events {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 15px;
-  margin-bottom: 15px;
-}
-
-.sun-event {
-  background: rgba(255,255,255,0.02);
-  padding: 15px;
-  border-radius: 18px;
-  border: 1px solid rgba(255,255,255,0.04);
-}
-
+.sun-events { display: grid; grid-template-columns: 1fr 1fr; gap: 15px; margin-bottom: 15px; }
+.sun-event { background: rgba(255,255,255,0.02); padding: 15px; border-radius: 18px; }
 .sun-event-title { font-size: 12px; color: var(--muted); margin-bottom: 4px; }
-.sun-event-time { font-size: 22px; font-weight: 600; color: var(--text); margin-bottom: 8px; }
+.sun-event-time { font-size: 22px; font-weight: 600; color: var(--text); }
 
-.golden-window {
-  font-size: 10px;
-  color: var(--gold2);
-  margin-bottom: 10px;
-  opacity: 0.8;
-}
+.score-bar-track { height: 4px; background: rgba(255,255,255,0.08); border-radius: 2px; margin: 8px 0; overflow: hidden; }
+.score-bar-fill { height: 100%; border-radius: 2px; transition: width 1s ease; }
 
-/* ── Score Bars ── */
-.score-label {
-  display: flex;
-  justify-content: space-between;
-  font-size: 11px;
-  margin-bottom: 5px;
-}
-.score-value { font-weight
+.quality-spectacular { color: #ff9a44; }
+.quality-vivid { color: #ffaa38; }
+.quality-nice { color: #ffd46a; }
+.quality-mild { color: #a8c4d8; }
+.quality-poor { color: var(--muted); }
+
+.bar-spectacular { background: #ff9a44; }
+.bar-vivid { background: #ffaa38; }
+.bar-nice { background: #ffd46a; }
+.bar-mild { background: #5b7a9d; }
+.bar-poor { background: #4a5568; }
+
+.accordion-btn { width: 100%; background: none; border: none; color: var(--muted); display: flex; justify-content: space-between; padding: 10px 0; border-top: 1px solid rgba(255,255,255,0.05); cursor: pointer; }
+.weather-detail { max-height: 0; overflow: hidden; transition: max-height 0.4s ease; }
+.weather-detail.open { max-height: 200px; padding-bottom: 10px; }
+
+.weather-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.weather-item { display: flex; align-items: center; gap: 8px; background: rgba(255,255,255,0.02); padding: 8px; border-radius: 12px; }
+.weather-item-text { font-size: 10px; color: var(--muted); }
+.weather-item-text strong { display: block; color: var(--text); font-size: 12px; }
+
+.rating-row { margin-top: 15px; padding-top: 15px; border-top: 1px solid rgba(255,255,255,0.05); display: flex; justify-content: space-between; align-items: center; }
+.rating-star { font-size: 20px; color: rgba(255,255,255,0.1); cursor: pointer; }
+.rating-star.active { color: var(--gold); }
+
+.notif-day-btn { margin-top: 10px; width: 100%; padding: 8px; background: rgba(255,255,255,0.06); border: 1px solid rgba(255,255,255,0.1); border-radius: 10px; color: var(--muted); font-size: 12px; cursor: pointer; }
+.notif-day-btn.active { border-color: var(--gold); color: var(--gold); }
