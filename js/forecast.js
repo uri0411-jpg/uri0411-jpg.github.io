@@ -166,6 +166,18 @@
     return res.json();
   }
 
+  async function fetchAirQuality(lat, lon) {
+    try {
+      const url = `https://air-quality-api.open-meteo.com/v1/air-quality`
+        + `?latitude=${lat}&longitude=${lon}`
+        + `&hourly=pm2_5,pm10,dust,aerosol_optical_depth`
+        + `&timezone=auto&forecast_days=7`;
+      const res = await fetch(url);
+      if (!res.ok) return null;
+      return res.json();
+    } catch { return null; }
+  }
+
   // מוצא index שעה קרובה ביותר לאירוע
   function findClosestHourIdx(eventDate, hourlyTimes) {
     const target = eventDate.getTime();
