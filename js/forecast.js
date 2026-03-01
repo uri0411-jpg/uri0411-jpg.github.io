@@ -35,15 +35,102 @@
     return 'סופת ברקים';
   }
 
-  function calcScore(cloud, rain, wcode) {
-    const cloudScore = cloud < 10 ? 3.5
-      : cloud < 35 ? 8
-      : cloud < 65 ? 10
-      : cloud < 85 ? 6
-      : 3;
-    const rainPenalty  = rain  > 70 ? 3 : rain  > 40 ? 1.5 : 0;
-    const wcodePenalty = wcode >= 80 ? 2 : wcode >= 60 ? 1  : 0;
-    return Math.round(Math.max(1, Math.min(10, cloudScore - rainPenalty - wcodePenalty)));
+  /**
+   * calcScore — ציון צבעוניות 1-10
+   *
+   * משתנים ומשקלות:
+   *
+   * ענן (לפי גובה שכבה) — הכי משפיע
+   *   ענן גבוה (סירוס)    = נפלא לצבע, מפזר אור לאדום/כתום
+   *   ענן בינוני           = טוב
+   *   ענן נמוך (שכבתי)    = פחות טוב, יוצר אפרפר
+   *   עננות כוללת: עקומת פעמון, פסגה ב-35-55%
+   *
+   * חלקיקים (אבק/AOD/PM) — משפיעים חיובית עד רמה מסוימת!
+   *   אבק סהרה בינוני      = שקיעות אדומות מהממות (+bonus)
+   *   אבק קיצוני / PM גבוה = מפחית נראות (-penalty)
+   *
+   * נראות — ערפל ≈ גרוע, נראות טובה ≈ ניטרלי
+   * רוח    — ניקוי אוויר = קל חיובי
+   * לחות   — גבוה = ערפיליות = קל שלילי
+   * גשם    — שלילי חד
+   */
+  function calcScore(cloud, cloudHigh, cloudMid, cloudLow, rain, humid, visKm, windMs, dust, aod, pm25, wcode) {
+    // ── ענן כולל: עקומת פעמון ───────────────────────────────────
+    let cloudScore;
+    if      (cloud < 10)  cloudScore = 3.0;
+    else if (cloud < 20)  cloudScore = 3.0 + (cloud - 10) * 0.4;  // 3→7
+    else if (cloud < 35)  cloudScore = 7.0 + (cloud - 20) * 0.2;  // 7→10
+    else if (cloud < 55)  cloudScore = 10.0;
+    else if (cloud < 75)  cloudScore = 10.0 - (cloud - 55) * 0.25; // 10→5
+    else if (cloud < 90)  cloudScore = 5.0  - (cloud - 75) * 0.13; // 5→3
+    else                  cloudScore = 1.0  + (100 - cloud) * 0.1;
+
+    // ── גובה שכבת הענן: ענן גבוה מעלה ציון, ענן נמוך מוריד ────
+    // cloudHigh/Mid/Low הם % כיסוי נפרד
+    const highBonus = (cloudHigh ?? 0) > 20 ? Math.min(1.5, (cloudHigh - 20) * 0.03) : 0;
+    const lowPenalty = (cloudLow ?? 0) > 40 ? Math.min(1.5, (cloudLow - 40) * 0.03) : 0;
+    cloudScore = cloudScore + highBonus - lowPenalty;
+
+    // ── אבק/חלקיקי אוויר ────────────────────────────────────────
+    // אבק בינוני (dust 20-100 µg/m³) = bonus (שקיעות אדומות מהממות)
+    // אבק קיצוני (>300) = penalty (חוסם אור)
+    // AOD 0.2-0.6 = bonus קל
+    const dustVal = dust ?? 0;
+    let dustEffect = 0;
+    if      (dustVal < 20)   dustEffect =  0;
+    else if (dustVal < 100)  dustEffect =  (dustVal - 20) * 0.015;  // 0→+1.2
+    else if (dustVal < 300)  dustEffect =  1.2 - (dustVal - 100) * 0.004; // +1.2→+0.4
+    else                     dustEffect = -Math.min(2, (dustVal - 300) * 0.005);
+
+    const aodVal = aod ?? 0;
+    const aodBonus = aodVal > 0.1 && aodVal < 0.8 ? Math.min(0.8, (aodVal - 0.1) * 1.1) : 0;
+
+    // PM2.5 גבוה = ערפל עירוני = מפחית
+    const pm25Penalty = (pm25 ?? 0) > 50  ? Math.min(1.5, ((pm25 ?? 0) - 50) * 0.02) : 0;
+
+    // ── נראות ──────────────────────────────────────────────────
+    // <5 ק"מ = ערפל, penalty
+    // >20 ק"מ = נקי, ניטרלי
+    const visPenalty = (visKm ?? 20) < 5  ? Math.min(2, (5 - visKm) * 0.4)
+                     : (visKm ?? 20) < 10 ? (10 - visKm) * 0.1
+                     : 0;
+
+    // ── רוח: ניקוי אוויר ───────────────────────────────────────
+    // רוח 5-15 מ"ש = אוויר נקי = +0.5
+    // רוח >20 מ"ש = עננים עפים מהר = -0.3
+    const windBonus = (windMs ?? 5) >= 5 && (windMs ?? 5) <= 15 ? 0.5
+                    : (windMs ?? 5) > 20 ? -0.3
+                    : 0;
+
+    // ── לחות ───────────────────────────────────────────────────
+    const humidPenalty = (humid ?? 60) > 90 ? 1.0
+                       : (humid ?? 60) > 80 ? 0.5
+                       : 0;
+
+    // ── גשם ────────────────────────────────────────────────────
+    const rainPenalty = (rain ?? 0) > 80 ? 4.0
+                      : (rain ?? 0) > 60 ? 2.5
+                      : (rain ?? 0) > 40 ? 1.5
+                      : (rain ?? 0) > 20 ? 0.5
+                      : 0;
+
+    // ── קוד מזג אוויר ──────────────────────────────────────────
+    const wcodePenalty = wcode >= 95 ? 4.0
+                       : wcode >= 80 ? 3.0
+                       : wcode >= 70 ? 2.0
+                       : wcode >= 60 ? 2.0
+                       : wcode >= 50 ? 1.5
+                       : wcode >= 40 ? 0.8
+                       : 0;
+
+    const raw = cloudScore
+              + dustEffect + aodBonus
+              - pm25Penalty - visPenalty
+              + windBonus   - humidPenalty
+              - rainPenalty - wcodePenalty;
+
+    return Math.round(Math.max(1, Math.min(10, raw)));
   }
 
   function qualityInfo(score) {
@@ -72,10 +159,60 @@
     const url = `https://api.open-meteo.com/v1/forecast`
       + `?latitude=${lat}&longitude=${lon}`
       + `&daily=weathercode,cloud_cover_mean,precipitation_probability_max,temperature_2m_max,temperature_2m_min`
+      + `&hourly=cloud_cover,cloud_cover_high,cloud_cover_mid,cloud_cover_low,precipitation_probability,relative_humidity_2m,visibility,wind_speed_10m`
       + `&timezone=auto&forecast_days=7`;
     const res = await fetch(url);
     if (!res.ok) throw new Error('Forecast fetch failed');
     return res.json();
+  }
+
+  // מוצא index שעה קרובה ביותר לאירוע
+  function findClosestHourIdx(eventDate, hourlyTimes) {
+    const target = eventDate.getTime();
+    let closest = 0, minDiff = Infinity;
+    hourlyTimes.forEach((t, i) => {
+      const diff = Math.abs(new Date(t).getTime() - target);
+      if (diff < minDiff) { minDiff = diff; closest = i; }
+    });
+    return closest;
+  }
+
+  function avgWindow(arr, center, n) {
+    if (!arr) return null;
+    const idxs = [];
+    for (let i = center - 1; i <= center + 1; i++) {
+      if (i >= 0 && i < arr.length) idxs.push(i);
+    }
+    return idxs.reduce((s, i) => s + (arr[i] ?? n), 0) / idxs.length;
+  }
+
+  // מחשב ציון לאירוע ספציפי לפי כל נתוני השעה הרלוונטיים
+  function scoreForEvent(eventDate, fData, aqData, wcode) {
+    if (!eventDate || !fData?.hourly?.time) return null;
+    const ci = findClosestHourIdx(eventDate, fData.hourly.time);
+
+    // נתוני מזג אוויר
+    const cloud     = avgWindow(fData.hourly.cloud_cover,           ci, 50);
+    const cloudHigh = avgWindow(fData.hourly.cloud_cover_high,      ci, 30);
+    const cloudMid  = avgWindow(fData.hourly.cloud_cover_mid,       ci, 20);
+    const cloudLow  = avgWindow(fData.hourly.cloud_cover_low,       ci, 20);
+    const rain      = avgWindow(fData.hourly.precipitation_probability, ci, 0);
+    const humid     = avgWindow(fData.hourly.relative_humidity_2m,  ci, 60);
+    const visKm     = avgWindow(fData.hourly.visibility,            ci, 20000) / 1000; // מטר → ק"מ
+    const windMs    = avgWindow(fData.hourly.wind_speed_10m,        ci, 10);
+
+    // נתוני איכות אוויר (אופציונלי)
+    let dust = 0, aod = 0, pm25 = 0, pm10 = 0;
+    if (aqData?.hourly?.time) {
+      // Air Quality API עשוי להיות ב-resolution שונה — מצא index קרוב
+      const aqci = findClosestHourIdx(eventDate, aqData.hourly.time);
+      dust = avgWindow(aqData.hourly.dust,                   aqci, 0)  ?? 0;
+      aod  = avgWindow(aqData.hourly.aerosol_optical_depth,  aqci, 0)  ?? 0;
+      pm25 = avgWindow(aqData.hourly.pm2_5,                  aqci, 0)  ?? 0;
+      pm10 = avgWindow(aqData.hourly.pm10,                   aqci, 0)  ?? 0;
+    }
+
+    return calcScore(cloud, cloudHigh, cloudMid, cloudLow, rain, humid, visKm, windMs, dust, aod, pm25, wcode);
   }
 
   function updateDynBg(score) {
@@ -108,7 +245,7 @@
   }
   window.toggleAccordion = toggleAccordion;
 
-  function render(data, loc) {
+  function render(data, aqData, loc) {
     const container = document.getElementById('mainContent');
     if (!container) return;
 
@@ -123,13 +260,33 @@
 
     // ── Weekly bar chart (SVG — guaranteed height) ──
     const CHART_W = 280, CHART_H = 80, BAR_W = 28, GAP = 12;
+    // hourly data accessed directly via data.hourly in scoreForEvent
+
     const scores7 = [];
     const labels7 = [];
     for (let i = 0; i < 7; i++) {
       const d = new Date(today); d.setDate(today.getDate() + i);
-      scores7.push(calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcodes[i] ?? 0));
+      const wcode = wcodes[i] ?? 0;
+
+      let ssScore = null, srScore = null;
+      if (window.SunCalc && loc && hourlyTimes) {
+        const sun = window.SunCalc.calc(loc.lat, loc.lon, d);
+        ssScore = scoreForEvent(sun.sunset,  data, aqData, wcode);
+        srScore = scoreForEvent(sun.sunrise, data, aqData, wcode);
+      }
+
+      // ממוצע שקיעה+זריחה, fallback לציון כללי
+      const score = (ssScore !== null && srScore !== null)
+        ? Math.round((ssScore + srScore) / 2)
+        : calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcode);
+
+      scores7.push(score);
       labels7.push(i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()]);
     }
+
+    // היפוך: היום בימין (RTL)
+    scores7.reverse();
+    labels7.reverse();
 
     // בנה SVG
     const totalW = 7 * BAR_W + 6 * GAP; // 7*28 + 6*12 = 268
@@ -327,8 +484,12 @@
     const container = document.getElementById('mainContent');
     if (container) container.innerHTML = '<div class="loading-state"><span>🌤️</span><p>טוען תחזית...</p></div>';
     try {
-      const data = await fetchForecast(loc.lat, loc.lon);
-      render(data, loc);
+      // קריאות מקבילות — forecast + air quality
+      const [data, aqData] = await Promise.all([
+        fetchForecast(loc.lat, loc.lon),
+        fetchAirQuality(loc.lat, loc.lon),
+      ]);
+      render(data, aqData, loc);
     } catch (e) {
       if (container) container.innerHTML = `<div class="loading-state"><span>⚠️</span><p>שגיאה בטעינת תחזית</p></div>`;
     }
