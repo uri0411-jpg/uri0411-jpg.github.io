@@ -121,31 +121,48 @@
     const today = new Date();
     let html = '';
 
-    // ── Weekly bar chart ──
-    let chartBars = '';
+    // ── Weekly bar chart (SVG — guaranteed height) ──
+    const CHART_W = 280, CHART_H = 80, BAR_W = 28, GAP = 12;
+    const scores7 = [];
+    const labels7 = [];
     for (let i = 0; i < 7; i++) {
-      const d = new Date(today);
-      d.setDate(today.getDate() + i);
-      const score = calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcodes[i] ?? 0);
-      const q     = qualityInfo(score);
-      const label = i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()];
-      const barHeight = Math.max(15, score * 10);
-
-      chartBars += `
-        <div class="chart-bar-wrap">
-          <div class="chart-bar-score quality-${q.cls}">${score}</div>
-          <div class="chart-bar-outer">
-            <div class="chart-bar-inner" data-height="${barHeight}" style="height:0%; background:${barColor(score)}"></div>
-          </div>
-          <div class="chart-bar-label">${label}</div>
-        </div>`;
+      const d = new Date(today); d.setDate(today.getDate() + i);
+      scores7.push(calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcodes[i] ?? 0));
+      labels7.push(i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()]);
     }
+
+    // בנה SVG
+    const totalW = 7 * BAR_W + 6 * GAP; // 7*28 + 6*12 = 268
+    let svgBars = '';
+    scores7.forEach((score, i) => {
+      const q      = qualityInfo(score);
+      const color  = barColor(score);
+      const x      = i * (BAR_W + GAP);
+      const barH   = Math.round((score / 10) * CHART_H);
+      const y      = CHART_H - barH;
+      svgBars += `
+        <rect x="${x}" y="${y}" width="${BAR_W}" height="${barH}"
+              rx="5" fill="${color}" opacity="0.9"
+              class="svg-bar" data-final-y="${y}" data-final-h="${barH}"/>
+        <text x="${x + BAR_W/2}" y="${CHART_H + 14}" text-anchor="middle"
+              font-size="9" fill="rgba(244,232,212,0.45)">${labels7[i]}</text>
+        <text x="${x + BAR_W/2}" y="${y - 4}" text-anchor="middle"
+              font-size="9" font-weight="700" fill="${color}">${score}</text>`;
+    });
+
+    const svgMarkup = `
+      <svg id="weekSvg" viewBox="0 0 ${totalW} ${CHART_H + 20}"
+           width="100%" style="overflow:visible;display:block">
+        <!-- bg tracks -->
+        ${scores7.map((_,i) => `<rect x="${i*(BAR_W+GAP)}" y="0" width="${BAR_W}" height="${CHART_H}" rx="5" fill="rgba(255,255,255,0.04)"/>`).join('')}
+        ${svgBars}
+      </svg>`;
 
     html += `
       <div class="week-chart-section">
         <div class="week-chart-title">📊 תחזית שבועית</div>
-        <div class="week-chart-sub">ציון שקיעה לכל יום — 7 ימים קדימה</div>
-        <div class="chart-bars">${chartBars}</div>
+        <div class="week-chart-sub">ציון ממוצע שקיעה/זריחה — 7 ימים קדימה</div>
+        <div style="padding:8px 4px 18px">${svgMarkup}</div>
       </div>`;
 
     updateDynBg(calcScore(clouds[0] ?? 40, rains[0] ?? 0, wcodes[0] ?? 0));
@@ -275,10 +292,23 @@
     container.innerHTML = html;
     setTimeout(restoreNotifButtons, 200);
 
-    // אנימציית ברים
+    // אנימציית ברים SVG — transform-origin bottom
     setTimeout(() => {
-      document.querySelectorAll('.chart-bar-inner').forEach(el => {
-        el.style.height = (el.dataset.height || '0') + '%';
+      const CHART_BOTTOM = 80; // CHART_H
+      document.querySelectorAll('#weekSvg .svg-bar').forEach(bar => {
+        const finalY = Number(bar.dataset.finalY);
+        const finalH = Number(bar.dataset.finalH);
+        // origin of transform at bottom of bar
+        const originY = CHART_BOTTOM;
+        bar.style.transformOrigin = `0px ${originY}px`;
+        bar.style.transform = 'scaleY(0)';
+        bar.style.transition = 'none';
+        requestAnimationFrame(() => {
+          requestAnimationFrame(() => {
+            bar.style.transition = 'transform 0.8s cubic-bezier(.22,1,.36,1)';
+            bar.style.transform = 'scaleY(1)';
+          });
+        });
       });
     }, 150);
   }
