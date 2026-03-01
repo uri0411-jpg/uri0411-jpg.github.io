@@ -3,7 +3,6 @@
   const DAYS_HE   = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
   const MONTHS_HE = ['ינואר','פברואר','מרץ','אפריל','מאי','יוני','יולי','אוגוסט','ספטמבר','אוקטובר','נובמבר','דצמבר'];
 
-  // ─── helpers ──────────────────────────────────────────────────────
   function fmtTime(date) {
     if (!date || isNaN(date.getTime())) return '--:--';
     return date.toLocaleTimeString('he-IL', { hour:'2-digit', minute:'2-digit' });
@@ -36,7 +35,6 @@
     return 'סופת ברקים';
   }
 
-  // ─── Score ────────────────────────────────────────────────────────
   function calcScore(cloud, rain, wcode) {
     const cloudScore = cloud < 10 ? 3.5
       : cloud < 35 ? 8
@@ -70,7 +68,6 @@
     return '#5b7a9d';
   }
 
-  // ─── Fetch ────────────────────────────────────────────────────────
   async function fetchForecast(lat, lon) {
     const url = `https://api.open-meteo.com/v1/forecast`
       + `?latitude=${lat}&longitude=${lon}`
@@ -81,7 +78,6 @@
     return res.json();
   }
 
-  // ─── Dynamic background ───────────────────────────────────────────
   function updateDynBg(score) {
     const root = document.documentElement;
     if (score >= 8.5) {
@@ -103,7 +99,6 @@
     }
   }
 
-  // ─── Toggle accordion ─────────────────────────────────────────────
   function toggleAccordion(id) {
     const detail = document.getElementById('detail-' + id);
     const arrow  = document.getElementById('arrow-'  + id);
@@ -113,12 +108,10 @@
   }
   window.toggleAccordion = toggleAccordion;
 
-  // ─── Render ───────────────────────────────────────────────────────
   function render(data, loc) {
     const container = document.getElementById('mainContent');
     if (!container) return;
 
-    const dates   = data.daily.time;
     const clouds  = data.daily.cloud_cover_mean;
     const rains   = data.daily.precipitation_probability_max;
     const wcodes  = data.daily.weathercode;
@@ -128,16 +121,14 @@
     const today = new Date();
     let html = '';
 
-    // ── Weekly bar chart ──────────────────────────────────────────
+    // ── Weekly bar chart ──
     let chartBars = '';
     for (let i = 0; i < 7; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const score   = calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcodes[i] ?? 0);
-      const q       = qualityInfo(score);
-      const label   = i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()];
-      
-      // תיקון חישוב גובה דינמי: מינימום 15% כדי שלא יהיה שטוח מדי
+      const score = calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcodes[i] ?? 0);
+      const q     = qualityInfo(score);
+      const label = i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()];
       const barHeight = Math.max(15, score * 10);
 
       chartBars += `
@@ -157,24 +148,21 @@
         <div class="chart-bars">${chartBars}</div>
       </div>`;
 
-    // Update dynamic bg based on today's score
     updateDynBg(calcScore(clouds[0] ?? 40, rains[0] ?? 0, wcodes[0] ?? 0));
 
-    // ── 3 day cards ───────────────────────────────────────────────
+    // ── 3 day cards ──
     for (let i = 0; i < 3; i++) {
       const d = new Date(today);
       d.setDate(today.getDate() + i);
-      const dayName = i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()];
+      const dayName     = i === 0 ? 'היום' : i === 1 ? 'מחר' : DAYS_HE[d.getDay()];
       const dateDisplay = `${d.getDate()} ב${MONTHS_HE[d.getMonth()]}`;
-      const wcode = wcodes[i] ?? 0;
+      const wcode       = wcodes[i] ?? 0;
+      const score       = calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcode);
+      const tMax        = tempMax?.[i] != null ? Math.round(tempMax[i]) + '°' : '--';
+      const tMin        = tempMin?.[i] != null ? Math.round(tempMin[i]) + '°' : '--';
+      const rainPct     = rains[i] ?? 0;
+      const cloudPct    = Math.round(clouds[i] ?? 0);
 
-      const score     = calcScore(clouds[i] ?? 40, rains[i] ?? 0, wcode);
-      const tMax      = tempMax?.[i] != null ? Math.round(tempMax[i]) + '°' : '--';
-      const tMin      = tempMin?.[i] != null ? Math.round(tempMin[i]) + '°' : '--';
-      const rainPct   = rains[i] ?? 0;
-      const cloudPct  = Math.round(clouds[i] ?? 0);
-
-      // Sun times from SunCalc if available
       let srTime = '--:--', ssTime = '--:--', goldenSS = '', goldenSR = '';
       let srScore = score, ssScore = score;
       if (window.SunCalc) {
@@ -185,9 +173,9 @@
         goldenSR = goldenWindow(sun.sunrise);
       }
 
-      const ssQ  = qualityInfo(ssScore);
-      const srQ  = qualityInfo(srScore);
-      const ssPal = palette(ssScore, true).map(c => `<div class="palette-swatch" style="background:${c}"></div>`).join('');
+      const ssQ   = qualityInfo(ssScore);
+      const srQ   = qualityInfo(srScore);
+      const ssPal = palette(ssScore, true).map(c  => `<div class="palette-swatch" style="background:${c}"></div>`).join('');
       const srPal = palette(srScore, false).map(c => `<div class="palette-swatch" style="background:${c}"></div>`).join('');
       const cardId = `day-${i}`;
 
@@ -285,22 +273,16 @@
     }
 
     container.innerHTML = html;
+    setTimeout(restoreNotifButtons, 200);
 
-    // אנימציית ברים - הזרקה משופרת
+    // אנימציית ברים
     setTimeout(() => {
       document.querySelectorAll('.chart-bar-inner').forEach(el => {
         el.style.height = (el.dataset.height || '0') + '%';
       });
     }, 150);
-
-    // הצג sections
-    const journalCard  = document.getElementById('journalCard');
-    const shareSection = document.getElementById('shareSection');
-    if (journalCard)  journalCard.style.display  = 'block';
-    if (shareSection) shareSection.style.display = 'block';
   }
 
-  // ─── Rating (quick-rate from day card) ───────────────────────────
   window._rateDay = function(cardId, dateDisplay, stars, srScore, ssScore) {
     const starsEl = document.getElementById('stars-' + cardId);
     if (starsEl) starsEl.querySelectorAll('.rating-star').forEach((el, i) => {
@@ -309,26 +291,11 @@
     });
     const saved = document.getElementById('saved-' + cardId);
     if (saved) { saved.textContent = `✓ דירגת ${stars}★`; saved.style.display = 'block'; }
-
-    // שמור דרך Journal אם זמין, אחרת ישירות ל-localStorage
-    if (window.Journal) {
-      window.Journal.add({
-        rating:        stars,
-        notes:         '',
-        locationName:  window.__twilightLoc?.name || '',
-        lat:           window.__twilightLoc?.lat  || null,
-        lon:           window.__twilightLoc?.lon  || null,
-        sunsetTime:    null,
-        forecastScore: ssScore,
-      });
-    }
   };
 
-  // ─── Main ─────────────────────────────────────────────────────────
   async function loadForecast(loc) {
     const container = document.getElementById('mainContent');
     if (container) container.innerHTML = '<div class="loading-state"><span>🌤️</span><p>טוען תחזית...</p></div>';
-
     try {
       const data = await fetchForecast(loc.lat, loc.lon);
       render(data, loc);
@@ -337,12 +304,8 @@
     }
   }
 
-  document.addEventListener('DOMContentLoaded', () => {
-    if (window.__twilightLoc) loadForecast(window.__twilightLoc);
-  });
-
-  // ─── Per-day notification toggle ────────────────────────────────
-  const NOTIF_STEPS = [10, 20, 30, 60]; // דקות
+  // ─── Per-day notification toggle ─────────────────────────────────
+  const NOTIF_STEPS = [10, 20, 30, 60];
 
   window.toggleDayNotif = function(btn) {
     const type    = btn.dataset.type;
@@ -350,17 +313,13 @@
     const activeKey = `notif_active_${type}_${dayIdx}`;
     const minKey    = `notif_min_${type}_${dayIdx}`;
 
-    const isActive = btn.classList.contains('active');
-
-    if (isActive) {
-      // כבה
+    if (btn.classList.contains('active')) {
       btn.classList.remove('active');
       btn.innerHTML = type === 'sunset' ? '🔔 התראה לשקיעה' : '🔔 התראה לזריחה';
       localStorage.removeItem(activeKey);
       return;
     }
 
-    // בקש הרשאה ואז הפעל
     const proceed = () => {
       const savedMin = parseInt(localStorage.getItem(minKey)) || 30;
       activateNotif(btn, type, dayIdx, savedMin);
@@ -381,7 +340,6 @@
     localStorage.setItem(minKey, minBefore);
     localStorage.setItem(activeKey, '1');
 
-    // חשב זמן האירוע
     if (!window.SunCalc || !window.__twilightLoc) return;
     const d = new Date();
     d.setDate(d.getDate() + dayIdx);
@@ -389,17 +347,13 @@
     const eventTime = type === 'sunset' ? sun.sunset : sun.sunrise;
     if (!eventTime) return;
 
-    const fireAt = eventTime.getTime() - minBefore * 60000;
-    const delay  = fireAt - Date.now();
-
-    // עדכן כפתור
+    const delay = eventTime.getTime() - minBefore * 60000 - Date.now();
     const label = type === 'sunset' ? 'שקיעה' : 'זריחה';
-    const stepIdx = NOTIF_STEPS.indexOf(minBefore);
+    const stepIdx  = NOTIF_STEPS.indexOf(minBefore);
     const nextStep = NOTIF_STEPS[(stepIdx + 1) % NOTIF_STEPS.length];
+
     btn.classList.add('active');
-    btn.innerHTML = `✓ ${label} — ${minBefore} דק' לפני &nbsp;<span class="notif-change" onclick="event.stopPropagation();window.cycleNotifTime(this)">↺ ${nextStep} דק'</span>`;
-    btn.querySelector('.notif-change').dataset.type = type;
-    btn.querySelector('.notif-change').dataset.day  = dayIdx;
+    btn.innerHTML = `✓ ${label} — ${minBefore} דק' לפני &nbsp;<span class="notif-change" onclick="event.stopPropagation();window.cycleNotifTime(this)" data-type="${type}" data-day="${dayIdx}">↺ ${nextStep} דק'</span>`;
 
     if (delay > 0) {
       setTimeout(() => {
@@ -420,10 +374,8 @@
     const dayIdx = parseInt(span.dataset.day);
     const minKey = `notif_min_${type}_${dayIdx}`;
     const cur    = parseInt(localStorage.getItem(minKey)) || 30;
-    const curIdx = NOTIF_STEPS.indexOf(cur);
-    const next   = NOTIF_STEPS[(curIdx + 1) % NOTIF_STEPS.length];
-    const btn = span.closest('.notif-day-btn');
-    activateNotif(btn, type, dayIdx, next);
+    const next   = NOTIF_STEPS[(NOTIF_STEPS.indexOf(cur) + 1) % NOTIF_STEPS.length];
+    activateNotif(span.closest('.notif-day-btn'), type, dayIdx, next);
   };
 
   function restoreNotifButtons() {
@@ -431,16 +383,17 @@
       ['sunset','sunrise'].forEach(type => {
         const btn = document.getElementById(`notif-${type}-${i}`);
         if (!btn) return;
-        const activeKey = `notif_active_${type}_${i}`;
-        const minKey    = `notif_min_${type}_${i}`;
-        if (localStorage.getItem(activeKey)) {
-          const min = parseInt(localStorage.getItem(minKey)) || 30;
+        if (localStorage.getItem(`notif_active_${type}_${i}`)) {
+          const min = parseInt(localStorage.getItem(`notif_min_${type}_${i}`)) || 30;
           activateNotif(btn, type, i, min);
         }
       });
     }
   }
 
+  document.addEventListener('DOMContentLoaded', () => {
+    if (window.__twilightLoc) loadForecast(window.__twilightLoc);
+  });
   window.addEventListener('twilight:loc', (e) => loadForecast(e.detail));
   window.Forecast = { load: loadForecast };
 })();
