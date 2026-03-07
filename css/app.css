@@ -188,3 +188,120 @@ img{max-width:100%;display:block}
   .field-row{grid-template-columns:1fr;align-items:start}
   .field-row__value{justify-self:start}
 }
+
+
+/* ===== Forecast redesign ===== */
+.forecast-screen{display:grid;gap:18px}
+.forecast-summary-card,.forecast-panel,.forecast-day-card,.spot-result-card{
+  background:var(--surface-strong);
+  border:1px solid var(--line);
+  box-shadow:var(--shadow-soft);
+}
+.forecast-summary-card{
+  border-radius:28px;
+  padding:18px;
+  backdrop-filter:blur(12px);
+}
+.forecast-summary-card__top{
+  display:flex;align-items:flex-start;justify-content:space-between;gap:16px;margin-bottom:14px
+}
+.forecast-kicker{font-size:12px;letter-spacing:.16em;text-transform:uppercase;color:var(--muted);margin-bottom:6px}
+.forecast-summary-card__title{margin:0;font:700 30px 'Cormorant Garamond',serif;line-height:1.05}
+.forecast-summary-card__score{
+  min-width:110px;text-align:center;border-radius:22px;padding:14px 10px;
+  background:linear-gradient(180deg,rgba(255,232,198,.7),rgba(255,255,255,.42));
+  color:var(--gold-strong);font:700 44px 'Cormorant Garamond',serif
+}
+.forecast-summary-card__score span{font-size:.36em}
+.forecast-main-row{display:grid;grid-template-columns:1.2fr .9fr;gap:12px;margin-bottom:12px}
+.forecast-main-time,.forecast-mini-box,.forecast-stat,.hourly-chip,.weekly-day-card{
+  border-radius:22px;background:rgba(255,255,255,.46);border:1px solid rgba(135,91,58,.08)
+}
+.forecast-main-time{padding:16px}
+.forecast-main-time__label,.forecast-mini-box__label,.forecast-stat span{display:block;font-size:12px;color:var(--muted)}
+.forecast-main-time__value{font:700 52px 'Cormorant Garamond',serif;line-height:1;color:var(--gold-strong);margin:6px 0}
+.forecast-main-time__sub{font-size:14px;color:var(--muted)}
+.forecast-current-boxes{display:grid;gap:12px}
+.forecast-mini-box{padding:16px}
+.forecast-mini-box strong{font-size:18px}
+.forecast-stats-grid{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:10px}
+.forecast-stat{padding:14px 12px}
+.forecast-stat strong{display:block;margin-top:6px;font-size:18px}
+.weekly-scroll,.hourly-scroll{
+  display:grid;grid-auto-flow:column;grid-auto-columns:minmax(108px,108px);gap:12px;
+  overflow-x:auto;padding-bottom:6px;scroll-snap-type:x proximity
+}
+.weekly-day-card,.hourly-chip{padding:14px 12px;scroll-snap-align:start}
+.weekly-day-card--excellent{background:linear-gradient(180deg,rgba(255,222,185,.85),rgba(255,246,235,.78))}
+.weekly-day-card--good{background:linear-gradient(180deg,rgba(255,232,199,.82),rgba(255,249,240,.76))}
+.weekly-day-card--fair{background:linear-gradient(180deg,rgba(247,235,214,.82),rgba(255,252,246,.76))}
+.weekly-day-card--poor{background:linear-gradient(180deg,rgba(239,233,228,.85),rgba(255,252,248,.75))}
+.weekly-day-card__name{font-weight:700}
+.weekly-day-card__date,.weekly-day-card__time,.weekly-day-card__temps,.hourly-chip__meta{font-size:12px;color:var(--muted)}
+.weekly-day-card__score{font:700 30px 'Cormorant Garamond',serif;color:var(--gold-strong);margin:8px 0 4px}
+.hourly-chip__time{font-weight:700}
+.hourly-chip__temp{font:700 26px 'Cormorant Garamond',serif;color:var(--gold-strong);margin:6px 0}
+.forecast-panel{border-radius:26px;padding:18px}
+.forecast-days-stack{display:grid;gap:14px}
+.forecast-day-card{border-radius:24px;padding:16px}
+.forecast-day-card--today{outline:2px solid rgba(200,140,74,.18)}
+.forecast-day-card__head{display:flex;justify-content:space-between;align-items:start;gap:12px;margin-bottom:12px}
+.forecast-day-card__name{font-weight:700;font-size:20px}
+.forecast-day-card__date,.forecast-day-card__weather{font-size:14px;color:var(--muted)}
+.forecast-events{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin-bottom:12px}
+.forecast-event{padding:14px;border-radius:18px;background:rgba(255,255,255,.45);border:1px solid rgba(135,91,58,.08)}
+.forecast-event__label{font-size:13px;color:var(--muted)}
+.forecast-event__time{font:700 38px 'Cormorant Garamond',serif;line-height:1;color:var(--gold-strong);margin:6px 0}
+.forecast-event__score{font-weight:700;margin-bottom:4px}
+.forecast-event__text{font-size:13px;color:var(--muted);margin-bottom:10px}
+.notif-day-btn{
+  width:100%;border:1px solid rgba(200,140,74,.22);background:rgba(255,244,227,.85);color:var(--text);
+  border-radius:999px;padding:10px 14px;font-weight:600
+}
+.notif-day-btn.active{background:linear-gradient(90deg,#e9ba78,#d78a45);color:#fff;border-color:transparent}
+.weather-detail{display:none}
+.weather-detail.open{display:block}
+.weather-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:12px}
+.weather-item{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:16px;background:rgba(255,255,255,.38)}
+.weather-item-icon{font-size:18px}
+.accordion-btn{
+  width:100%;display:flex;align-items:center;justify-content:space-between;
+  border:none;background:rgba(255,255,255,.42);border-radius:16px;padding:12px 14px;color:var(--text);font-weight:600
+}
+
+/* ===== Spot result cards with thumbnails ===== */
+.results-list{display:grid;gap:14px}
+.spot-result-card{
+  display:grid;grid-template-columns:88px 1fr;gap:14px;align-items:stretch;
+  border-radius:24px;padding:14px
+}
+.spot-result-card__thumb-wrap{display:flex;align-items:stretch}
+.spot-result-card__thumb{width:88px;height:88px;object-fit:cover;border-radius:18px}
+.spot-result-card__main{min-width:0}
+.spot-result-card__head{display:flex;justify-content:space-between;gap:10px;align-items:flex-start}
+.spot-result-card__title{font-weight:700;font-size:18px;line-height:1.2}
+.spot-result-card__subtitle{font-size:13px;color:var(--muted);margin-top:4px}
+.spot-result-card__score{
+  min-width:60px;text-align:center;padding:8px 10px;border-radius:16px;
+  background:linear-gradient(180deg,rgba(255,229,190,.72),rgba(255,255,255,.42));
+  font:700 30px 'Cormorant Garamond',serif;color:var(--gold-strong)
+}
+.spot-result-card__meta{display:flex;flex-wrap:wrap;gap:8px;margin-top:10px}
+.spot-chip{
+  font-size:12px;padding:6px 10px;border-radius:999px;background:rgba(255,255,255,.54);
+  border:1px solid rgba(135,91,58,.10);color:var(--text)
+}
+.spot-chip--accent{background:rgba(255,232,198,.86);border-color:rgba(200,140,74,.2)}
+.spot-result-card__actions{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+.spot-action-btn,.spot-icon-btn{
+  border:1px solid rgba(135,91,58,.12);background:rgba(255,255,255,.58);color:var(--text);
+  border-radius:12px;padding:8px 12px;font-weight:600
+}
+.spot-action-btn--primary{background:linear-gradient(90deg,#efc37a,#d78a45);color:#fff;border-color:transparent}
+.spot-icon-btn{padding:8px 10px;min-width:42px}
+
+@media (max-width: 640px){
+  .forecast-main-row{grid-template-columns:1fr}
+  .forecast-stats-grid{grid-template-columns:repeat(2,minmax(0,1fr))}
+  .forecast-events{grid-template-columns:1fr}
+}
