@@ -3,33 +3,50 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#50301d" />
+  <meta name="theme-color" content="#f2e6d7" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/app.css" />
-  <title>Twilight — Privacy</title>
+  <title>פרטיות • דמדומים</title>
 </head>
-<body class="theme-home">
-  <div class="privacy-wrap">
-    <div class="top-simple">
-      <div class="brand__title">Twilight</div>
-      <div class="brand__sub">Privacy & local-first storage</div>
-    </div>
-    <nav class="nav" style="margin:12px 0 18px;">
-      <a class="nav__item" href="./index.html">Forecast</a>
-      <a class="nav__item" href="./spot.html">Spot Finder</a>
-      <a class="nav__item nav__item--active" href="./privacy-policy.html">Privacy</a>
-    </nav>
-    <section class="card">
-      <div class="card__title">מה נאסף</div>
-      <ul class="muted" style="margin:0; padding-inline-start:18px">
-        <li>מיקום: רק אם אתה מפעיל GPS או מחפש מקום.</li>
-        <li>המיקום נשמר מקומית בדפדפן לצורך נוחות.</li>
-        <li>אין חשבונות ואין מעקב פרסומי.</li>
-      </ul>
+<body>
+  <main class="app-shell">
+    <section class="hero hero--mini">
+      <div class="hero__bg" style="background-image:url('./assets/backgrounds/hero-bright-pastel.png')"></div>
+      <div class="hero__overlay hero__overlay--light"></div>
+      <div class="hero__top">
+        <a class="ghost-btn" href="./index.html">חזרה</a>
+        <img class="app-badge" src="./icons/icon-192.png" alt="דמדומים" />
+      </div>
+      <div class="hero__content">
+        <div class="eyebrow">PRIVACY</div>
+        <h1 class="hero__title">מדיניות פרטיות</h1>
+        <p class="hero__subtitle">המיקום משמש לחישובים מקומיים בלבד. אין חשבונות ואין מעקב פרסומי.</p>
+      </div>
     </section>
-    <section class="card" style="margin-top:14px;">
-      <div class="card__title">אחסון</div>
-      <div class="muted">מועדפים, הגדרות והתראות נשמרים ב-LocalStorage במכשיר.</div>
+    <section class="page simple-page">
+      <div class="card">
+        <h2>מה נאסף</h2>
+        <p>מיקום נוכחי רק אם לוחצים על GPS. כתובת שנכתבת בחיפוש נשלחת רק לשירות הגיאוקודינג לצורך מציאת נקודת מרכז.</p>
+      </div>
+      <div class="card">
+        <h2>אחסון</h2>
+        <p>מועדפים, מיקום אחרון והעדפות התראות נשמרים מקומית בדפדפן במכשיר שלך.</p>
+      </div>
+      <div class="card">
+        <h2>צד שלישי</h2>
+        <p>מזג אוויר: Open‑Meteo. מפה: OpenStreetMap/Leaflet.</p>
+      </div>
     </section>
-  </div>
+  </main>
+
+  <nav class="bottom-nav">
+    <a class="bottom-nav__item" href="./index.html"><span class="bottom-nav__icon">☼</span><span>תחזית</span></a>
+    <a class="bottom-nav__item" href="./spot.html"><span class="bottom-nav__icon">⌾</span><span>Spots</span></a>
+    <a class="bottom-nav__item bottom-nav__item--active" href="./privacy-policy.html"><span class="bottom-nav__icon">⋯</span><span>פרטיות</span></a>
+  </nav>
 </body>
 </html>

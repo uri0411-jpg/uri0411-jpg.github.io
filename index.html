@@ -3,113 +3,81 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#50301d" />
+  <meta name="theme-color" content="#f2e6d7" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
-  <link rel="manifest" href="./manifest.json" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/app.css" />
-  <title>Twilight</title>
+  <title>דמדומים</title>
 </head>
-<body class="theme-home">
-<div id="splash">
-  <img class="splash-logo" src="./icons/icon-512.png" alt="Twilight" />
-  <div class="splash-title">Twilight</div>
-  <div class="splash-sub">Sunset forecast & beautiful spots</div>
-  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
-</div>
+<body class="forecast-body">
+  <div id="splash">
+    <img class="splash-logo" src="./icons/icon-512.png" alt="דמדומים" />
+    <div class="splash-title">דמדומים</div>
+    <div class="splash-sub">Twilight • Sunset Forecast</div>
+    <div class="splash-bar"><div class="splash-bar-fill"></div></div>
+  </div>
 
-<div class="app-shell mobile-shell">
-  <header class="hero hero--home">
-    <div class="hero__media"><img src="./assets/backgrounds/hero-golden-hour.png" alt="Golden hour landscape" /></div>
-    <div class="hero__overlay"></div>
-    <div class="hero__top">
-      <div class="hero__logo-badge"><img src="./icons/icon-192.png" alt="Twilight logo"></div>
-      <button class="hero-chip install-inline" id="installBtn" hidden>Install</button>
-    </div>
-    <div class="hero__content">
-      <div class="eyebrow">TWILIGHT • sunset forecast</div>
-      <h1>Twilight</h1>
-      <p class="hero__lede">בדיקת צבעוניות שקיעה וזריחה, מיקום מהיר, ו-Spot Finder למציאת נקודות יפות לצפייה בשקיעה.</p>
-      <div class="hero__actions">
-        <a class="cta cta--primary" href="./spot.html">Find a sunset spot</a>
-        <button class="hero-chip" id="btnShareApp" onclick="window.shareApp()">Share</button>
+  <main class="app-shell">
+    <section class="hero hero--forecast">
+      <div class="hero__bg" style="background-image:url('./assets/backgrounds/hero-golden-hour.png')"></div>
+      <div class="hero__overlay"></div>
+      <div class="hero__top">
+        <img class="app-badge" src="./icons/icon-192.png" alt="דמדומים" />
+        <button class="ghost-btn" id="btnShareApp" type="button">שתף</button>
       </div>
-    </div>
-  </header>
-
-  <main class="app-main">
-    <section class="card card--search search-card">
-      <div class="location-badge">
-        <div class="location-badge__icon">📍</div>
-        <div class="location-copy">
-          <span class="location-label">Current location</span>
-          <strong id="locInfo">לא נבחר מיקום</strong>
-          <span id="locCoords">חפש עיר או הפעל GPS</span>
+      <div class="hero__content">
+        <div class="eyebrow">TWILIGHT • SUNSET FORECAST</div>
+        <h1 class="hero__title">דמדומים</h1>
+        <p class="hero__subtitle">תחזית חכמה לצפייה בשקיעה, ציון איכות, זמן שקיעה והמלצה לסוג הלוקיישן הנכון לערב הקרוב.</p>
+        <div class="hero__search card card--glass card--compact">
+          <div class="location-mini">
+            <div>
+              <div class="label">מיקום נוכחי</div>
+              <strong id="locInfo">מאתר מיקום…</strong>
+              <div class="muted" id="locCoords"></div>
+            </div>
+            <button id="btnGps" class="icon-btn" type="button" aria-label="GPS">📍</button>
+          </div>
+          <div class="search-inline">
+            <button class="icon-btn" id="btnSearch" type="button" aria-label="חפש">🔎</button>
+            <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search"
+                   onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
+            <button class="pill-btn pill-btn--muted" id="btnFav" type="button">הוסף ☆</button>
+          </div>
         </div>
-        <button class="icon-ghost" id="btnGps" title="GPS">✦</button>
       </div>
-      <div class="city-search-row city-search-row--v2">
-        <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search" onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
-        <button class="city-search-btn" id="btnSearch">🔎</button>
-        <button class="city-search-btn city-search-btn--star" id="btnFav" title="הוסף למועדפים">☆</button>
-      </div>
-      <div class="favorites-strip" id="favList"></div>
     </section>
 
-    <div class="section-title-row">
-      <div>
-        <h2>Forecast</h2>
-        <p>צבעי שמיים, חלון הזהב, ונראות לשבוע הקרוב</p>
-      </div>
-      <a class="inline-link" href="./spot.html">Spot Finder →</a>
+    <div class="page page--forecast">
+      <div class="favorites-strip" id="favList"></div>
+      <section id="mainContent" class="forecast-content">
+        <div class="loading-state"><span>🌅</span><p>טוען תחזית...</p></div>
+      </section>
+      <footer class="footer-note">נתונים: Open‑Meteo • חישובי שמש: SunCalc</footer>
     </div>
-
-    <div id="mainContent">
-      <div class="loading-state"><span>🌅</span><p>מאתר מיקום…</p></div>
-    </div>
-
-    <div style="display:none" aria-hidden="true">
-      <span id="sunrise"></span>
-      <span id="sunset"></span>
-      <span id="sun-astro-dawn"></span>
-      <span id="sun-blue-morning"></span>
-      <span id="sun-civil-dawn"></span>
-      <span id="sun-sunrise-full"></span>
-      <span id="sun-golden-end"></span>
-      <span id="sun-solar-noon"></span>
-      <span id="sun-golden-start"></span>
-      <span id="sun-sunset-full"></span>
-      <span id="sun-blue-evening"></span>
-      <span id="sun-civil-dusk"></span>
-      <span id="sun-day-length"></span>
-      <span id="sunset-score"></span>
-    </div>
-
-    <div class="spot-card-grid">
-      <a class="spot-thumb" href="./spot.html"><img src="./assets/spots/spot-mountain.png" alt="Mountain spot"><div class="spot-thumb__label">הר • mountain</div></a>
-      <a class="spot-thumb" href="./spot.html"><img src="./assets/spots/spot-coast.png" alt="Coast spot"><div class="spot-thumb__label">חוף • coast</div></a>
-      <a class="spot-thumb" href="./spot.html"><img src="./assets/spots/spot-forest.png" alt="Forest spot"><div class="spot-thumb__label">יער • forest</div></a>
-      <a class="spot-thumb" href="./spot.html"><img src="./assets/spots/spot-desert.png" alt="Desert spot"><div class="spot-thumb__label">מדבר • desert</div></a>
-    </div>
-
-    <div class="footer-note">Weather: Open-Meteo · Maps: OpenStreetMap/OSRM · Twilight © 2026</div>
   </main>
-</div>
 
-<nav class="bottom-nav" aria-label="Primary">
-  <a class="bottom-nav__item is-active" href="./index.html"><strong>☼</strong><span>Forecast</span></a>
-  <a class="bottom-nav__item" href="./spot.html"><strong>◌</strong><span>Spots</span></a>
-  <a class="bottom-nav__item" href="./privacy-policy.html"><strong>⋯</strong><span>Privacy</span></a>
-</nav>
+  <nav class="bottom-nav">
+    <a class="bottom-nav__item bottom-nav__item--active" href="./index.html">
+      <span class="bottom-nav__icon">☼</span><span>תחזית</span>
+    </a>
+    <a class="bottom-nav__item" href="./spot.html">
+      <span class="bottom-nav__icon">⌾</span><span>Spots</span>
+    </a>
+    <a class="bottom-nav__item" href="./privacy-policy.html">
+      <span class="bottom-nav__icon">⋯</span><span>פרטיות</span>
+    </a>
+  </nav>
 
-<script src="./js/app.js"></script>
-<script src="./js/sun.js"></script>
-<script src="./js/favorites.js"></script>
-<script src="./js/forecast.js"></script>
-<script src="./js/notifications.js"></script>
+  <script src="./js/app.js"></script>
+  <script src="./js/sun.js"></script>
+  <script src="./js/favorites.js"></script>
+  <script src="./js/forecast.js"></script>
+  <script src="./js/notifications.js"></script>
 </body>
 </html>

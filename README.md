@@ -1,23 +1,27 @@
-# Twilight — GitHub-ready PWA
+# Twilight / דמדומים — GitHub Ready PWA
 
-This package preserves the existing forecast / sun / favorites / notifications / spot-finder logic and adds a sunset-themed visual redesign.
+גרסה זו כוללת:
+- מסך Forecast מחודש עם Hero גדול, ציון איכות, זמן שקיעה, תחזית חכמה ל־3 ימים והמלצות לסוג לוקיישן.
+- מסך Spots משופר עם Hero תואם, כרטיס חיפוש, שליטה על רדיוס ומפה.
+- PWA מוכן ל־GitHub Pages.
+- אייקון חדש תואם לשפה הגרפית.
 
-## Structure
-- `index.html` — forecast home screen
-- `spot.html` — sunset spot finder
-- `css/app.css` — original styling + redesign overrides
-- `js/` — original app logic
-- `assets/` — generated hero backgrounds and spot artwork
-- `icons/` — app icons
-- `.well-known/assetlinks.json` — Android app links/TWA support
+## מבנה
+- `index.html` — Forecast
+- `spot.html` — Spot Finder
+- `privacy-policy.html`
+- `css/app.css`
+- `js/*`
+- `assets/*`
+- `icons/*`
+- `manifest.webmanifest`
+- `sw.js`
 
-## Deploy on GitHub Pages
-1. Upload the contents of this folder to the repository root.
-2. Enable GitHub Pages from the main branch / root.
-3. Make sure the site is served from `/twilight/` if your repo name is `twilight`.
-4. After updating files, do a hard refresh once so the new service worker cache is used.
+## העלאה ל־GitHub
+1. פתח ריפו חדש או קיים.
+2. העלה את כל תוכן התיקייה.
+3. ודא ש־GitHub Pages מוגדר לשרת מהשורש (`/`) של הסניף.
+4. פתח את הקישור של Pages.
 
-## Notes
-- Data APIs still require network access.
-- Offline mode covers shell pages and local assets.
-- Spot Finder still uses Leaflet + OpenStreetMap + OSRM routing.
+## הערה
+הגרסה הזאת מסדרת את הפריסה והעיצוב לפי ההחלטות האחרונות, אבל לא נעשה כאן merge ישיר לקוד מקור חיצוני שלא הועלה לשיחה.

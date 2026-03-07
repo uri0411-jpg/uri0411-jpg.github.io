@@ -27,7 +27,7 @@
 
     installBtn.addEventListener("click", async () => {
       if (!deferredPrompt) {
-        alert("כרגע ההתקנה לא זמינה. נסה שוב אחרי רענון או מהתפריט: Add to Home screen.");
+        alert('כרגע ההתקנה לא זמינה. נסה שוב אחרי רענון או דרך תפריט הדפדפן: Add to Home screen.');
         return;
       }
       deferredPrompt.prompt();
@@ -178,8 +178,8 @@
     if (navigator.share) {
       try {
         await navigator.share({
-          title: 'Twilight — sunset forecast',
-          text: 'Twilight — sunset forecast and beautiful viewing spots 🌅',
+          title: 'דמדומים — תחזית שקיעות וזריחות',
+          text: 'אפליקציה לתחזית צבעוניות שקיעות וזריחות 🌅',
           url
         });
       } catch {}

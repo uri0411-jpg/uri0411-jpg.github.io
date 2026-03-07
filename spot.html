@@ -3,116 +3,89 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#50301d" />
-  <link rel="manifest" href="./manifest.json" />
+  <meta name="theme-color" content="#f2e6d7" />
+  <link rel="manifest" href="./manifest.webmanifest" />
   <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Heebo:wght@300;400;500;600;700&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@400;600;700&family=Heebo:wght@300;400;500;700&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/app.css" />
-  <title>Twilight — Spot Finder</title>
+  <title>Spot Finder • דמדומים</title>
 </head>
-<body class="theme-spot">
-<div class="spot-layout">
-  <header class="hero hero--compact">
-    <div class="hero__media"><img src="./assets/backgrounds/hero-bright-pastel.png" alt="Pastel sunset landscape" /></div>
-    <div class="hero__overlay"></div>
-    <div class="hero__top hero__top--spot">
-      <a class="hero-chip nav-cta" href="./index.html">← Forecast</a>
-      <div class="hero__logo-badge"><img src="./icons/icon-192.png" alt="Twilight logo"></div>
-    </div>
-    <div class="hero__content hero__content--compact">
-      <div class="eyebrow">SPOT FINDER</div>
-      <h1>Sunset spots</h1>
-      <p>נקודות תצפית לשקיעה מושלמת לפי מיקום, מרחק, ואיכות אופק.</p>
-      <div class="spot-hero-actions">
-        <button class="hero-chip" id="btnGps" title="GPS">Use GPS</button>
-        <button class="hero-chip" id="btnFind">Find spots</button>
+<body class="spots-body">
+  <main class="app-shell app-shell--spots">
+    <section class="hero hero--spots">
+      <div class="hero__bg" style="background-image:url('./assets/backgrounds/hero-bright-pastel.png')"></div>
+      <div class="hero__overlay hero__overlay--light"></div>
+      <div class="hero__top">
+        <a class="ghost-btn" href="./index.html">Forecast</a>
+        <img class="app-badge" src="./icons/icon-192.png" alt="דמדומים" />
       </div>
-    </div>
-  </header>
-
-  <main class="spot-main">
-    <section class="card card--search search-card">
-      <div class="location-badge">
-        <div class="location-badge__icon">🧭</div>
-        <div class="location-copy">
-          <span class="location-label">Search center</span>
-          <strong id="locInfo">לא נבחר מיקום</strong>
-          <span id="locCoords">חפש עיר או הפעל GPS</span>
-        </div>
-      </div>
-      <div class="city-search-row city-search-row--v2 city-search-row--spot">
-        <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search" onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
-        <button class="city-search-btn" id="btnSearch">🔎</button>
-      </div>
-    </section>
-
-    <section class="map-shell" style="margin-top:16px;">
-      <div id="spotMap">
-        <div class="map-placeholder" id="mapPlaceholder">
-          <span class="map-placeholder-icon">🌇</span>
-          <span>המפה תיטען כאן אחרי חיפוש</span>
-        </div>
-      </div>
-    </section>
-
-    <div class="spot-grid" style="margin-top:16px;">
-      <section class="controls-card">
-        <div class="controls-title">Search settings</div>
-        <div class="controls-grid">
-          <div class="field">
-            <span class="field__label">Radius</span>
-            <input class="range" id="radiusKm" type="range" min="2" max="30" value="12" step="1" />
-            <span class="pill"><span id="radiusVal">12</span> km</span>
+      <div class="hero__content">
+        <div class="eyebrow">SPOT FINDER</div>
+        <h1 class="hero__title">Sunset spots</h1>
+        <p class="hero__subtitle">מציאת נקודות צפייה לשקיעה לפי מיקום, מרחק, גובה וכיוון אופק.</p>
+        <div class="card card--glass card--compact">
+          <div class="location-mini">
+            <div>
+              <div class="label">מרכז חיפוש</div>
+              <strong id="locInfo">מאתר מיקום…</strong>
+              <div class="muted" id="locCoords"></div>
+            </div>
+            <button id="btnGps" class="icon-btn" type="button" aria-label="GPS">📍</button>
           </div>
-          <div class="field">
-            <span class="field__label">Results</span>
-            <select class="select" id="topN">
-              <option value="5">5 spots</option>
-              <option value="8" selected>8 spots</option>
-              <option value="12">12 spots</option>
-              <option value="20">20 spots</option>
+          <div class="search-inline">
+            <button class="icon-btn" id="btnSearch" type="button" aria-label="חפש">🔎</button>
+            <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search"
+                   onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="page page--spots">
+      <div class="controls-card">
+        <div class="controls-title">חיפוש לוקיישנים</div>
+        <div class="controls-stack">
+          <label class="field-row">
+            <span class="field-row__label">רדיוס</span>
+            <input id="radiusKm" class="range-input" type="range" min="5" max="80" step="1" value="24" />
+            <span class="field-row__value"><span id="radiusVal">24</span> ק"מ</span>
+          </label>
+          <label class="field-row">
+            <span class="field-row__label">כמה תוצאות</span>
+            <select id="topN" class="select-input">
+              <option value="8">8</option>
+              <option value="12" selected>12</option>
+              <option value="16">16</option>
             </select>
-          </div>
+          </label>
+          <button class="pill-btn pill-btn--primary" id="btnFind" type="button">מצא נקודות</button>
         </div>
-        <div style="font-size:12px;color:var(--muted);margin:10px 0 6px">Spot type</div>
-        <div class="type-filters">
-          <label class="type-chip checked"><input type="checkbox" class="type-filter" value="viewpoint" checked>🔭 Viewpoint</label>
-          <label class="type-chip checked"><input type="checkbox" class="type-filter" value="peak" checked>⛰️ Peak</label>
-          <label class="type-chip checked"><input type="checkbox" class="type-filter" value="hill" checked>🏔️ Hill</label>
-          <label class="type-chip checked"><input type="checkbox" class="type-filter" value="tower" checked>🗼 Tower</label>
-          <label class="type-chip"><input type="checkbox" class="type-filter" value="beach">🏖️ Coast</label>
-          <label class="type-chip"><input type="checkbox" class="type-filter" value="park">🌳 Park</label>
-        </div>
-      </section>
+      </div>
+
+      <div id="spotMap" class="map-card" aria-label="מפה"></div>
 
       <div id="savedSpots" class="controls-card" style="display:none"></div>
+
       <section id="resultsCard" class="results-card" style="display:none">
-        <div id="resultSummary"></div>
-        <div id="results"></div>
-        <div class="source-hint">OpenStreetMap • Open-Meteo elevation • OSRM routing</div>
+        <div id="resultSummary" class="result-summary"></div>
+        <div id="results" class="results-list"></div>
       </section>
-    </div>
+    </section>
   </main>
-</div>
 
-<nav class="bottom-nav" aria-label="Primary">
-  <a class="bottom-nav__item" href="./index.html"><strong>☼</strong><span>Forecast</span></a>
-  <a class="bottom-nav__item is-active" href="./spot.html"><strong>◌</strong><span>Spots</span></a>
-  <a class="bottom-nav__item" href="./privacy-policy.html"><strong>⋯</strong><span>Privacy</span></a>
-</nav>
+  <nav class="bottom-nav">
+    <a class="bottom-nav__item" href="./index.html"><span class="bottom-nav__icon">☼</span><span>תחזית</span></a>
+    <a class="bottom-nav__item bottom-nav__item--active" href="./spot.html"><span class="bottom-nav__icon">⌾</span><span>Spots</span></a>
+    <a class="bottom-nav__item" href="./privacy-policy.html"><span class="bottom-nav__icon">⋯</span><span>פרטיות</span></a>
+  </nav>
 
-<script src="./js/app.js"></script>
-<script src="./js/sun.js"></script>
-<script src="./js/favorites.js"></script>
-<script src="./js/spotfinder.js"></script>
-<script>
-  document.querySelectorAll('.type-chip').forEach(chip => {
-    chip.addEventListener('click', () => chip.classList.toggle('checked'));
-  });
-</script>
+  <script src="./js/app.js"></script>
+  <script src="./js/sun.js"></script>
+  <script src="./js/favorites.js"></script>
+  <script src="./js/spotfinder.js"></script>
 </body>
 </html>
