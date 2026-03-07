@@ -3,38 +3,46 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#0b0b10" />
+  <meta name="theme-color" content="#ddb37a" />
   <link rel="stylesheet" href="./css/app.css" />
   <title>מדיניות פרטיות • דמדומים</title>
 </head>
-<body>
-  <header class="top">
-    <div class="top__bar">
-      <div class="brand">
-        <div class="brand__title">מדיניות פרטיות</div>
-        <div class="brand__sub">Twilight (דמדומים)</div>
+<body class="theme-aurora theme-policy">
+  <div class="mobile-shell">
+    <header class="hero hero--compact hero--policy">
+      <div class="hero__media"><img src="./icons/icon-512.png" alt="שקיעה" /></div>
+      <div class="hero__overlay"></div>
+      <div class="hero__top hero__top--spot">
+        <a class="hero-chip hero-chip--ghost" href="./index.html">← חזור</a>
+        <div class="hero-chip hero-chip--ghost hero-chip--static">דמדומים</div>
       </div>
-    </div>
-    <nav class="nav">
-      <a class="nav__item" href="./index.html">תחזית</a>
-      <a class="nav__item" href="./spot.html">Spot Finder</a>
-      <a class="nav__item nav__item--active" href="./privacy-policy.html">פרטיות</a>
+      <div class="hero__content hero__content--compact">
+        <span class="eyebrow">Privacy</span>
+        <h1>מדיניות פרטיות</h1>
+        <p>שקיפות פשוטה וברורה לגבי מה נשמר במכשיר ומה לא.</p>
+      </div>
+    </header>
+
+    <main class="app-main policy-main">
+      <section class="card card--policy">
+        <div class="card__title">מה נאסף</div>
+        <ul class="policy-list">
+          <li>מיקום רק אם אתה בוחר GPS או חיפוש מקום.</li>
+          <li>אין חשבונות, אין מעקב פרסומי, אין שרת משתמשים.</li>
+          <li>מועדפים והעדפות נשמרים בדפדפן המקומי בלבד.</li>
+        </ul>
+      </section>
+      <section class="card card--policy">
+        <div class="card__title">למה זה נשמר</div>
+        <p class="muted">כדי לזכור מיקום אחרון, מועדפים והעדפות התראות ולהציג את האפליקציה גם במצב אופליין.</p>
+      </section>
+    </main>
+
+    <nav class="bottom-nav">
+      <a class="bottom-nav__item" href="./index.html"><span>🏠</span><small>בית</small></a>
+      <a class="bottom-nav__item" href="./spot.html"><span>🔭</span><small>Spot Finder</small></a>
+      <a class="bottom-nav__item is-active" href="./privacy-policy.html"><span>🔒</span><small>פרטיות</small></a>
     </nav>
-  </header>
-
-  <main class="container">
-    <section class="card">
-      <div class="card__title">מה נאסף</div>
-      <ul class="muted" style="margin:0; padding-inline-start:18px">
-        <li>מיקום: רק אם אתה לוחץ GPS. המיקום משמש לחישובים במכשיר.</li>
-        <li>אין חשבונות, אין מעקב פרסומי.</li>
-      </ul>
-    </section>
-
-    <section class="card">
-      <div class="card__title">אחסון</div>
-      <div class="muted">העדפות בסיסיות נשמרות בדפדפן (LocalStorage) לצורך נוחות.</div>
-    </section>
-  </main>
+  </div>
 </body>
 </html>

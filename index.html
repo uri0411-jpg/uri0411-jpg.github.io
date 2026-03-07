@@ -3,109 +3,112 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
-  <meta name="theme-color" content="#07040f" />
+  <meta name="theme-color" content="#ddb37a" />
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="description" content="דמדומים — תחזית צבעוניות שקיעות וזריחות" />
   <link rel="manifest" href="./manifest.json" />
-  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <link rel="apple-touch-icon" href="./icons/icon-192.png" />
   <link rel="preconnect" href="https://fonts.googleapis.com" />
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,400;0,600;0,700;1,400&family=Heebo:wght@300;400;500;600&display=swap" rel="stylesheet" />
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:wght@500;600;700&family=Heebo:wght@300;400;500;700;800&display=swap" rel="stylesheet" />
   <link rel="stylesheet" href="./css/app.css" />
   <title>דמדומים</title>
 </head>
-<body>
-
-<!-- ── Splash ── -->
-<div id="splash">
-  <img class="splash-logo" src="./icons/icon-512.png" alt="דמדומים" />
-  <div class="splash-title">דמדומים</div>
-  <div class="splash-sub">תחזית צבעוניות שקיעות וזריחות</div>
-  <div class="splash-bar"><div class="splash-bar-fill"></div></div>
-</div>
-
-<div class="container">
-  <!-- Header -->
-  <header>
-    <div class="logo-wrap">
-      <div class="logo-glow"></div>
-      <img class="logo-svg" src="./icons/icon-192.png" alt="דמדומים" />
-    </div>
-    <h1>דמדומים</h1>
-    <p class="tagline">תחזית צבעוניות שקיעות וזריחות</p>
-    <div class="header-line"></div>
-  </header>
-
-  <!-- Nav -->
-  <nav class="nav">
-    <a class="nav__item nav__item--active" href="./index.html">🌅 תחזית</a>
-    <a class="nav__item" href="./spot.html">🔭 Spot Finder</a>
-    <button class="nav__item nav__share" id="btnShareApp" onclick="window.shareApp()">📤 שתף</button>
-  </nav>
-
-  <!-- Location (hidden — עדכון אוטומטי דרך app.js) -->
-  <div style="display:none" aria-hidden="true">
-    <strong id="locInfo"></strong>
-    <span id="locCoords"></span>
-    <button id="btnGps"></button>
+<body class="theme-aurora theme-home">
+  <div id="splash" class="splash-v2">
+    <img class="splash-logo" src="./icons/icon-512.png" alt="דמדומים" />
+    <div class="splash-title">דמדומים</div>
+    <div class="splash-sub">תחזית צבעוניות שקיעות וזריחות</div>
+    <div class="splash-bar"><div class="splash-bar-fill"></div></div>
   </div>
 
-  <div class="city-search-row">
-    <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search"
-           onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
-    <button class="city-search-btn" id="btnSearch">🔍</button>
-    <button class="city-search-btn" id="btnFav" title="הוסף למועדפים">⭐</button>
+  <div class="mobile-shell">
+    <header class="hero hero--home">
+      <div class="hero__media"><img src="./icons/icon-512.png" alt="שקיעה" /></div>
+      <div class="hero__overlay"></div>
+      <div class="hero__top">
+        <button class="hero-chip hero-chip--ghost" id="btnShareApp" onclick="window.shareApp()">📤 שתף</button>
+        <button class="hero-chip" id="installBtn" hidden>📲 התקן</button>
+      </div>
+      <div class="hero__content">
+        <span class="eyebrow">Sunset & sunrise forecast</span>
+        <h1>דמדומים</h1>
+        <p>תחזית צבעוניות שקיעות וזריחות עם חיפוש נקודות תצפית קרובות.</p>
+        <div class="hero__actions">
+          <a class="cta cta--primary" href="#mainContent">לצפייה בתחזית</a>
+          <a class="cta cta--glass" href="./spot.html">Spot Finder 🔭</a>
+        </div>
+      </div>
+    </header>
+
+    <main class="app-main">
+      <section class="floating-search card card--soft card--search">
+        <div class="location-row">
+          <div class="location-copy">
+            <div class="location-label">מיקום נוכחי</div>
+            <strong id="locInfo">מאתר מיקום…</strong>
+            <span id="locCoords"></span>
+          </div>
+          <button class="icon-ghost" id="btnGps" aria-label="GPS">📍</button>
+        </div>
+        <div class="city-search-row city-search-row--v2">
+          <input class="city-input" id="placeInput" type="text" placeholder="חפש עיר / כתובת..." inputmode="search"
+                 onkeydown="if(event.key==='Enter') document.getElementById('btnSearch').click()" />
+          <button class="city-search-btn" id="btnSearch" aria-label="חיפוש">🔎</button>
+          <button class="city-search-btn city-search-btn--star" id="btnFav" title="הוסף למועדפים">☆</button>
+        </div>
+        <div class="favorites-strip favorites-strip--v2" id="favList"></div>
+      </section>
+
+      <div id="mainContent" class="forecast-stack">
+        <div class="loading-state loading-state--card">
+          <span>🌅</span>
+          <p>מאתר מיקום…</p>
+        </div>
+      </div>
+
+      <div style="display:none" aria-hidden="true">
+        <span id="sunrise"></span>
+        <span id="sunset"></span>
+        <span id="sun-astro-dawn"></span>
+        <span id="sun-blue-morning"></span>
+        <span id="sun-civil-dawn"></span>
+        <span id="sun-sunrise-full"></span>
+        <span id="sun-golden-end"></span>
+        <span id="sun-solar-noon"></span>
+        <span id="sun-golden-start"></span>
+        <span id="sun-sunset-full"></span>
+        <span id="sun-blue-evening"></span>
+        <span id="sun-civil-dusk"></span>
+        <span id="sun-day-length"></span>
+        <span id="sunset-score"></span>
+      </div>
+
+      <div class="install-banner" id="installBanner" style="display:none">
+        <div>
+          <strong>📲 התקן כאפליקציה</strong>
+          <p>שתף ← הוסף למסך הבית</p>
+        </div>
+        <button class="install-dismiss" onclick="document.getElementById('installBanner').style.display='none'">×</button>
+      </div>
+
+      <footer class="footer-txt footer-txt--v2">
+        נתוני מזג אוויר: Open-Meteo • חישובי שמש: NOAA • דמדומים © 2026
+      </footer>
+    </main>
+
+    <nav class="bottom-nav">
+      <a class="bottom-nav__item is-active" href="./index.html"><span>🏠</span><small>בית</small></a>
+      <a class="bottom-nav__item" href="./spot.html"><span>🔭</span><small>Spot Finder</small></a>
+      <a class="bottom-nav__item" href="./privacy-policy.html"><span>🔒</span><small>פרטיות</small></a>
+    </nav>
   </div>
 
-  <!-- Favorites -->
-  <div class="favorites-strip" id="favList"></div>
-
-  <!-- Main content -->
-  <div id="mainContent">
-    <div class="loading-state">
-      <span>🌅</span>
-      <p>מאתר מיקום…</p>
-    </div>
-  </div>
-
-  <!-- Hidden sun data (used by sun.js) -->
-  <div style="display:none" aria-hidden="true">
-    <span id="sunrise"></span>
-    <span id="sunset"></span>
-    <span id="sun-astro-dawn"></span>
-    <span id="sun-blue-morning"></span>
-    <span id="sun-civil-dawn"></span>
-    <span id="sun-sunrise-full"></span>
-    <span id="sun-golden-end"></span>
-    <span id="sun-solar-noon"></span>
-    <span id="sun-golden-start"></span>
-    <span id="sun-sunset-full"></span>
-    <span id="sun-blue-evening"></span>
-    <span id="sun-civil-dusk"></span>
-    <span id="sun-day-length"></span>
-    <span id="sunset-score"></span>
-  </div>
-
-
-  <!-- PWA install -->
-  <div class="install-banner" id="installBanner" style="display:none">
-    <div>
-      <strong>📲 התקן כאפליקציה</strong>
-      <p>שתף ← "הוסף למסך הבית"</p>
-    </div>
-    <button class="install-dismiss" onclick="document.getElementById('installBanner').style.display='none'">×</button>
-  </div>
-
-  <footer class="footer-txt">
-    נתוני מזג אוויר: Open-Meteo • שמש: sunrise-sunset.org<br>
-    דמדומים © 2026
-  </footer>
-</div>
-
-<script src="./js/app.js"></script>
-<script src="./js/sun.js"></script>
-<script src="./js/favorites.js"></script>
-<script src="./js/forecast.js"></script>
-<script src="./js/notifications.js"></script>
+  <script src="./js/app.js"></script>
+  <script src="./js/sun.js"></script>
+  <script src="./js/favorites.js"></script>
+  <script src="./js/forecast.js"></script>
+  <script src="./js/notifications.js"></script>
 </body>
 </html>
