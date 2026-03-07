@@ -30,7 +30,7 @@ img{max-width:100%;display:block}
 
 #splash{position:fixed;inset:0;display:grid;place-items:center;align-content:center;gap:12px;background:linear-gradient(180deg, rgba(34,20,15,.20), rgba(34,20,15,.10)), url('./assets/backgrounds/hero-golden-hour.png') center/cover no-repeat;z-index:99;transition:opacity .7s ease,visibility .7s ease;padding:24px}
 #splash.hidden{opacity:0;visibility:hidden}
-.splash-logo{width:min(68vw,280px);aspect-ratio:9/16;height:auto;border-radius:28px;box-shadow:0 24px 60px rgba(0,0,0,.24);object-fit:cover;border:1px solid rgba(255,255,255,.3)}
+.splash-logo{width:min(68vw,280px);aspect-ratio:4/3;height:auto;border-radius:28px;box-shadow:0 24px 60px rgba(0,0,0,.24);object-fit:cover;border:1px solid rgba(255,255,255,.3)}
 .splash-title{font:700 46px 'Cormorant Garamond',serif;letter-spacing:.02em;color:#fff;text-shadow:0 2px 18px rgba(0,0,0,.2)}
 .splash-sub{font-size:14px;color:rgba(255,255,255,.92);text-shadow:0 2px 12px rgba(0,0,0,.18)}
 .splash-bar{width:180px;height:8px;border-radius:999px;background:rgba(255,255,255,.35);overflow:hidden}
@@ -193,3 +193,576 @@ img{max-width:100%;display:block}
 @media (max-width:560px){
   .splash-logo{width:min(64vw,220px)}
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   FORECAST SCREEN — קלאסים שנוצרים ע"י forecast.js
+   ═══════════════════════════════════════════════════════════════════ */
+
+.forecast-screen {
+  display: grid;
+  gap: 20px;
+  padding-bottom: 12px;
+}
+
+/* ── כרטיס סיכום ראשי ── */
+.forecast-summary-card {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow);
+  overflow: hidden;
+}
+
+.forecast-summary-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 20px 16px;
+  background: linear-gradient(160deg, rgba(255,232,196,.55) 0%, rgba(255,248,235,.22) 100%);
+  border-bottom: 1px solid var(--line);
+}
+
+.forecast-kicker {
+  font-size: 11px;
+  letter-spacing: .2em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.forecast-summary-card__title {
+  font: 700 22px 'Cormorant Garamond', serif;
+  margin: 0;
+  color: var(--text);
+  line-height: 1.2;
+}
+
+.forecast-summary-card__score {
+  font: 700 64px 'Cormorant Garamond', serif;
+  color: var(--gold-strong);
+  line-height: 1;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.forecast-summary-card__score span {
+  font-size: 24px;
+  color: var(--muted);
+}
+
+/* ── שורת זמן + קופסאות נוכחי ── */
+.forecast-main-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--line);
+}
+
+.forecast-main-time__label {
+  font-size: 11px;
+  letter-spacing: .16em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 2px;
+}
+
+.forecast-main-time__value {
+  font: 700 46px 'Cormorant Garamond', serif;
+  color: var(--gold-strong);
+  line-height: 1;
+}
+
+.forecast-main-time__sub {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 4px;
+}
+
+.forecast-current-boxes {
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.forecast-mini-box {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 10px 14px;
+  background: rgba(255,255,255,.5);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-sm);
+  text-align: center;
+  min-width: 72px;
+}
+
+.forecast-mini-box__label {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.forecast-mini-box strong {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── גריד סטטיסטיקות ── */
+.forecast-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0;
+  border-top: 1px solid var(--line);
+}
+
+.forecast-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  padding: 12px 8px;
+  text-align: center;
+  border-left: 1px solid var(--line);
+}
+
+.forecast-stat:last-child,
+.forecast-stat:nth-child(3) {
+  border-left: none;
+}
+
+.forecast-stat span {
+  font-size: 10px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.forecast-stat strong {
+  font-size: 16px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+/* ── פאנל כותרת + גלילה ── */
+.forecast-panel {
+  display: grid;
+  gap: 12px;
+}
+
+/* ── תחזית שבועית — גלילה אופקית ── */
+.weekly-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.weekly-scroll::-webkit-scrollbar { height: 4px; }
+.weekly-scroll::-webkit-scrollbar-track { background: rgba(135,91,58,.08); border-radius: 99px; }
+.weekly-scroll::-webkit-scrollbar-thumb { background: var(--gold-soft); border-radius: 99px; }
+
+.weekly-day-card {
+  flex: 0 0 120px;
+  scroll-snap-align: start;
+  padding: 14px 12px;
+  border-radius: 22px;
+  background: rgba(255,252,247,.88);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+
+.weekly-day-card:active { transform: scale(.97); }
+
+.weekly-day-card--excellent { background: linear-gradient(180deg, rgba(255,220,160,.7), rgba(255,248,235,.9)); border-color: rgba(200,140,74,.25); }
+.weekly-day-card--good      { background: linear-gradient(180deg, rgba(255,235,190,.6), rgba(255,250,240,.9)); }
+.weekly-day-card--fair      { background: rgba(255,252,247,.88); }
+.weekly-day-card--poor      { background: rgba(240,237,232,.7); }
+
+.weekly-day-card__name  { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
+.weekly-day-card__date  { font-size: 11px; color: var(--muted); opacity: .7; margin-bottom: 6px; }
+.weekly-day-card__score { font: 700 42px 'Cormorant Garamond', serif; color: var(--gold-strong); line-height: 1; }
+.weekly-day-card__time  { font-size: 16px; font-weight: 600; margin-top: 4px; }
+.weekly-day-card__temps { font-size: 12px; color: var(--muted); margin-top: 4px; }
+
+/* ── תחזית שעתית — גלילה אופקית ── */
+.hourly-scroll {
+  display: flex;
+  gap: 10px;
+  overflow-x: auto;
+  padding: 4px 2px 8px;
+  scroll-snap-type: x mandatory;
+  -webkit-overflow-scrolling: touch;
+}
+
+.hourly-scroll::-webkit-scrollbar { height: 4px; }
+.hourly-scroll::-webkit-scrollbar-track { background: rgba(135,91,58,.08); border-radius: 99px; }
+.hourly-scroll::-webkit-scrollbar-thumb { background: var(--gold-soft); border-radius: 99px; }
+
+.hourly-chip {
+  flex: 0 0 100px;
+  scroll-snap-align: start;
+  padding: 12px 10px;
+  border-radius: 18px;
+  background: rgba(255,252,247,.88);
+  border: 1px solid var(--line);
+  box-shadow: var(--shadow-soft);
+  text-align: center;
+}
+
+.hourly-chip__time  { font: 700 18px 'Cormorant Garamond', serif; color: var(--gold-strong); }
+.hourly-chip__temp  { font-size: 20px; font-weight: 700; margin: 4px 0; }
+.hourly-chip__meta  { font-size: 11px; color: var(--muted); line-height: 1.5; }
+
+/* ── ערימת כרטיסי ימים ── */
+.forecast-days-stack {
+  display: grid;
+  gap: 14px;
+}
+
+.forecast-day-card {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-soft);
+  padding: 16px;
+  overflow: hidden;
+}
+
+.forecast-day-card--today {
+  background: linear-gradient(180deg, rgba(255,241,219,.88), rgba(255,250,244,.95));
+  border-color: rgba(200,140,74,.22);
+}
+
+.forecast-day-card__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+}
+
+.forecast-day-card__name {
+  font: 700 26px 'Cormorant Garamond', serif;
+  line-height: 1;
+}
+
+.forecast-day-card__date {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.forecast-day-card__weather {
+  font-size: 14px;
+  color: var(--muted);
+  background: rgba(255,255,255,.5);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  padding: 5px 12px;
+}
+
+/* ── אירועי שקיעה/זריחה בתוך כרטיס יום ── */
+.forecast-events {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.forecast-event {
+  padding: 12px;
+  background: rgba(255,255,255,.45);
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  text-align: center;
+}
+
+.forecast-event__label {
+  font-size: 11px;
+  letter-spacing: .14em;
+  text-transform: uppercase;
+  color: var(--muted);
+  margin-bottom: 4px;
+}
+
+.forecast-event__time {
+  font: 700 32px 'Cormorant Garamond', serif;
+  color: var(--gold-strong);
+  line-height: 1;
+}
+
+.forecast-event__score {
+  font-size: 18px;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.forecast-event__text {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+/* כפתור התראה פעיל */
+.notif-day-btn.active {
+  background: linear-gradient(180deg,#e0b66d,#cf8b45);
+  color: white;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SPOT FINDER — קלאסים שנוצרים ע"י spotfinder.js
+   ═══════════════════════════════════════════════════════════════════ */
+
+.spot-result-card {
+  display: flex;
+  gap: 0;
+  border-radius: var(--radius-xl);
+  background: var(--surface-strong);
+  border: 1px solid rgba(255,185,80,.12);
+  box-shadow: var(--shadow-soft);
+  overflow: hidden;
+  transition: border-color .2s ease, box-shadow .2s ease;
+}
+
+.spot-result-card:hover {
+  border-color: rgba(240,180,60,.35);
+  box-shadow: var(--shadow);
+}
+
+.spot-result-card__thumb-wrap {
+  width: 96px;
+  flex-shrink: 0;
+}
+
+.spot-result-card__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+
+.spot-result-card__main {
+  flex: 1;
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+
+.spot-result-card__head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.spot-result-card__title {
+  font-size: 16px;
+  font-weight: 700;
+  line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.spot-result-card__subtitle {
+  font-size: 12px;
+  color: var(--muted);
+  margin-top: 2px;
+}
+
+.spot-result-card__score {
+  font: 700 32px 'Cormorant Garamond', serif;
+  color: var(--gold-strong);
+  line-height: 1;
+  flex-shrink: 0;
+  background: linear-gradient(180deg,rgba(255,220,160,.4),rgba(255,248,235,.6));
+  border: 1px solid rgba(200,140,74,.2);
+  border-radius: var(--radius-sm);
+  padding: 4px 10px;
+  text-align: center;
+}
+
+.spot-result-card__meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+
+.spot-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.55);
+  border: 1px solid var(--line);
+  font-size: 11px;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.spot-chip--accent {
+  background: rgba(200,140,74,.12);
+  border-color: rgba(200,140,74,.22);
+  color: var(--gold-strong);
+  font-weight: 600;
+}
+
+.spot-result-card__actions {
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  margin-top: 2px;
+}
+
+.spot-action-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 6px 12px;
+  border-radius: 12px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.52);
+  color: var(--text);
+  font-size: 12px;
+  font-weight: 600;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background .15s ease;
+}
+
+.spot-action-btn--primary {
+  background: linear-gradient(180deg, rgba(224,182,109,.7), rgba(207,139,69,.7));
+  border-color: rgba(200,140,74,.3);
+  color: #fff;
+}
+
+.spot-action-btn:active { opacity: .8; }
+
+.spot-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: rgba(255,255,255,.52);
+  color: var(--gold-strong);
+  font-size: 16px;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* ── tooltip ב-Leaflet ── */
+.spot-tooltip {
+  background: rgba(40,20,10,.85) !important;
+  border: 1px solid rgba(255,185,80,.25) !important;
+  color: #f4e8d4 !important;
+  border-radius: 8px !important;
+  font-family: 'Heebo', sans-serif !important;
+  font-size: 12px !important;
+}
+
+.spot-popup .leaflet-popup-content-wrapper {
+  background: rgba(30,15,5,.9) !important;
+  border: 1px solid rgba(255,185,80,.2) !important;
+  color: #f4e8d4 !important;
+  border-radius: 16px !important;
+  backdrop-filter: blur(12px) !important;
+}
+
+.spot-popup .leaflet-popup-tip {
+  background: rgba(30,15,5,.9) !important;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   FAVORITES STRIP — קלאסים של favorites.js
+   ═══════════════════════════════════════════════════════════════════ */
+
+.fav-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  background: rgba(255,255,255,.72);
+  border: 1px solid var(--line);
+  font-size: 13px;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background .15s ease, border-color .15s ease;
+}
+
+.fav-chip:hover {
+  background: rgba(255,248,235,.9);
+  border-color: rgba(200,140,74,.3);
+}
+
+.fav-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: rgba(135,91,58,.12);
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1;
+  transition: background .15s ease;
+}
+
+.fav-remove:hover {
+  background: rgba(200,80,60,.18);
+  color: #c44;
+}
+
+.btn--fav-active {
+  background: rgba(200,140,74,.15);
+  border-color: rgba(200,140,74,.3);
+  color: var(--gold-strong);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — תיקונים לרספונסיב
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 560px) {
+  .forecast-summary-card__score { font-size: 52px; }
+  .forecast-main-time__value    { font-size: 38px; }
+  .forecast-stats-grid          { grid-template-columns: repeat(2, 1fr); }
+  .forecast-stat:nth-child(2)   { border-left: none; }
+  .forecast-stat:nth-child(3)   { border-left: 1px solid var(--line); }
+  .forecast-events              { grid-template-columns: 1fr; }
+  .forecast-current-boxes       { flex-direction: column; gap: 6px; }
+  .spot-result-card__thumb-wrap { width: 76px; }
+}
+
+/* ── accordion arrow ── */
+.accordion-arrow {
+  display: inline-block;
+  transition: transform .25s ease;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.weather-detail.open + * .accordion-arrow,
+.accordion-btn[aria-expanded="true"] .accordion-arrow {
+  transform: rotate(180deg);
+}
+
+/* ── notif status ── */
+.notif-status { font-size: 14px; padding: 8px 0; }
+.notif-status--ok   { color: #5a9e6e; }
+.notif-status--warn { color: #c07a3a; }
