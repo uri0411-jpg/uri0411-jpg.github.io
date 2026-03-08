@@ -120,10 +120,10 @@
   function wireUI() {
     const section = document.getElementById("notifSection");
     if (!section) return;
-    section.style.display = "block";
+    // section remains hidden (display:none) until user taps the bell button
     updateStatus();
 
-    document.getElementById("btnRequestNotif")?.addEventListener("click", requestPerm);
+    document.getElementById("notifPermBtn")?.addEventListener("click", requestPerm);
 
     wireToggle("notifSunsetOn",      "sunsetTimingRow",  "notifSunsetOn");
     wireRange ("sunsetMin",          "sunsetMinVal",      "sunsetMin");
@@ -139,6 +139,20 @@
     wireRange ("sunriseScore",       "sunriseScoreVal",   "sunriseScoreThreshold");
     wireRange ("sunriseScoreMin",    "sunriseScoreTimeVal","sunriseScoreMin");
   }
+
+  // Toggle notif panel visibility — called from nav bell button
+  window.toggleNotifPanel = function() {
+    const section  = document.getElementById("notifSection");
+    const forecast = document.querySelector(".page--forecast");
+    const btn      = document.getElementById("btnNotifNav");
+    if (!section) return;
+    const isOpen = section.style.display === "block";
+    section.style.display = isOpen ? "none" : "block";
+    if (forecast) forecast.style.display = isOpen ? "" : "none";
+    if (btn) btn.classList.toggle("bottom-nav__item--active", !isOpen);
+    // scroll to top of notif panel when opening
+    if (!isOpen) section.scrollIntoView({ behavior: "smooth", block: "start" });
+  };
 
   document.addEventListener("DOMContentLoaded", wireUI);
   window.addEventListener("twilight:loc", (e) => {
