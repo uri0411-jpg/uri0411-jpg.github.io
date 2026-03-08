@@ -355,7 +355,14 @@ img{max-width:100%;display:block}
   gap: 12px;
 }
 
-/* ── תחזית שבועית — גלילה אופקית ── */
+/* ── תחזית שבועית — grid 7 עמודות גלוי מלא ── */
+.weekly-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 6px;
+}
+
+/* שמור את weekly-scroll לתאימות לאחור */
 .weekly-scroll {
   display: flex;
   gap: 10px;
@@ -372,13 +379,14 @@ img{max-width:100%;display:block}
 .weekly-day-card {
   flex: 0 0 108px;
   scroll-snap-align: start;
-  padding: 12px 10px;
-  border-radius: 22px;
+  padding: 8px 4px;
+  border-radius: 16px;
   background: rgba(255,252,247,.88);
   border: 1px solid var(--line);
   box-shadow: var(--shadow-soft);
   text-align: center;
   transition: transform .15s ease, box-shadow .15s ease;
+  cursor: pointer;
 }
 
 .weekly-day-card:active { transform: scale(.97); }
@@ -387,12 +395,14 @@ img{max-width:100%;display:block}
 .weekly-day-card--good      { background: linear-gradient(160deg, rgba(240,175,80,.13), rgba(255,230,160,.10)); border-color: rgba(200,150,60,.22); }
 .weekly-day-card--fair      { background: rgba(255,252,247,.88); }
 .weekly-day-card--poor      { background: rgba(235,232,228,.75); border-color: rgba(160,155,150,.18); }
+.weekly-day-card--today     { box-shadow: 0 0 0 2px var(--gold-strong), var(--shadow-soft); }
 
-.weekly-day-card__name  { font-size: 13px; color: var(--muted); margin-bottom: 2px; }
-.weekly-day-card__date  { font-size: 11px; color: var(--muted); opacity: .7; margin-bottom: 6px; }
-.weekly-day-card__score { font: 700 42px 'Cormorant Garamond', serif; color: var(--gold-strong); line-height: 1; }
-.weekly-day-card__time  { font-size: 16px; font-weight: 600; margin-top: 4px; }
-.weekly-day-card__temps { font-size: 12px; color: var(--muted); margin-top: 4px; }
+.weekly-day-card__name  { font-size: 11px; font-weight: 700; color: var(--text); margin-bottom: 2px; }
+.weekly-day-card__date  { font-size: 9px; color: var(--muted); opacity: .7; margin-bottom: 4px; }
+.weekly-day-card__emoji { font-size: 18px; line-height: 1; margin-bottom: 2px; }
+.weekly-day-card__score { font: 700 28px 'Cormorant Garamond', serif; line-height: 1; }
+.weekly-day-card__time  { font-size: 11px; font-weight: 600; margin-top: 3px; color: var(--muted); }
+.weekly-day-card__temps { font-size: 10px; color: var(--muted); margin-top: 2px; }
 
 /* ── תחזית שעתית — גלילה אופקית ── */
 .hourly-scroll {
@@ -409,9 +419,9 @@ img{max-width:100%;display:block}
 .hourly-scroll::-webkit-scrollbar-thumb { background: var(--gold-soft); border-radius: 99px; }
 
 .hourly-chip {
-  flex: 0 0 100px;
+  flex: 0 0 88px;
   scroll-snap-align: start;
-  padding: 12px 10px;
+  padding: 10px 8px;
   border-radius: 18px;
   background: rgba(255,252,247,.88);
   border: 1px solid var(--line);
@@ -419,8 +429,9 @@ img{max-width:100%;display:block}
   text-align: center;
 }
 
-.hourly-chip__time  { font: 700 18px 'Cormorant Garamond', serif; color: var(--gold-strong); }
-.hourly-chip__temp  { font-size: 20px; font-weight: 700; margin: 4px 0; }
+.hourly-chip__time  { font: 700 16px 'Cormorant Garamond', serif; color: var(--gold-strong); }
+.hourly-chip__emoji { font-size: 22px; line-height: 1.3; }
+.hourly-chip__temp  { font-size: 18px; font-weight: 700; margin: 2px 0; }
 .hourly-chip__meta  { font-size: 11px; color: var(--muted); line-height: 1.5; }
 
 /* ── ערימת כרטיסי ימים ── */
@@ -844,4 +855,132 @@ img{max-width:100%;display:block}
   height: 16px;
   accent-color: var(--gold-strong);
   cursor: pointer;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SCORE COLOR CLASSES — ציון צבעוני דינמי
+   ═══════════════════════════════════════════════════════════════════ */
+
+.quality-score--excellent {
+  color: #d45a10;
+  text-shadow: 0 0 18px rgba(240,120,30,.35);
+}
+.quality-score--good {
+  color: #c07a2a;
+}
+.quality-score--fair {
+  color: #9e7d5d;
+}
+.quality-score--poor {
+  color: #8a8b97;
+}
+
+/* ── ציון גדול בכרטיס ראשי — גלו על excellent ── */
+.forecast-summary-card__score.quality-score--excellent {
+  text-shadow: 0 0 28px rgba(240,120,30,.45), 0 2px 8px rgba(0,0,0,.08);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   GOLDEN HOUR TIMELINE — ציר זמן
+   ═══════════════════════════════════════════════════════════════════ */
+
+.golden-timeline {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 16px 10px;
+  border-top: 1px solid var(--line);
+  gap: 0;
+}
+
+.golden-timeline__item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.golden-timeline__icon {
+  font-size: 22px;
+  line-height: 1;
+}
+
+.golden-timeline__label {
+  font-size: 9px;
+  letter-spacing: .1em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.golden-timeline__time {
+  font: 700 15px 'Cormorant Garamond', serif;
+  color: var(--gold-strong);
+}
+
+.golden-timeline__item--golden .golden-timeline__time { color: #d97020; }
+.golden-timeline__item--sunset .golden-timeline__time  { color: var(--gold-strong); }
+.golden-timeline__item--blue   .golden-timeline__time  { color: #5070c0; }
+
+.golden-timeline__line {
+  flex: 1;
+  height: 1px;
+  background: linear-gradient(90deg, rgba(210,120,40,.3), rgba(80,100,190,.3));
+  margin: 0 6px;
+  margin-top: -14px;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   SUNRISE ROW — זריחה מתחת לכותרת
+   ═══════════════════════════════════════════════════════════════════ */
+
+.forecast-sunrise-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+}
+
+.forecast-sunrise-label {
+  font-size: 11px;
+  letter-spacing: .12em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+
+.forecast-sunrise-time {
+  font: 700 15px 'Cormorant Garamond', serif;
+  color: #5070c0;
+}
+
+.forecast-sunrise-score {
+  font-size: 12px;
+  font-weight: 700;
+  padding: 1px 7px;
+  border-radius: 999px;
+  background: rgba(80,100,190,.10);
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   MINI BOX WITH EMOJI
+   ═══════════════════════════════════════════════════════════════════ */
+
+.forecast-mini-box__emoji {
+  font-size: 24px;
+  line-height: 1;
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   RESPONSIVE — 7-day grid
+   ═══════════════════════════════════════════════════════════════════ */
+
+@media (max-width: 400px) {
+  .weekly-grid {
+    grid-template-columns: repeat(7, 1fr);
+    gap: 4px;
+  }
+  .weekly-day-card__score { font-size: 22px; }
+  .weekly-day-card__name  { font-size: 10px; }
+  .weekly-day-card__emoji { font-size: 14px; }
+  .weekly-day-card__time  { font-size: 9px; }
 }
