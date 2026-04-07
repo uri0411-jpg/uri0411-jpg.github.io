@@ -8,11 +8,14 @@ import { OPEN_METEO_URL, OPEN_METEO_AQ_URL, NOMINATIM_URL, OVERPASS_URL, OVERPAS
 import { setCache, getCache, getStaleCache } from './cache.js';
 import { distKm } from './utils.js';
 
-const FETCH_TIMEOUT_MS = 25000;
+const FETCH_TIMEOUT_MS = 40000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
-  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  const timer = setTimeout(
+    () => controller.abort(new Error(`fetch timeout after ${timeoutMs}ms: ${url}`)),
+    timeoutMs
+  );
   try {
     return await fetch(url, { ...options, signal: controller.signal });
   } finally {
