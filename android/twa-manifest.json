@@ -1,0 +1,53 @@
+{
+  "packageId": "io.github.uri0411_jpg.twa",
+  "host": "uri0411-jpg.github.io",
+  "name": "TWILIGHT · דמדומים",
+  "launcherName": "TWILIGHT",
+  "display": "standalone",
+  "themeColor": "#3B1F08",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#1A0A02",
+  "enableNotifications": true,
+  "startUrl": "/",
+  "iconUrl": "https://uri0411-jpg.github.io/images/icon-512.png",
+  "maskableIconUrl": "https://uri0411-jpg.github.io/images/icon-maskable-512.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "C:\\Users\\user\\Desktop\\twilight\\twilight-pwa\\android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://uri0411-jpg.github.io/manifest.json",
+  "fallbackType": "customtabs",
+  "features": {
+    "locationDelegation": {
+      "enabled": true
+    }
+  },
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://uri0411-jpg.github.io/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "navigate-existing",
+  "displayOverride": [
+    "standalone"
+  ],
+  "appVersion": "1"
+}

@@ -1,0 +1,7 @@
+{
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.50.0",
+    "dotenv": "^16.0.0"
+  }
+}

@@ -1,0 +1,34 @@
+# ── Node ──────────────────────────────
+scripts/node_modules/
+scripts/package-lock.json
+
+# ── Secrets ───────────────────────────
+scripts/.env
+
+# ── Generated artifacts (regenerate with: node scripts/backtest.js) ──
+scripts/data/results-*.json
+scripts/data/learning-seed.json
+
+# ── Android — secrets & build artifacts ──
+android/android.keystore
+android/*.keystore
+android/build/
+android/app/build/
+android/*.apk
+android/*.aab
+android/*.idsig
+android/*.zip
+android/hs_err_pid*.log
+android/google-play-package/
+android/.gradle/
+
+# ── Claude IDE config (local only) ──
+.claude/
+
+# ── Legacy ────────────────────────────
+twilight-prototype-v4.html
+
+# ── OS ────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
