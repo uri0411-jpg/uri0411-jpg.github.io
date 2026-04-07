@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v16';  // bumped: forecast accuracy % replaces calibration/volume metrics
+const CACHE_NAME  = 'twl-v17';  // bumped: forecast accuracy % replaces calibration/volume metrics
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -136,7 +136,7 @@ async function networkFirst(request) {
   // Battery optimisation (Pulse 4): race network against a 8s timeout.
   // If network is slow, fall back to cache immediately rather than waiting.
   const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 8000)
+    setTimeout(() => reject(new Error('timeout')), 18000)
   );
   try {
     const response = await Promise.race([fetch(request), timeout]);

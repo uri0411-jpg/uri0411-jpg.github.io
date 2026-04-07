@@ -108,8 +108,12 @@ async function boot() {
 
   } catch (err) {
     console.error('[boot] Failed:', err);
-    showToast('שגיאה בטעינת נתונים. בדוק חיבור לאינטרנט.', 'error');
-    await initMainScreen({ lat: 32.08, lon: 34.78 }, 'ישראל', []);
+    showToast('שגיאה בטעינת נתונים — לחץ לנסות שוב', 'error');
+    document.querySelector('#main-screen').innerHTML =
+      `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem">
+         <p style="color:var(--cream);font-size:1.1rem">שגיאה בטעינת נתונים</p>
+         <button onclick="location.reload()" style="padding:.6rem 1.4rem;background:var(--amber);border:none;border-radius:8px;color:#fff;font-size:1rem;cursor:pointer">נסה שוב</button>
+       </div>`;
   } finally {
     showLoading(false);
   }
