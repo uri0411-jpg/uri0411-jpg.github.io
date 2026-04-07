@@ -1,23 +1,54 @@
 /**
- * skyColor.js — Physically-based sky color engine
+ * skyColor.js — Sky colour pipeline (physics + hybrid fallback)
  *
- * Computes sky colors from atmospheric scattering physics:
- *   - Rayleigh scattering → blue/violet tones (clean air)
- *   - Mie scattering     → orange/red tones (aerosols)
- *   - Beer-Lambert       → attenuation along air mass path
- *   - Twilight model     → purple/magenta shift when sun < 0°
+ * Primary path (default):
+ *   computeSkyColor() → atmosphere.js (Rayleigh/Mie, wavelength-based)
+ *                     → color.js (spectrum → RGB)
+ *                     → blended 70% physics + 30% legacy
  *
- * Score bias: drama level only adjusts saturation/contrast (±20% max),
- * never defines base hue.
+ * Legacy path (fallback, still used for the 30% blend):
+ *   computeSkyColorLegacy() — original empirical RGB offsets, preserved verbatim
+ *
+ * Configuration:
+ *   PHYSICS_WEIGHT    default 0.7  (70 % physics, 30 % legacy)
+ *   hybridMode        default true  — set false for 100 % physics
+ *   setHybridMode(b)  programmatic toggle (e.g. for A/B testing)
+ *
+ * Backward-compatible interface:
+ *   computeSkyColor({ solarElevation, airMass, turbidity,
+ *                     mieIntensity, rayleighSpread, humidity })
+ *   → { skyTop, skyMid, horizon, sun }  — same return shape as before
+ *
+ * Physics references:
+ *   Rayleigh scattering ∝ 1/λ⁴  → see atmosphere.js
+ *   Beer-Lambert attenuation     → see atmosphere.js
+ *   Twilight purple shift        → legacy heuristic retained in legacy path
  */
 
-// ── Constants ──────────────────────────────────────────────────────────────
-const AIR_MASS_MAX = 38;     // Kasten-Young air mass at horizon (h=0°)
-const K_RAYLEIGH   = 0.05;   // molecular extinction optical depth baseline
-const K_MIE        = 0.45;   // aerosol scaling — matches physicsLayer.js tauExt formula
-const TWILIGHT_DEG = 6;      // civil twilight depth in degrees
+import { computeAtmosphere }      from './atmosphere.js';
+import { spectrumToRGB, blendColors } from './color.js';
 
-// ── Internal helpers ───────────────────────────────────────────────────────
+// ── Hybrid mode configuration ─────────────────────────────────────────────────
+
+/**
+ * Fraction of the final colour that comes from the physics engine.
+ * The remaining (1 − PHYSICS_WEIGHT) comes from the legacy heuristic path.
+ * Range [0, 1].  Default: 0.7 (70 % physics / 30 % legacy).
+ */
+export const PHYSICS_WEIGHT = 0.7;
+
+/** When false, skip the legacy computation and use 100 % physics output. */
+export let hybridMode = true;
+
+/**
+ * Enable or disable hybrid blending at runtime.
+ * @param {boolean} enabled  true = 70/30 blend, false = pure physics
+ */
+export function setHybridMode(enabled) {
+  hybridMode = !!enabled;
+}
+
+// ── Shared internal helpers ───────────────────────────────────────────────────
 
 function clamp(v, min = 0, max = 255) {
   return Math.max(min, Math.min(max, v));
@@ -32,8 +63,14 @@ function smoothstep(lo, hi, x) {
   return t * t * (3 - 2 * t);
 }
 
+// Constants shared by both paths
+const AIR_MASS_MAX = 38;   // Kasten-Young air mass at horizon (h=0°)
+const K_RAYLEIGH   = 0.05; // molecular extinction optical depth baseline
+const K_MIE        = 0.45; // aerosol scaling — matches physicsLayer.js tauExt formula
+const TWILIGHT_DEG = 6;    // civil twilight depth in degrees
+
 /**
- * Warmth factor: ∝ 1/sin(elevation), normalized 0→1 as sun approaches horizon.
+ * Warmth factor: ∝ 1/sin(elevation), normalised 0→1 as sun approaches horizon.
  * Capped at 1 so that sub-horizon elevations stay at maximum warmth.
  */
 function _warmthNorm(solarElevation) {
@@ -51,48 +88,43 @@ function _beerLambert(airMass, turbidity) {
 }
 
 /**
- * Civil twilight factor: 0 at elevation=0°, 1 at elevation=-6°.
+ * Civil twilight factor: 0 at elevation=0°, 1 at elevation=−6°.
  * Drives the purple/magenta Belt-of-Venus shift.
  */
 function _twilightFactor(solarElevation) {
   return Math.max(0, Math.min(1, -solarElevation / TWILIGHT_DEG));
 }
 
-// ── Primary export ─────────────────────────────────────────────────────────
+// ── Legacy colour path (preserved verbatim) ───────────────────────────────────
 
 /**
- * Compute physics-based sky colors for four vertical zones.
+ * Original empirical sky colour model.
+ * Retained as the 30 % component of the hybrid blend and as a safety
+ * fallback.  Do NOT edit this function — it is the reference implementation.
  *
- * @param {Object} params
- * @param {number} params.solarElevation   Solar elevation in degrees (negative = below horizon)
- * @param {number} params.airMass          Kasten-Young air mass (from physicsContributions.airMass)
- * @param {number} params.turbidity        0–1 composite aerosol index
- * @param {number} params.mieIntensity     0–1 Mie forward-scatter strength
- * @param {number} params.rayleighSpread   0–1 clean-air gradient quality
- * @param {number} params.humidity         0–100 relative humidity
- *
- * @returns {{
- *   skyTop:  {r:number, g:number, b:number},
- *   skyMid:  {r:number, g:number, b:number},
- *   horizon: {r:number, g:number, b:number},
- *   sun:     {r:number, g:number, b:number}
- * }}
+ * @param {Object} p
+ * @param {number} p.solarElevation   Solar elevation in degrees
+ * @param {number} p.airMass          Kasten-Young air mass
+ * @param {number} p.turbidity        0–1 composite aerosol index
+ * @param {number} p.mieIntensity     0–1 Mie forward-scatter strength
+ * @param {number} p.rayleighSpread   0–1 clean-air gradient quality
+ * @param {number} p.humidity         0–100 relative humidity
+ * @returns {{ skyTop, skyMid, horizon, sun }}
  */
-export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity }) {
+function computeSkyColorLegacy({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity }) {
   const warmthN   = _warmthNorm(solarElevation);
   const twilightF = _twilightFactor(solarElevation);
   const intensity = _beerLambert(airMass, turbidity);
 
-  // ── skyTop: Rayleigh-dominated, deep blue → violet/purple in twilight ──
-  const mieDark = mieIntensity * 10;  // aerosol darkening of top sky
+  // skyTop: Rayleigh-dominated, deep blue → violet/purple in twilight
+  const mieDark = mieIntensity * 10;
   const skyTop = {
     r: clamp(8  + warmthN * 20 * rayleighSpread + 40 * twilightF - mieDark),
     g: clamp(5  + warmthN * 8  * rayleighSpread + 5  * twilightF - mieDark * 0.6),
     b: clamp(55 + rayleighSpread * 30 - turbidity * 20 + 35 * twilightF - mieDark * 0.3, 20),
-    // floor 20 on blue — dusty sky is always dark blue, never pure black
   };
 
-  // ── skyMid: Rayleigh + Mie blend — warm pink/amber transition ──
+  // skyMid: Rayleigh + Mie blend — warm pink/amber transition
   const mieFrac = smoothstep(0.3, 0.7, mieIntensity);
   const rR = 35 + warmthN * 50 * rayleighSpread;
   const gR = 8  + warmthN * 18 * rayleighSpread;
@@ -106,8 +138,8 @@ export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensi
     b: clamp(lerp(bR, bR - bM, mieFrac) + 20 * twilightF * rayleighSpread),
   };
 
-  // ── horizon: Mie-dominated, earth shadow fades colour as sun dips ──
-  const earthShadow = Math.max(0, -solarElevation / 3);  // 0→1 as sun goes -3°
+  // horizon: Mie-dominated, earth shadow fades colour as sun dips
+  const earthShadow = Math.max(0, -solarElevation / 3);
   const shadowFade  = 1 - earthShadow * 0.7;
   const humHaze     = (humidity / 100) * 0.15;
   const horizon = {
@@ -127,10 +159,10 @@ export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensi
     ),
   };
 
-  // ── sun: direct Beer-Lambert transmission, reddened at low angles ──
+  // sun: direct Beer-Lambert transmission, reddened at low angles
   const humFactor = clamp(humidity / 100, 0, 1);
   const sun = {
-    r: clamp(255 * (0.85 + 0.15 * intensity)),  // slight attenuation even in red channel
+    r: clamp(255 * (0.85 + 0.15 * intensity)),
     g: clamp(lerp(255 * intensity * (1 - warmthN * 0.7 * turbidity), 220, humFactor * mieIntensity * 0.5)),
     b: clamp(lerp(255 * intensity * (1 - warmthN * 0.9), 180, humFactor * mieIntensity * 0.5)),
   };
@@ -138,7 +170,72 @@ export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensi
   return { skyTop, skyMid, horizon, sun };
 }
 
-// ── Sun appearance model ───────────────────────────────────────────────────
+// ── Physics colour path ───────────────────────────────────────────────────────
+
+/**
+ * Convert atmosphere.js output to a four-zone {r,g,b} colour set.
+ * @param {number} sunAngle_rad  Solar elevation in radians
+ * @param {number} turbidity     0–1 from physicsLayer
+ * @returns {{ skyTop, skyMid, horizon, sun }}
+ */
+function computeSkyColorPhysics(sunAngle_rad, turbidity) {
+  const atm = computeAtmosphere(sunAngle_rad, turbidity);
+  return {
+    skyTop:  spectrumToRGB(atm.skyTop),
+    skyMid:  spectrumToRGB(atm.skyMid),
+    horizon: spectrumToRGB(atm.horizon),
+    sun:     spectrumToRGB(atm.sun),
+  };
+}
+
+// ── Primary export ────────────────────────────────────────────────────────────
+
+/**
+ * Compute physics-based sky colours for four vertical zones.
+ *
+ * Default mode: 70 % physics (Rayleigh/Mie wavelength model) blended with
+ * 30 % legacy (empirical heuristic) for a gradual transition.
+ * Set hybridMode = false or call setHybridMode(false) for 100 % physics.
+ *
+ * Interface is backward-compatible with the previous implementation —
+ * callers in score.js do not need to change.
+ *
+ * @param {Object} params
+ * @param {number} params.solarElevation   Solar elevation in degrees (negative = below horizon)
+ * @param {number} params.airMass          Kasten-Young air mass (from physicsContributions.airMass)
+ * @param {number} params.turbidity        0–1 composite aerosol index
+ * @param {number} params.mieIntensity     0–1 Mie forward-scatter strength
+ * @param {number} params.rayleighSpread   0–1 clean-air gradient quality
+ * @param {number} params.humidity         0–100 relative humidity
+ *
+ * @returns {{
+ *   skyTop:  {r:number, g:number, b:number},
+ *   skyMid:  {r:number, g:number, b:number},
+ *   horizon: {r:number, g:number, b:number},
+ *   sun:     {r:number, g:number, b:number}
+ * }}
+ */
+export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity }) {
+  // Convert degrees → radians for atmosphere.js
+  const sunAngle_rad = solarElevation * (Math.PI / 180);
+
+  const physics = computeSkyColorPhysics(sunAngle_rad, turbidity);
+
+  if (!hybridMode) return physics;
+
+  // Hybrid: blend physics with legacy to preserve civil-twilight purple shift
+  // and other heuristic touches while the physics model is primary
+  const legacy = computeSkyColorLegacy({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity });
+
+  return {
+    skyTop:  blendColors(physics.skyTop,  legacy.skyTop,  PHYSICS_WEIGHT),
+    skyMid:  blendColors(physics.skyMid,  legacy.skyMid,  PHYSICS_WEIGHT),
+    horizon: blendColors(physics.horizon, legacy.horizon, PHYSICS_WEIGHT),
+    sun:     blendColors(physics.sun,     legacy.sun,     PHYSICS_WEIGHT),
+  };
+}
+
+// ── Sun appearance model (unchanged) ─────────────────────────────────────────
 
 /**
  * Compute physical appearance parameters for the sun disk.
@@ -170,18 +267,18 @@ export function computeSunAppearance({ solarElevation, turbidity, mieIntensity, 
 
   return {
     color: sun,
-    size: clamp(size, 1, 0, 2),
-    blur: clamp(blur, 0, 30),
-    intensity: Math.max(intensity, 0.05),  // always slightly visible
+    size:      clamp(size, 0, 2),
+    blur:      clamp(blur, 0, 30),
+    intensity: Math.max(intensity, 0.05), // always slightly visible
   };
 }
 
-// ── Score bias ─────────────────────────────────────────────────────────────
+// ── Score bias (unchanged) ────────────────────────────────────────────────────
 
 /**
- * Enhance sky colors slightly based on dramaLevel (from score.js).
+ * Enhance sky colours slightly based on dramaLevel (from score.js).
  * Only boosts channels that are already dominant (>80) — preserves hue,
- * increases saturation/contrast by at most 20%.
+ * increases saturation/contrast by at most 20 %.
  *
  * @param {{ skyTop, skyMid, horizon, sun }} skyColors
  * @param {number} dramaLevel  0–100 from dayData.dramaLevel

@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v21';  // bumped: forecast accuracy % replaces calibration/volume metrics
+const CACHE_NAME  = 'twl-v25';  // bumped: spectral scattering engine (atmosphere/color/sun/environment)
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -44,7 +44,11 @@ const STATIC_ASSETS = [
   './js/engine/scoreEngine.js',
   './js/engine/learningEngine.js',
   './js/engine/skyColor.js',
-  './js/render/skyGradient.js'
+  './js/engine/atmosphere.js',
+  './js/engine/sun.js',
+  './js/engine/color.js',
+  './js/render/skyGradient.js',
+  './js/data/environment.js'
 ];
 
 const API_PATTERNS = [
