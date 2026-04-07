@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v19';  // bumped: forecast accuracy % replaces calibration/volume metrics
+const CACHE_NAME  = 'twl-v20';  // bumped: forecast accuracy % replaces calibration/volume metrics
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -133,13 +133,10 @@ async function cacheFirst(request) {
 }
 
 async function networkFirst(request) {
-  // Battery optimisation (Pulse 4): race network against a 8s timeout.
-  // If network is slow, fall back to cache immediately rather than waiting.
-  const timeout = new Promise((_, reject) =>
-    setTimeout(() => reject(new Error('timeout')), 18000)
-  );
+  // No artificial SW timeout — app's AbortController (25s in api.js) is the
+  // single source of truth for request timeouts. Avoids racing two timeouts.
   try {
-    const response = await Promise.race([fetch(request), timeout]);
+    const response = await fetch(request);
     if (response && response.status === 200) {
       const cache = await caches.open(CACHE_NAME);
       cache.put(request, response.clone());
