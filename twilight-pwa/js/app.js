@@ -109,10 +109,13 @@ async function boot() {
   } catch (err) {
     console.error('[boot] Failed:', err);
     showToast('שגיאה בטעינת נתונים — לחץ לנסות שוב', 'error');
+    const errMsg = (err && (err.message || err.toString())) || 'unknown';
     document.querySelector('#main-screen').innerHTML =
-      `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem">
+      `<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:60vh;gap:1rem;padding:1rem;text-align:center">
          <p style="color:var(--cream);font-size:1.1rem">שגיאה בטעינת נתונים</p>
+         <p style="color:var(--cream);font-size:.75rem;opacity:.6;direction:ltr;max-width:90%;word-break:break-word">${errMsg}</p>
          <button onclick="location.reload()" style="padding:.6rem 1.4rem;background:var(--amber);border:none;border-radius:8px;color:#fff;font-size:1rem;cursor:pointer">נסה שוב</button>
+         <button onclick="navigator.serviceWorker?.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k))))).then(()=>location.reload())" style="padding:.5rem 1rem;background:transparent;border:1px solid var(--cream);border-radius:8px;color:var(--cream);font-size:.85rem;cursor:pointer">נקה מטמון ונסה שוב</button>
        </div>`;
   } finally {
     showLoading(false);

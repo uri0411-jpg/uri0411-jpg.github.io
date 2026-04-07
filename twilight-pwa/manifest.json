@@ -9,8 +9,8 @@
   "orientation": "portrait",
   "theme_color": "#3B1F08",
   "background_color": "#1A0A02",
-  "start_url": "./",
-  "scope": "./",
+  "start_url": "/",
+  "scope": "/",
   "id": "twilight-pwa",
   "icons": [
     {

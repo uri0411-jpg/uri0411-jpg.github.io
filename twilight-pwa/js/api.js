@@ -8,7 +8,7 @@ import { OPEN_METEO_URL, OPEN_METEO_AQ_URL, NOMINATIM_URL, OVERPASS_URL, OVERPAS
 import { setCache, getCache, getStaleCache } from './cache.js';
 import { distKm } from './utils.js';
 
-const FETCH_TIMEOUT_MS = 10000;
+const FETCH_TIMEOUT_MS = 25000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
