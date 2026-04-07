@@ -1,0 +1,16 @@
+# Prototype / demo files — archived, not part of production build
+twilight-prototype-v4.html
+scripts.zip
+
+# Node / build artifacts
+node_modules/
+dist/
+.cache/
+
+# Environment / secrets
+.env
+.env.local
+
+# OS
+.DS_Store
+Thumbs.db

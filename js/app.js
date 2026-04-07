@@ -114,11 +114,17 @@ async function loadAppData() {
 
   preloadSpotsData(_weekData, _loc).catch(() => {});
 
-  const wCacheKey = `weather_${_loc.lat.toFixed(3)}_${_loc.lon.toFixed(3)}`;
-  const ageMin = getCacheAge(wCacheKey);
-  if (ageMin !== null && ageMin > 360) {
-    const ageH = Math.round(ageMin / 60);
-    showToast(`הנתונים עדכניים מלפני ${ageH} שעות — משתמש במטמון`, 'info');
+  // Stale-data / offline banner
+  if (weather._isStale) {
+    // fetchWeek fell back to stale cache — network was unavailable
+    showToast('אין חיבור לאינטרנט — מציג נתונים שמורים', 'warn');
+  } else {
+    const wCacheKey = `weather_${_loc.lat.toFixed(3)}_${_loc.lon.toFixed(3)}`;
+    const ageMin = getCacheAge(wCacheKey);
+    if (ageMin !== null && ageMin > 360) {
+      const ageH = Math.round(ageMin / 60);
+      showToast(`הנתונים עדכניים מלפני ${ageH} שעות — משתמש במטמון`, 'info');
+    }
   }
 
   updateThemeColor(_weekData);

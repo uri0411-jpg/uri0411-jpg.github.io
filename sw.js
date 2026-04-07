@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v27';  // bumped: fix belt-of-Venus NaN guard in skyGradient.js
+const CACHE_NAME  = 'twl-v28';  // bumped: Phase 3 physics — 5λ spectrum, Belt-of-Venus, ozone, goldenWindow fix
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 

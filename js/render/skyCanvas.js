@@ -27,17 +27,22 @@
  * @module render/skyCanvas
  */
 
-import { computeAtmosphere } from '../engine/atmosphere.js';
-import { spectrumToRGB }      from '../engine/color.js';
+import { computeAtmosphere }   from '../engine/atmosphere.js';
+import { spectrumToRGB }        from '../engine/color.js';
+import { LOCATION_CLIMATE }     from '../config.js';
 
 const CANVAS_ID = 'sky-canvas';
 
 // Canvas-position fractions for each of the 8 gradient stops (top → bottom)
 const STOP_POSITIONS = [0.00, 0.12, 0.25, 0.40, 0.58, 0.70, 0.83, 1.00];
 
-// Angular offsets (radians) added to the current solar elevation for each stop
-// Positive = looking higher than sun, negative = looking below sun (into earth shadow)
-const STOP_OFFSETS_RAD = [0.35, 0.20, 0.10, 0.03, -0.02, -0.06, -0.12, -0.18];
+// Angular offsets (radians) added to the current solar elevation for each stop.
+// Positive = looking higher than sun, negative = looking below sun (into earth shadow).
+//
+// Adaptive spacing: stops 2-5 are tightly clustered around the horizon (±0.05 rad)
+// where the Rayleigh → Mie colour transition is most rapid.  Outer stops are spread
+// wider to capture the deep-blue zenith and dark earth-shadow base.
+const STOP_OFFSETS_RAD = [0.35, 0.15, 0.06, 0.02, -0.01, -0.04, -0.09, -0.18];
 
 // Which zone of atmosphere output each stop samples
 const STOP_ZONES = ['skyTop', 'skyTop', 'skyMid', 'skyMid', 'horizon', 'horizon', 'horizon', 'horizon'];
@@ -45,17 +50,48 @@ const STOP_ZONES = ['skyTop', 'skyTop', 'skyMid', 'skyMid', 'horizon', 'horizon'
 // Alpha for each stop (top is lighter overlay, bottom is deep dark)
 const STOP_ALPHAS = [0.70, 0.68, 0.62, 0.58, 0.55, 0.60, 0.70, 0.97];
 
-// ── Belt of Venus tint ────────────────────────────────────────────────────────
+// ── Belt of Venus colour (physics-based, Phase 3.4) ──────────────────────────
 
-function _lerp(a, b, t) { return a + (b - a) * Math.max(0, Math.min(1, t)); }
+/**
+ * Compute the Belt-of-Venus colour using Chappuis-weighted atmospheric backscatter.
+ *
+ * The Belt of Venus (anti-twilight arch) is backscattered twilight sky light
+ * seen 3–10° above the anti-solar horizon.  Its characteristic pink-lavender
+ * colour arises from:
+ *   1. Rayleigh scatter (λ^{-4}) preferentially maintaining the violet/blue
+ *      channels over orange/red at high air mass.
+ *   2. Chappuis ozone absorption (peak 600 nm) suppressing the orange channel.
+ *   3. Double optical path — sunlight crosses the full atmosphere twice
+ *      (incoming → surface → observer), so the effective ozone column is 2×.
+ *
+ * Replaces the previous heuristic lerp toward (180, 60, 160).
+ *
+ * @param {number} sunAngle_rad  Solar elevation in radians (negative after sunset)
+ * @param {number} turbidity     Aerosol loading (capped at 0.15 — belt is clear-sky)
+ * @param {number} ozoneDU       Stratospheric ozone column in Dobson Units
+ * @returns {{ r: number, g: number, b: number }}
+ */
+function _computeBeltColor(sunAngle_rad, turbidity, ozoneDU) {
+  // Belt sits ~3° above the anti-solar horizon.  When sun is at −α the
+  // anti-solar horizon is at +α, so belt centre ≈ |α| + 0.052 rad.
+  const beltAngle = Math.abs(sunAngle_rad) + 0.052; // ≈ |α| + 3°
 
-function _beltColor(horizonColor, beltOfVenus) {
-  const bov = beltOfVenus;
+  // Belt is a clear-sky scattering effect — cap turbidity to isolate Rayleigh
+  const cleanTurb = Math.min(turbidity, 0.15);
+
+  // Double ozone path: sunlight transits the atmosphere twice for backscatter
+  const atm = computeAtmosphere(beltAngle, cleanTurb, 0, ozoneDU * 2);
+
+  // Blend Rayleigh-dominant skyTop (blue-violet) with warm horizon edge:
+  //   70% skyTop  → sets the blue-violet base from λ^{-4} Rayleigh scatter
+  //   30% horizon → adds pink warmth at the earth-shadow boundary
+  // Together this produces the characteristic soft lavender-mauve of the belt.
+  const st = spectrumToRGB(atm.skyTop);
+  const hz = spectrumToRGB(atm.horizon);
   return {
-    r: Math.round(_lerp(horizonColor.r, 180, bov)),
-    g: Math.round(_lerp(horizonColor.g,  60, bov)),
-    b: Math.round(_lerp(horizonColor.b, 160, bov)),
-    a: bov * 0.55,
+    r: Math.round(st.r * 0.70 + hz.r * 0.30),
+    g: Math.round(st.g * 0.70 + hz.g * 0.30),
+    b: Math.round(st.b * 0.70 + hz.b * 0.30),
   };
 }
 
@@ -111,15 +147,19 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
   // ── Sample atmosphere at 8 elevation offsets ──────────────────────────────
   const colors = STOP_OFFSETS_RAD.map((offset, i) => {
     const sampleAngle = sunAngle_rad + offset;
-    const atm = computeAtmosphere(sampleAngle, turbidity, angstromExp);
+    const atm = computeAtmosphere(sampleAngle, turbidity, angstromExp, LOCATION_CLIMATE.ozoneDU);
     const zone = STOP_ZONES[i];
     const rgb  = spectrumToRGB(atm[zone]);
 
-    // Belt of Venus zone (stop 5): tint toward pink-purple
+    // Belt of Venus zone (stop 5): blend toward physics-derived lavender-mauve
     if (i === 5 && beltOfVenus > 0) {
-      const horizon = spectrumToRGB(atm.horizon);
-      const belt    = _beltColor(horizon, beltOfVenus);
-      return { r: belt.r, g: belt.g, b: belt.b };
+      const belt = _computeBeltColor(sunAngle_rad, turbidity, LOCATION_CLIMATE.ozoneDU);
+      const bov  = beltOfVenus;
+      return {
+        r: Math.round(rgb.r * (1 - bov) + belt.r * bov),
+        g: Math.round(rgb.g * (1 - bov) + belt.g * bov),
+        b: Math.round(rgb.b * (1 - bov) + belt.b * bov),
+      };
     }
     return rgb;
   });

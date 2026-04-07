@@ -11,11 +11,11 @@ import { formatTime, twilightRange, addMinutes, scoreToColorContinuous, scoreToL
          degToDir, dateToHebDay, shortDate, buildTags, buildSmartCond,
          calcSolarElevation, calcSolarAzimuth, calcGoldenHourMin } from './utils.js';
 import { WEATHER_CODES, SEASONAL_BASELINE, COAST_LON,
-         OVERRIDE_CODES } from './config.js';
+         LOCATION_CLIMATE, OVERRIDE_CODES } from './config.js';
 import { getBiasCorrection, getDynamicSeasonalBaseline, getCloudPenaltyAdjustment } from './calibration.js';
 import { computeScattering } from './engine/physicsLayer.js';
 import { predictGoldenWindow } from './engine/goldenWindow.js';
-import { computeSkyColor, applyScoreBias } from './engine/skyColor.js';
+import { getSeasonalOzone }    from './data/ozone_climatology.js';
 import { getLearningAdjustments } from './engine/learningEngine.js';
 import { computeScore as computeEngineScore } from './engine/scoreEngine.js';
 
@@ -595,7 +595,7 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
   const visAnomaly   = (_visibilityVal - baseline.visibility) / 10;
   const seasonalAnomaly = (cloudAnomaly + visAnomaly) / 2;
 
-  const distFromCoast = Math.abs(lon - COAST_LON);
+  const distFromCoast = Math.abs(lon - LOCATION_CLIMATE.coastLon);
   const geoBonus = distFromCoast < 0.15 ? 0.1 : distFromCoast < 0.5 ? 0.03 : 0;
 
   const cd6h = (idx >= 6 && h.cloudcover)
@@ -726,18 +726,10 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
   const _d   = Number(ssParams.dust)  || 0;
   const angstromExp = (_p10 + _d + 1) > 2 ? _p25 / (_p10 + _d + 1) : 0.5;
 
-  const skyColors = applyScoreBias(
-    computeSkyColor({
-      solarElevation: ssParams.solarElevation,
-      airMass:        physics.contributions.airMass,
-      turbidity:      physics.turbidity,
-      mieIntensity:   physics.mieIntensity,
-      rayleighSpread: physics.rayleighSpread,
-      humidity:       ssParams.humidity,
-      angstromExp,
-    }),
-    ssResult.drama
-  );
+  // Seasonal ozone: varies by latitude band and month (~±50 DU over the year).
+  // Stored on dayData so the render layer (main-screen.js) can use it for live
+  // canvas updates without re-deriving the month/lat lookup.
+  const seasonalOzone = getSeasonalOzone(lat, ssParams.month);
 
   const ssScore = ssResult.score;
   const srScore = srResult.score;
@@ -749,7 +741,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
   const engineResult = (() => {
     try {
       return computeEngineScore({
-        clouds:             ssParams.clouds,
+        clouds:             ssParams.clouds / 100,  // convert % → fraction (scoreEngine expects 0-1)
         cloudHeightCategory: cloudHeightCat,
         turbidity:          physics.turbidity,
         mieIntensity:       physics.mieIntensity,
@@ -860,8 +852,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
     mieIntensity:   physics.mieIntensity,
     rayleighSpread: physics.rayleighSpread,
     physicsContributions: physics.contributions,
-    // Sky color engine: physics-based gradient zones
-    skyColors,
+    ozoneDU:        seasonalOzone,  // seasonal ozone column (DU) for render layer
     // Pulse 2: golden window — physics-aware peak time prediction
     goldenWindow,
     // scoreEngine: richer physics-based scorer (0–100) for debug + decisionEngine

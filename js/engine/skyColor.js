@@ -38,7 +38,7 @@ import { spectrumToRGB, blendColors } from './color.js';
 export const PHYSICS_WEIGHT = 0.7;
 
 /** When false, skip the legacy computation and use 100 % physics output. */
-export let hybridMode = true;
+export let hybridMode = false;
 
 /**
  * Enable or disable hybrid blending at runtime.
@@ -177,10 +177,11 @@ function computeSkyColorLegacy({ solarElevation, airMass, turbidity, mieIntensit
  * @param {number} sunAngle_rad    Solar elevation in radians
  * @param {number} turbidity       0–1 from physicsLayer
  * @param {number} [angstromExp]   Ångström exponent from PM2.5/PM10
+ * @param {number} [ozoneDU]       Stratospheric ozone column in Dobson Units
  * @returns {{ skyTop, skyMid, horizon, sun }}
  */
-function computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp = 0) {
-  const atm = computeAtmosphere(sunAngle_rad, turbidity, angstromExp);
+function computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp = 0, ozoneDU = 300) {
+  const atm = computeAtmosphere(sunAngle_rad, turbidity, angstromExp, ozoneDU);
   return {
     skyTop:  spectrumToRGB(atm.skyTop),
     skyMid:  spectrumToRGB(atm.skyMid),
@@ -208,6 +209,8 @@ function computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp = 0) {
  * @param {number} params.mieIntensity     0–1 Mie forward-scatter strength
  * @param {number} params.rayleighSpread   0–1 clean-air gradient quality
  * @param {number} params.humidity         0–100 relative humidity
+ * @param {number} [params.ozoneDU=300]    Stratospheric ozone column (Dobson Units).
+ *                                         Pass LOCATION_CLIMATE.ozoneDU for location accuracy.
  *
  * @returns {{
  *   skyTop:  {r:number, g:number, b:number},
@@ -216,11 +219,11 @@ function computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp = 0) {
  *   sun:     {r:number, g:number, b:number}
  * }}
  */
-export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity, angstromExp = 0 }) {
+export function computeSkyColor({ solarElevation, airMass, turbidity, mieIntensity, rayleighSpread, humidity, angstromExp = 0, ozoneDU = 300 }) {
   // Convert degrees → radians for atmosphere.js
   const sunAngle_rad = solarElevation * (Math.PI / 180);
 
-  const physics = computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp);
+  const physics = computeSkyColorPhysics(sunAngle_rad, turbidity, angstromExp, ozoneDU);
 
   if (!hybridMode) return physics;
 

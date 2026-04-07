@@ -111,6 +111,7 @@ export async function fetchWeek(lat, lon) {
       const stale = getStaleCache(cacheKey);
       if (stale) {
         console.warn('[api] fetchWeek: all models failed, using stale cache');
+        stale._isStale = true; // signal to app.js to show offline banner
         return stale;
       }
       throw primaryResult.reason;

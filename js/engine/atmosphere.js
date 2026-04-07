@@ -38,8 +38,16 @@ import { airMass as kastenyoungAirMass } from './physicsLayer.js';
 
 // ── Wavelengths ───────────────────────────────────────────────────────────────
 
-/** Sample wavelengths in micrometres: [blue, green, red] */
-const WAVELENGTHS = [0.450, 0.550, 0.650];
+/**
+ * Sample wavelengths in micrometres: [violet, blue, green, orange, red]
+ *
+ * Expanding from 3 to 5 wavelengths (Phase 3.6) adds:
+ *   430 nm (violet) — Rayleigh-dominant, enhances Belt-of-Venus purple
+ *   600 nm (orange) — Chappuis-band peak, discriminates orange from red glow
+ *
+ * Pass output arrays to color.js:spectrumToRGB() for XYZ→sRGB conversion.
+ */
+const WAVELENGTHS = [0.430, 0.450, 0.550, 0.600, 0.650];
 
 // ── Scattering coefficients ───────────────────────────────────────────────────
 
@@ -169,11 +177,12 @@ function chappuisAbsorption(lambda_um, ozoneDU = 300) {
  * @param {number} airmass        Optical path length m
  * @param {number} turbidity      Mie loading 0–1
  * @param {number} [angstromExp]  Ångström exponent for spectral Mie (default 0)
+ * @param {number} [ozoneDU]      Stratospheric ozone column in Dobson Units (default 300)
  * @returns {number} Transmittance in [0, 1]
  */
-function transmittance(lambda_um, airmass, turbidity, angstromExp = 0) {
+function transmittance(lambda_um, airmass, turbidity, angstromExp = 0, ozoneDU = 300) {
   const tau = (rayleighBeta(lambda_um) + mieBeta(lambda_um, turbidity, angstromExp)) * airmass;
-  return Math.exp(-tau) * chappuisAbsorption(lambda_um);
+  return Math.exp(-tau) * chappuisAbsorption(lambda_um, ozoneDU);
 }
 
 // ── Zone intensity computation ────────────────────────────────────────────────
@@ -204,14 +213,25 @@ function transmittance(lambda_um, airmass, turbidity, angstromExp = 0) {
  * @param {number}   scatterFrac    Weight for Rayleigh scatter (0–1)
  * @param {number}   directFrac     Weight for direct transmittance (0–1)
  * @param {number}   [angstromExp]  Ångström exponent for spectral Mie (default 0)
+ * @param {number}   [ozoneDU]      Stratospheric ozone column in Dobson Units (default 300)
  * @returns {number[]} [I_blue, I_green, I_red]
  */
-function zoneIntensities(airmass, turbidity, scatterFrac, directFrac, angstromExp = 0) {
+function zoneIntensities(airmass, turbidity, scatterFrac, directFrac, angstromExp = 0, ozoneDU = 300) {
   return WAVELENGTHS.map(lambda => {
-    const T = transmittance(lambda, airmass, turbidity, angstromExp);
+    const T = transmittance(lambda, airmass, turbidity, angstromExp, ozoneDU);
     // Rayleigh scatter normalised to blue channel = 1.0
     const scatterNorm = (rayleighBeta(lambda) / K_R_MAX) * T;
-    return scatterFrac * scatterNorm + directFrac * T;
+    const single = scatterFrac * scatterNorm + directFrac * T;
+    // ── Multiple scattering correction (Phase 3.2) ────────────────────────────
+    // Single-scattering models underestimate brightness at high aerosol optical
+    // depth (AOD).  At τ_Mie ≈ 1 (heavy haze / dust), first-order multiple
+    // scatter augments the single-scatter radiance by ~30%.
+    //   I_total ≈ I_single × (1 + τ_Mie × 0.30)
+    // Reference: two-stream approximation, e.g. Chandrasekhar (1960) §5.
+    // Effect is negligible for clean air (turbidity < 0.2, τ_Mie < 0.05)
+    // and significant for heavy dust (turbidity > 0.5, τ_Mie > 0.5).
+    const tauMie = mieBeta(lambda, turbidity, angstromExp) * airmass;
+    return single * (1 + tauMie * 0.30);
   });
 }
 
@@ -239,10 +259,38 @@ function zoneMixRatios(sunAngle_rad) {
   };
 }
 
-// ── Cache ─────────────────────────────────────────────────────────────────────
+// ── LRU Cache ─────────────────────────────────────────────────────────────────
 
-/** Single-entry cache — avoids recomputing identical (angle, turbidity) pairs. */
-let _cache = null;
+/**
+ * Least-recently-used cache for atmosphere computations.
+ *
+ * During the 30-second live-update loop the solar elevation changes by only
+ * ~0.008°/s, meaning successive calls often share the same rounded key.
+ * A single-entry cache is invalidated on every tiny parameter drift; an
+ * 8-entry LRU retains the last several distinct (angle, turbidity, angstrom,
+ * ozone) combinations — covering all 8 canvas stops plus the score pipeline
+ * in a single render cycle without recomputing.
+ */
+const LRU_MAX = 8;
+const _lruCache = new Map(); // insertion order = LRU order
+
+function _cacheGet(key) {
+  if (!_lruCache.has(key)) return null;
+  // Re-insert to mark as most recently used
+  const val = _lruCache.get(key);
+  _lruCache.delete(key);
+  _lruCache.set(key, val);
+  return val;
+}
+
+function _cacheSet(key, value) {
+  if (_lruCache.has(key)) _lruCache.delete(key);
+  else if (_lruCache.size >= LRU_MAX) {
+    // Evict oldest entry (first key in insertion order)
+    _lruCache.delete(_lruCache.keys().next().value);
+  }
+  _lruCache.set(key, value);
+}
 
 // ── Primary export ────────────────────────────────────────────────────────────
 
@@ -260,6 +308,8 @@ let _cache = null;
  * @param {number} turbidity          Aerosol loading 0–1 (from physicsLayer.computeScattering)
  * @param {number} [angstromExp=0]    Ångström exponent α from PM2.5/PM10 ratio.
  *                                    0 = pure dust (white haze), 1.5 = fine smoke (tinted haze).
+ * @param {number} [ozoneDU=300]      Stratospheric ozone column in Dobson Units.
+ *                                    Pass LOCATION_CLIMATE.ozoneDU for location-aware accuracy.
  * @returns {{
  *   skyTop:   number[],   // [I_blue, I_green, I_red] — zenith zone
  *   skyMid:   number[],   // transition zone
@@ -267,13 +317,14 @@ let _cache = null;
  *   sun:      number[],   // sun disk (direct only, slightly more extinction)
  *   airmass:  number,     // computed air mass for reference / debug
  *   turbidity: number,
- *   wavelengths: number[] // λ values [0.45, 0.55, 0.65] µm for reference
+ *   wavelengths: number[] // λ values [0.43, 0.45, 0.55, 0.60, 0.65] µm for reference
  * }}
  */
-export function computeAtmosphere(sunAngle_rad, turbidity, angstromExp = 0) {
+export function computeAtmosphere(sunAngle_rad, turbidity, angstromExp = 0, ozoneDU = 300) {
   // ── Cache lookup ──────────────────────────────────────────────────────────
-  const cacheKey = `${sunAngle_rad.toFixed(3)}_${turbidity.toFixed(3)}_${angstromExp.toFixed(2)}`;
-  if (_cache && _cache.key === cacheKey) return _cache.result;
+  const cacheKey = `${sunAngle_rad.toFixed(3)}_${turbidity.toFixed(3)}_${angstromExp.toFixed(2)}_${ozoneDU}`;
+  const cached = _cacheGet(cacheKey);
+  if (cached) return cached;
 
   // ── Air mass ──────────────────────────────────────────────────────────────
   const m = computeAirmass(sunAngle_rad);
@@ -283,24 +334,25 @@ export function computeAtmosphere(sunAngle_rad, turbidity, angstromExp = 0) {
 
   // ── Zone colours ──────────────────────────────────────────────────────────
   const result = {
-    skyTop:    zoneIntensities(m,        turbidity, mix.skyTop.s,  mix.skyTop.d,  angstromExp),
-    skyMid:    zoneIntensities(m,        turbidity, mix.skyMid.s,  mix.skyMid.d,  angstromExp),
-    horizon:   zoneIntensities(m,        turbidity, mix.horizon.s, mix.horizon.d, angstromExp),
-    sun:       zoneIntensities(m * 1.02, turbidity, 0.00,          1.00,          angstromExp),
+    skyTop:    zoneIntensities(m,        turbidity, mix.skyTop.s,  mix.skyTop.d,  angstromExp, ozoneDU),
+    skyMid:    zoneIntensities(m,        turbidity, mix.skyMid.s,  mix.skyMid.d,  angstromExp, ozoneDU),
+    horizon:   zoneIntensities(m,        turbidity, mix.horizon.s, mix.horizon.d, angstromExp, ozoneDU),
+    sun:       zoneIntensities(m * 1.02, turbidity, 0.00,          1.00,          angstromExp, ozoneDU),
     airmass:   m,
     turbidity,
     wavelengths: WAVELENGTHS,
   };
 
   // ── Cache store ───────────────────────────────────────────────────────────
-  _cache = { key: cacheKey, result };
+  _cacheSet(cacheKey, result);
   return result;
 }
 
 /**
- * Invalidate the internal cache.
- * Call this if turbidity changes between frames (optional — cache auto-updates).
+ * Invalidate the LRU cache.
+ * Optional — the cache auto-evicts stale entries; call only when you want
+ * to force a full recompute (e.g. after a turbidity step-change).
  */
 export function clearAtmosphereCache() {
-  _cache = null;
+  _lruCache.clear();
 }

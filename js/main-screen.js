@@ -12,7 +12,7 @@ import { initDebugPanel } from './debugPanel.js';
 import { watchSunsetBearing } from './location.js';
 import { getSunAngleDegrees } from './engine/sun.js';
 import { airMass as kastenyoungAirMass } from './engine/physicsLayer.js';
-import { computeSkyColor, applyScoreBias } from './engine/skyColor.js';
+import { computeSkyColor } from './engine/skyColor.js';
 import { renderSunDisk, removeSunDisk } from './render/sunDisk.js';
 import { renderCrepuscularRays, removeCrepuscularRays } from './render/crepuscularRays.js';
 import { renderSkyCanvas, removeSkyCanvas } from './render/skyCanvas.js';
@@ -77,18 +77,16 @@ function startLiveGradient(today, loc) {
       try {
         liveElevDeg = getSunAngleDegrees({ time: new Date(), lat: loc.lat, lon: loc.lon });
         liveAirmass = kastenyoungAirMass(Math.max(liveElevDeg, -6));
-        liveSkyColors = applyScoreBias(
-          computeSkyColor({
-            solarElevation: liveElevDeg,
-            airMass:        liveAirmass,
-            turbidity:      today.turbidity      ?? 0.3,
-            mieIntensity:   today.mieIntensity   ?? 0.5,
-            rayleighSpread: today.rayleighSpread  ?? 0.5,
-            humidity:       today._humidityRaw   ?? 50,
-            angstromExp:    0,
-          }),
-          today.dramaLevel ?? 50
-        );
+        liveSkyColors = computeSkyColor({
+          solarElevation: liveElevDeg,
+          airMass:        liveAirmass,
+          turbidity:      today.turbidity      ?? 0.3,
+          mieIntensity:   today.mieIntensity   ?? 0.5,
+          rayleighSpread: today.rayleighSpread  ?? 0.5,
+          humidity:       today._humidityRaw   ?? 50,
+          angstromExp:    0,
+          ozoneDU:        today.ozoneDU        ?? 300,
+        });
       } catch (_) {
         // Silently fall back to pre-computed skyColors
       }
@@ -115,7 +113,11 @@ function startLiveGradient(today, loc) {
 
     // Golden window start — escalating haptic
     if (today.goldenWindow?.windowStart) {
-      const [gwH, gwM] = today.goldenWindow.windowStart.split(':').map(Number);
+      const _ws = today.goldenWindow.windowStart;
+      const _wsStr = _ws instanceof Date
+        ? `${String(_ws.getHours()).padStart(2,'0')}:${String(_ws.getMinutes()).padStart(2,'0')}`
+        : String(_ws);
+      const [gwH, gwM] = _wsStr.split(':').map(Number);
       const gwMs = new Date(today.date + 'T12:00:00').setHours(gwH, gwM, 0, 0);
       const secsToGW = (gwMs - Date.now()) / 1000;
       if (secsToGW >= 0 && secsToGW < 35) { // within the 30s update window
@@ -176,11 +178,43 @@ function startLiveGradient(today, loc) {
 /**
  * Initialize and render the main screen
  */
+/**
+ * Compute physics-based sky colours for a single day and attach them to
+ * dayData.skyColors.
+ *
+ * Moved here from score.js (3.3 — decouple scoring from rendering):
+ * score.js now only outputs numerical scores and physics parameters; the
+ * colour rendering pipeline lives entirely in the render layer.
+ *
+ * @param {Object} day  A dayData entry from calcWeekData()
+ */
+function computeDaySkyColors(day) {
+  if (!day) return;
+  try {
+    day.skyColors = computeSkyColor({
+      solarElevation: day._solarElevation  ?? 3,
+      airMass:        day.physicsContributions?.airMass ?? 10,
+      turbidity:      day.turbidity        ?? 0.3,
+      mieIntensity:   day.mieIntensity     ?? 0.5,
+      rayleighSpread: day.rayleighSpread   ?? 0.5,
+      humidity:       day._humidityRaw     ?? 50,
+      angstromExp:    0,
+      ozoneDU:        day.ozoneDU          ?? 300,
+    });
+  } catch {
+    day.skyColors = null;
+  }
+}
+
 export async function initMainScreen(loc, city, weekData, spotAvgScores = null) {
   _weekData = weekData;
   _city     = city;
   _loc      = loc;
   _spotAvgScores = spotAvgScores;
+
+  // Render layer: compute sky colours for every day in the week.
+  // (score.js only outputs numerical scores + physics params now)
+  for (const day of weekData) computeDaySkyColors(day);
 
   // Clear any previous countdown, compass, live gradient, and night vision state
   if (_countdownInterval)   { clearInterval(_countdownInterval); _countdownInterval = null; }

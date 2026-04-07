@@ -52,10 +52,113 @@ export const SEASONAL_BASELINE = {
   12: { clouds: 42, humidity: 62, visibility: 16, wind: 17, dust: 16 },
 };
 
-export const COAST_LON = 34.65;
+export const COAST_LON = 34.65; // backward-compat alias
+
+/**
+ * Climate profile for the current deployment region.
+ *
+ * Centralises all geography- and climate-specific constants so that a future
+ * global version can swap this object (or auto-detect it from the user's
+ * latitude) without touching scoring or physics code.
+ *
+ * Fields:
+ *   coastLon       — longitude of the western coastline; used for the
+ *                    western-horizon cloud penalty and sea-breeze bonuses.
+ *   ozoneDU        — stratospheric ozone column in Dobson Units (annual
+ *                    mean for Israel ~300 DU from TOMS/OMI climatology).
+ *                    Passed to atmosphere.js:chappuisAbsorption().
+ *   dustPeak       — µg/m³ at which dust maximises drama (bell curve centre).
+ *   humidityPeak   — % RH at which humidity maximises drama (bell centre).
+ *   seaSaltWindPeak — km/h wind speed at which coastal sea-salt haze peaks.
+ *   timezone       — IANA timezone string for local-time formatting.
+ */
+export const LOCATION_CLIMATE = {
+  coastLon:        34.65,
+  ozoneDU:         300,
+  dustPeak:        25,
+  humidityPeak:    60,
+  seaSaltWindPeak: 25,
+  timezone:        'Asia/Jerusalem',
+};
+
+/**
+ * Climate profiles for different deployment regions.
+ *
+ * Each profile defines the bell-curve peaks and geographic constants that
+ * tune the scoring and physics engine for a specific climate type.
+ *
+ * Profile fields (all override the corresponding LOCATION_CLIMATE fields):
+ *   dustPeak        — µg/m³ at which dust produces best sunset drama
+ *   humidityPeak    — % RH that maximises Rayleigh scatter drama
+ *   seaSaltWindPeak — km/h wind speed for sea-salt haze peak
+ *   coastLon        — longitude of the western coastline (null = landlocked)
+ *   ozoneDU         — static fallback ozone if seasonal lookup unavailable
+ *   timezone        — IANA timezone (not used directly, for reference)
+ *
+ * Usage: import { detectClimateProfile } from './config.js'
+ *        const profile = detectClimateProfile(lat, lon);
+ *        // merge into LOCATION_CLIMATE at startup for global support
+ */
+export const CLIMATE_PROFILES = {
+  mediterranean: {
+    label:           'Mediterranean',
+    dustPeak:        25,
+    humidityPeak:    60,
+    seaSaltWindPeak: 25,
+    coastLon:        34.65,
+    ozoneDU:         300,
+    timezone:        'Asia/Jerusalem',
+  },
+  desert: {
+    label:           'Desert / Arid',
+    dustPeak:        60,   // higher dust optimum — Saharan/Arabian dust events
+    humidityPeak:    20,   // low humidity = crisp atmosphere
+    seaSaltWindPeak: 25,
+    coastLon:        null, // typically landlocked
+    ozoneDU:         275,  // lower ozone near equator
+    timezone:        'UTC',
+  },
+  temperate: {
+    label:           'Temperate / Continental',
+    dustPeak:        10,   // low dust — clean European / mid-lat air
+    humidityPeak:    70,   // higher humidity typical
+    seaSaltWindPeak: 30,
+    coastLon:        null,
+    ozoneDU:         320,
+    timezone:        'UTC',
+  },
+  tropical: {
+    label:           'Tropical / Subtropical',
+    dustPeak:        20,
+    humidityPeak:    75,   // very humid
+    seaSaltWindPeak: 20,
+    coastLon:        null,
+    ozoneDU:         260,
+    timezone:        'UTC',
+  },
+};
+
+/**
+ * Auto-detect a climate profile from a user's latitude.
+ *
+ * This is a simple latitude-band heuristic — a future version could also use
+ * longitude (to distinguish Mediterranean from desert at the same latitude)
+ * or rely on an explicit user override stored in settings.
+ *
+ * @param {number} lat  Geographic latitude in degrees (−90 to +90)
+ * @returns {string}  Profile key from CLIMATE_PROFILES
+ */
+export function detectClimateProfile(lat) {
+  const absLat = Math.abs(lat);
+  if (absLat <= 23.5)  return 'tropical';      // tropics
+  if (absLat <= 35)    return 'mediterranean';  // Mediterranean / subtropical
+  if (absLat <= 55)    return 'temperate';      // temperate zone
+  return 'temperate';                           // polar/sub-polar → temperate fallback
+}
+
 export const ELEV_BONUS_THRESHOLD = 400;
 export const CALIBRATION_MIN_DAYS = 14;
 export const CALIBRATION_KEY = 'twl_calibration';
 export const LEARNING_KEY    = 'twl_learning';
 
-// ✓ config.js v3
+// ✓ config.js v4
