@@ -3,12 +3,14 @@
 //  Screen navigation with slide transitions + haptic
 // ═══════════════════════════════════════════
 
-const SCREENS     = ['main', 'spots', 'settings'];
+const SCREENS     = ['main', 'spots', 'settings', 'learning'];
 const callbacks   = [];
 let currentScreen = 'main';
 
-// Screen order for determining slide direction
-const SCREEN_ORDER = { main: 0, spots: 1, settings: 2 };
+// Screen order for determining slide direction.
+// 'learning' is a sub-screen of 'settings' (no bottom-nav entry); we place it
+// after settings so the slide-in animation feels like opening a deeper page.
+const SCREEN_ORDER = { main: 0, spots: 1, settings: 2, learning: 3 };
 
 /**
  * Haptic feedback helper — vibrates if available

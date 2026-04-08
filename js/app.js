@@ -10,6 +10,7 @@ import { calcWeekData }                        from './score.js';
 import { initMainScreen, showMainSkeleton }    from './main-screen.js';
 import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots } from './spots-screen.js';
 import { initSettingsScreen }                  from './settings-screen.js';
+import { initLearningScreen }                  from './learning-screen.js';
 import { showToast, showLoading }              from './ui.js';
 import { registerSW }                          from './sw-register.js';
 import { clearExpired, getCacheAge }           from './cache.js';
@@ -140,6 +141,9 @@ async function boot() {
     }
     if (id === 'settings') {
       initSettingsScreen();
+    }
+    if (id === 'learning') {
+      initLearningScreen();
     }
   });
 

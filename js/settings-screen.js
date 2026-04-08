@@ -4,9 +4,10 @@
 // ═══════════════════════════════════════════
 
 import { showToast } from './ui.js';
+import { showScreen } from './nav.js';
 import { clearAll } from './cache.js';
 import { clearLocation } from './location.js';
-import { clearCalibration, getCalibrationStats } from './calibration.js';
+import { clearCalibration } from './calibration.js';
 import { getLearningStats, clearLearningData, seedFromBacktest } from './engine/learningEngine.js';
 
 const SETTINGS_KEY = 'twl_settings';
@@ -48,206 +49,33 @@ export function initSettingsScreen() {
 }
 
 // ─────────────────────────────────────────
-//  Calibration stats section
+//  Learning entry button — opens dedicated learning screen
+//  (replaces the old in-settings calibration + learning sections)
 // ─────────────────────────────────────────
-function buildCalibrationSection() {
-  const stats = getCalibrationStats();
-
-  if (stats.sampleSize === 0) {
-    return `
-    <div class="settings-section">
-      <div class="settings-section-label">כיול חיזוי</div>
-      <div class="glass" style="padding:16px;text-align:center;font-size:12px;color:var(--cream-faint);line-height:1.8">
-        אין עדיין נתוני כיול.<br>
-        הנתונים יצטברו אוטומטית לאחר מספר ימים.
-      </div>
-    </div>`;
-  }
-
-  const biasSign  = stats.bias > 0 ? '+' : '';
-  const biasColor = Math.abs(stats.bias) < 0.5 ? 'var(--cream-faint)' : stats.bias > 0 ? '#ffaaaa' : '#aaffcc';
-  const trendIcon = stats.trend === 'improving' ? '↗' : stats.trend === 'worsening' ? '↘' : '→';
-  const trendColor = stats.trend === 'improving' ? '#aaffcc' : stats.trend === 'worsening' ? '#ffaaaa' : 'var(--cream-faint)';
-
-  // Mini bar chart — last 10 entries, each as a row
-  const chartRows = stats.entries.slice(-10).map(e => {
-    const pct  = Math.round((e.predicted / 10) * 100);
-    const uPct = e.actual != null ? Math.round((e.actual / 10) * 100) : null;
-    const dateShort = e.date ? e.date.slice(5) : ''; // MM-DD
-    return `
-      <div style="display:flex;align-items:center;gap:6px;margin-bottom:4px;font-size:11px">
-        <div style="width:36px;color:var(--cream-faint);text-align:end;flex-shrink:0">${dateShort}</div>
-        <div style="flex:1;position:relative;height:8px;background:rgba(255,255,255,0.08);border-radius:4px;overflow:hidden">
-          <div style="position:absolute;right:0;top:0;height:100%;width:${pct}%;background:var(--gold);opacity:0.7;border-radius:4px"></div>
-          ${uPct != null ? `<div style="position:absolute;right:0;top:0;height:100%;width:${uPct}%;background:#7eefb2;opacity:0.55;border-radius:4px"></div>` : ''}
-        </div>
-        <div style="width:20px;color:var(--gold);text-align:start;flex-shrink:0">${e.predicted.toFixed(1)}</div>
-      </div>`;
-  }).join('');
-
-  return `
-  <div class="settings-section">
-    <div class="settings-section-label">כיול חיזוי</div>
-    <div class="glass" style="padding:16px">
-
-      <!-- Summary row -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;flex-wrap:wrap;gap:8px">
-        <div style="font-size:12px;color:var(--cream-faint);line-height:1.8">
-          <div>דגימות: <span style="color:var(--cream)">${stats.sampleSize}</span></div>
-          ${stats.userSamples > 0 ? `<div>דירוגי משתמש: <span style="color:var(--cream)">${stats.userSamples}</span></div>` : ''}
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:${biasColor}">${biasSign}${stats.bias}</div>
-          <div style="font-size:10px;color:var(--cream-faint)">הטיה</div>
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:var(--gold)">${stats.confidence}%</div>
-          <div style="font-size:10px;color:var(--cream-faint)">ביטחון</div>
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:${trendColor}">${trendIcon}</div>
-          <div style="font-size:10px;color:var(--cream-faint)">מגמה</div>
-        </div>
-      </div>
-
-      <!-- Legend -->
-      ${stats.entries.some(e => e.actual != null) ? `
-      <div style="display:flex;gap:14px;font-size:10px;color:var(--cream-faint);margin-bottom:10px">
-        <span><span style="display:inline-block;width:10px;height:6px;background:var(--gold);opacity:0.7;border-radius:2px;vertical-align:middle;margin-left:3px"></span>חיזוי</span>
-        <span><span style="display:inline-block;width:10px;height:6px;background:#7eefb2;opacity:0.55;border-radius:2px;vertical-align:middle;margin-left:3px"></span>דירוג</span>
-      </div>` : ''}
-
-      <!-- Chart -->
-      <div>${chartRows}</div>
-
-    </div>
-  </div>`;
-}
-
-// ─────────────────────────────────────────
-//  Learning system stats section
-// ─────────────────────────────────────────
-function buildLearningSection() {
+function buildLearningEntryButton() {
   const stats = getLearningStats();
-
-  if (stats.sampleSize === 0) {
-    return `
-    <div class="settings-section">
-      <div class="settings-section-label">מערכת הלמידה</div>
-      <div class="glass" style="padding:16px;text-align:center;font-size:12px;color:var(--cream-faint);line-height:1.8">
-        אין עדיין נתוני למידה.<br>
-        המערכת תתחיל ללמוד אחרי 10 שקיעות עם נתוני מזג אוויר בפועל.
-      </div>
-    </div>`;
-  }
-
-  const trendIcon  = stats.trend === 'improving' ? '↗' : stats.trend === 'worsening' ? '↘' : '→';
-  const trendColor = stats.trend === 'improving' ? '#aaffcc' : stats.trend === 'worsening' ? '#ffaaaa' : 'var(--cream-faint)';
-  const accColor   = stats.forecastAccuracy == null ? 'var(--cream-faint)'
-                   : stats.forecastAccuracy >= 85   ? 'var(--gold)'
-                   : stats.forecastAccuracy >= 70   ? '#ffd580'
-                   : '#ffaaaa';
-
-  // ── Accuracy time chart ──────────────────────────────────────────
-  const ts = stats.timeSeries;
-  let chartSVG = '';
-  if (ts.length >= 2) {
-    const W = 260, H = 80;
-    const n = ts.length;
-    const xStep = W / (n - 1);
-    const yScale = v => v != null ? Math.round(((10 - v) / 9) * H) : null;
-
-    const pts = (arr) => arr.map((v, i) => v != null ? `${Math.round(i * xStep)},${yScale(v)}` : null)
-      .filter(Boolean).join(' ');
-
-    const predPts  = pts(ts.map(e => e.predicted));
-    const reconPts = pts(ts.map(e => e.reconstructed));
-    const ratingDots = ts.map((e, i) => e.userRating != null
-      ? `<circle cx="${Math.round(i * xStep)}" cy="${yScale(e.userRating)}" r="3" fill="#b39ddb"/>`
-      : '').join('');
-
-    chartSVG = `
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" style="width:100%;height:80px;display:block;overflow:visible">
-      ${predPts  ? `<polyline points="${predPts}"  fill="none" stroke="var(--gold)"  stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>` : ''}
-      ${reconPts ? `<polyline points="${reconPts}" fill="none" stroke="#7eefb2" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" opacity="0.75"/>` : ''}
-      ${ratingDots}
-    </svg>`;
-  }
-
-  // ── Forecast API bias grid ───────────────────────────────────────
-  const biasEntry = (label, val) => {
-    if (val == null) return `<div style="font-size:11px;color:var(--cream-faint)">${label}: —</div>`;
-    const scale = 1 + val;
-    const arrow = scale > 1.05 ? '↑' : scale < 0.95 ? '↓' : '→';
-    const color = (scale > 1.20 || scale < 0.80) ? '#ffaaaa'
-                : (scale > 1.10 || scale < 0.90) ? '#ffd580'
-                : 'var(--cream-faint)';
-    return `<div style="font-size:11px;color:${color}">${label}: ${scale.toFixed(2)}× ${arrow}</div>`;
-  };
-  const { cloudBias, humidityBias, dustBias, visibilityBias } = stats.forecastBias;
-  const biasGrid = `
-  <div style="display:grid;grid-template-columns:1fr 1fr;gap:4px 16px;margin-bottom:12px">
-    ${biasEntry('ענן',    cloudBias)}
-    ${biasEntry('לחות',  humidityBias)}
-    ${biasEntry('אבק',   dustBias)}
-    ${biasEntry('נראות', visibilityBias)}
-  </div>`;
-
-
-  // ── Learned parameters details ───────────────────────────────────
-  const w = stats.currentWeights;
-  const mb = stats.modelBiases;
-  const detailsSection = `
-  <details style="margin-top:12px">
-    <summary style="font-size:11px;color:var(--cream-faint);cursor:pointer;user-select:none">פרמטרים נלמדים ▾</summary>
-    <div style="font-size:11px;color:var(--cream-faint);line-height:1.9;margin-top:6px">
-      <div>משקל ענן: <span style="color:var(--cream)">${w.cloudDramaW}</span> <span style="opacity:0.5">(ברירת מחדל: 0.30)</span></div>
-      <div>משקל אבק: <span style="color:var(--cream)">${w.dustDramaW}</span> <span style="opacity:0.5">(0.27)</span></div>
-      <div>משקל אטמוספרה: <span style="color:var(--cream)">${w.atmosphereDramaW}</span> <span style="opacity:0.5">(0.27)</span></div>
-      <div>לחות אופטימלית: <span style="color:var(--cream)">${w.humidityOptimum}%</span> <span style="opacity:0.5">(ברירת מחדל: 60%)</span></div>
-      <div>אבק אופטימלי: <span style="color:var(--cream)">${w.dustOptimum} µg</span> <span style="opacity:0.5">(25 µg)</span></div>
-      <div style="margin-top:4px">הטיית ענן: <span style="color:var(--cream)">${mb.CloudModel > 0 ? '+' : ''}${mb.CloudModel}</span> · אבק: <span style="color:var(--cream)">${mb.DustModel > 0 ? '+' : ''}${mb.DustModel}</span> · בהיר: <span style="color:var(--cream)">${mb.ClearSkyModel > 0 ? '+' : ''}${mb.ClearSkyModel}</span></div>
-    </div>
-  </details>`;
+  const acc   = stats.forecastAccuracy;
+  const accStr = acc != null ? `${acc}% דיוק` : `${stats.sampleSize} דגימות`;
+  const accColor = acc == null         ? 'var(--cream-faint)'
+                 : acc >= 85           ? 'var(--gold)'
+                 : acc >= 70           ? '#ffd580'
+                 :                       '#ffaaaa';
 
   return `
   <div class="settings-section">
-    <div class="settings-section-label">מערכת הלמידה</div>
-    <div class="glass" style="padding:16px">
-
-      <!-- Summary row -->
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;flex-wrap:wrap;gap:8px">
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:${accColor}">
-            ${stats.forecastAccuracy != null ? stats.forecastAccuracy + '%' : '—'}
-          </div>
-          <div style="font-size:10px;color:var(--cream-faint)">דיוק</div>
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:var(--cream)">${stats.sampleSize}</div>
-          <div style="font-size:10px;color:var(--cream-faint)">שקיעות נותחו</div>
-        </div>
-        <div style="text-align:center">
-          <div style="font-size:22px;font-weight:900;color:${trendColor}">${trendIcon}</div>
-          <div style="font-size:10px;color:var(--cream-faint)">מגמה</div>
-        </div>
+    <button class="learning-entry-btn" id="open-learning-btn">
+      <div class="learning-entry-icon">
+        <svg width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+          <path d="M3 3v18h18"/>
+          <path d="M7 14l4-4 4 4 5-5"/>
+        </svg>
       </div>
-
-      <!-- Accuracy time chart -->
-      ${chartSVG ? `
-      <div style="margin-bottom:6px">${chartSVG}</div>
-      <div style="display:flex;gap:14px;font-size:10px;color:var(--cream-faint);margin-bottom:12px">
-        <span><span style="display:inline-block;width:10px;height:3px;background:var(--gold);opacity:0.85;border-radius:2px;vertical-align:middle;margin-left:3px"></span>חיזוי</span>
-        <span><span style="display:inline-block;width:10px;height:3px;background:#7eefb2;opacity:0.75;border-radius:2px;vertical-align:middle;margin-left:3px"></span>ביצוע בפועל</span>
-        <span><span style="display:inline-block;width:6px;height:6px;background:#b39ddb;border-radius:50%;vertical-align:middle;margin-left:3px"></span>דירוג</span>
-      </div>` : ''}
-
-      <!-- Forecast API bias -->
-      <div style="font-size:11px;color:var(--cream-faint);margin-bottom:6px">הטיית מזג אוויר:</div>
-      ${biasGrid}
-
-      ${detailsSection}
-    </div>
+      <div class="learning-entry-text">
+        <div class="learning-entry-title">מערכת הלמידה</div>
+        <div class="learning-entry-sub" style="color:${accColor}">${accStr} · ${stats.sampleSize} שקיעות</div>
+      </div>
+      <svg class="learning-entry-arrow" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
   </div>`;
 }
 
@@ -413,11 +241,8 @@ function buildSettingsHTML() {
       </div>
     </div>
 
-    <!-- ═══ CALIBRATION STATS ═══ -->
-    ${buildCalibrationSection()}
-
-    <!-- ═══ LEARNING SYSTEM ═══ -->
-    ${buildLearningSection()}
+    <!-- ═══ LEARNING SYSTEM ENTRY ═══ -->
+    ${buildLearningEntryButton()}
 
     <div style="text-align:center;padding:8px 0;font-size:11px;color:var(--cream-faint)">
       TWILIGHT v1.0 · דמדומים
@@ -507,6 +332,10 @@ function attachSettingsEvents() {
     clearLearningData();
     showToast('נתוני הלמידה אופסו', 'info');
     initSettingsScreen(); // rebuild to show empty state
+  });
+
+  document.getElementById('open-learning-btn')?.addEventListener('click', () => {
+    showScreen('learning');
   });
 
   document.getElementById('import-backtest-btn')?.addEventListener('click', () => {
