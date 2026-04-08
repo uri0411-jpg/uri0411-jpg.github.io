@@ -10,8 +10,8 @@ export const OVERPASS_URL           = 'https://overpass-api.de/api/interpreter';
 export const OVERPASS_FALLBACK_URL  = 'https://overpass.kumi.systems/api/interpreter';
 
 export const CACHE_TTL = {
-  weather: 30,
-  airq:    60,
+  weather: 60,
+  airq:    120,
   sun:     360,
   spots:   30
 };

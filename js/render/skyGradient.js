@@ -19,23 +19,30 @@
 export function renderSkyGradient(skyColors, beltOfVenus = 0) {
   const { skyTop, skyMid, horizon } = skyColors;
 
-  // Alpha scales with perceived brightness: brighter sky → stronger overlay
+  // Alpha scales with perceived brightness: brighter sky → stronger overlay.
+  // Wider range (0.30-0.92) vs old (0.65-0.95) so dim twilight skies stay subtle.
   const topBright = (skyTop.r + skyTop.g + skyTop.b) / 765;
-  const topAlpha  = (0.65 + topBright * 0.30).toFixed(2);
-  const midAlpha  = (0.55 + topBright * 0.28).toFixed(2);
+  const topAlpha  = (0.30 + topBright * 0.62).toFixed(2);
+  const midAlpha  = (0.25 + topBright * 0.58).toFixed(2);
 
-  // Belt of Venus: pink-purple tint, alpha = 0 when invisible, up to 0.55 at full probability
+  // Belt of Venus: physics-derived pink-mauve — 55% warm horizon + 45% Rayleigh skyTop.
+  // This replaces the hardcoded (180,60,160) magenta preset with condition-responsive color.
   // Guard against NaN — ?? doesn't filter NaN, so check explicitly
   const bov  = Number.isFinite(beltOfVenus) ? Math.max(0, Math.min(1, beltOfVenus)) : 0;
   const beltA = (bov * 0.55).toFixed(2);
-  const beltR = Math.round(_lerp(horizon.r, 180, bov));
-  const beltG = Math.round(_lerp(horizon.g,  60, bov));
-  const beltB = Math.round(_lerp(horizon.b, 160, bov));
+  const bovTarget_r = Math.round(horizon.r * 0.55 + skyTop.r * 0.45);
+  const bovTarget_g = Math.round(horizon.g * 0.45 + skyTop.g * 0.30);
+  const bovTarget_b = Math.round(horizon.b * 0.40 + skyTop.b * 0.65);
+  const beltR = Math.round(_lerp(horizon.r, bovTarget_r, bov));
+  const beltG = Math.round(_lerp(horizon.g, bovTarget_g, bov));
+  const beltB = Math.round(_lerp(horizon.b, bovTarget_b, bov));
 
-  // Earth shadow: desaturated dark band derived from horizon colour
-  const earthR = Math.round(horizon.r * 0.25);
-  const earthG = Math.round(horizon.g * 0.18);
-  const earthB = Math.round(horizon.b * 0.35);
+  // Earth shadow: depth scales with horizon luminance — bright horizon casts visible shadow band.
+  const horizLum   = (horizon.r * 0.299 + horizon.g * 0.587 + horizon.b * 0.114) / 255;
+  const earthDepth = 0.15 + horizLum * 0.12; // 0.15-0.27: dim sky → shallow shadow, vivid sky → deep
+  const earthR = Math.round(horizon.r * earthDepth);
+  const earthG = Math.round(horizon.g * earthDepth * 0.70);  // green suppressed (desaturates warm)
+  const earthB = Math.round(horizon.b * earthDepth * 1.45);  // blue preserved (cooler shadow band)
 
   const root = document.documentElement.style;
   root.setProperty('--dyn-bg-top',

@@ -92,12 +92,15 @@ export function esc(str) {
  * @param {number} [beltOfVenus]  0-1 probability from goldenWindow
  */
 export function updateDynamicGradient(score = 5, turbidity = 0.3, palette = '', skyColors = null, beltOfVenus = 0) {
-  // Adaptive glassmorphism — high drama = transparent glass, low drama = opaque
+  // Adaptive glassmorphism — driven by physics sky brightness, not score.
+  // Bright vivid sky → transparent crisp glass; dim overcast → opaque frosted glass.
   const root = document.documentElement.style;
-  const drama = Math.min(Math.max(score, 1) / 10, 1);
-  root.setProperty('--glass-blur',     `${(2 + (1 - drama) * 8).toFixed(1)}px`);
-  root.setProperty('--glass-alpha',    (0.32 + (1 - drama) * 0.28).toFixed(2));
-  root.setProperty('--glass-saturate', `${Math.round(110 + drama * 40)}%`);
+  const skyBrightness = skyColors
+    ? Math.min((skyColors.skyTop.r + skyColors.skyTop.g + skyColors.skyTop.b) / 765, 1)
+    : Math.min(Math.max(score, 1) / 10, 1); // fallback to score when no physics available
+  root.setProperty('--glass-blur',     `${(2 + (1 - skyBrightness) * 8).toFixed(1)}px`);
+  root.setProperty('--glass-alpha',    (0.32 + (1 - skyBrightness) * 0.28).toFixed(2));
+  root.setProperty('--glass-saturate', `${Math.round(110 + skyBrightness * 40)}%`);
 
   if (skyColors && !new URLSearchParams(location.search).get('useLegacyGradient')) {
     renderSkyGradient(skyColors, beltOfVenus);

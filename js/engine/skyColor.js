@@ -277,32 +277,3 @@ export function computeSunAppearance({ solarElevation, turbidity, mieIntensity, 
   };
 }
 
-// ── Score bias (unchanged) ────────────────────────────────────────────────────
-
-/**
- * Enhance sky colours slightly based on dramaLevel (from score.js).
- * Only boosts channels that are already dominant (>80) — preserves hue,
- * increases saturation/contrast by at most 20 %.
- *
- * @param {{ skyTop, skyMid, horizon, sun }} skyColors
- * @param {number} dramaLevel  0–100 from dayData.dramaLevel
- * @returns {{ skyTop, skyMid, horizon, sun }}
- */
-export function applyScoreBias(skyColors, dramaLevel) {
-  const boost = 1 + Math.max(0, Math.min(1, dramaLevel / 100)) * 0.20;
-
-  const enhance = (v) => v > 80 ? clamp(Math.round(v * boost)) : v;
-
-  const biasZone = ({ r, g, b }) => ({
-    r: enhance(r),
-    g: enhance(g),
-    b: enhance(b),
-  });
-
-  return {
-    skyTop:  biasZone(skyColors.skyTop),
-    skyMid:  biasZone(skyColors.skyMid),
-    horizon: biasZone(skyColors.horizon),
-    sun:     biasZone(skyColors.sun),
-  };
-}

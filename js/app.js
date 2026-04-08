@@ -17,6 +17,57 @@ import { recordPrediction, fetchActualForDate, getUnfilledDates, processLearning
 import { seedFromBacktest, getLearningStats }  from './engine/learningEngine.js';
 import { initInstallPrompt }                   from './install-prompt.js';
 import { rearmSavedAlerts }                    from './notifications.js';
+import { scoreToColorContinuous, scoreToLabel } from './utils.js';
+
+// ─────────────────────────────────────────
+//  Score EMA — smooth scores across page loads to reduce noise from
+//  model-availability variance and minor API fluctuations.
+//  α=0.35: new data contributes 35%, cached 65%.
+//  Bypass if |delta| > 1.5 (genuine weather change — accept immediately).
+// ─────────────────────────────────────────
+const _SCORE_EMA_ALPHA  = 0.35;
+const _SCORE_EMA_BYPASS = 1.5;
+const _SCORE_PIN_KEY    = 'twl_score_pin';
+
+function _scoreWeatherHash(day) {
+  // Fingerprint of the key weather inputs — hash change triggers pin reset
+  return `${Math.round(day._cloudRaw)}_${Math.round(day._humidityRaw)}_${Math.round(day._visibilityRaw)}_${day.date}`;
+}
+
+function _applyScoreEMA(weekData, loc) {
+  if (!weekData?.length) return weekData;
+  try {
+    const pinKey = `${_SCORE_PIN_KEY}_${loc.lat.toFixed(2)}_${loc.lon.toFixed(2)}`;
+    const cached = JSON.parse(localStorage.getItem(pinKey) || '{}');
+    const updated = {};
+
+    const smoothed = weekData.map(day => {
+      const hash   = _scoreWeatherHash(day);
+      const pinned = cached[day.date];
+      let finalScore = day.score;
+
+      if (pinned && pinned.hash === hash && Math.abs(pinned.score - day.score) < _SCORE_EMA_BYPASS) {
+        // Same weather fingerprint + small delta → apply EMA smoothing
+        finalScore = Math.round(
+          (pinned.score * (1 - _SCORE_EMA_ALPHA) + day.score * _SCORE_EMA_ALPHA) * 10
+        ) / 10;
+      }
+
+      updated[day.date] = { hash, score: finalScore };
+      return {
+        ...day,
+        score:      finalScore,
+        scoreColor: scoreToColorContinuous(finalScore),
+        scoreLabel: scoreToLabel(finalScore),
+      };
+    });
+
+    localStorage.setItem(pinKey, JSON.stringify(updated));
+    return smoothed;
+  } catch (_) {
+    return weekData; // localStorage unavailable — silently skip
+  }
+}
 
 // ─────────────────────────────────────────
 //  State
@@ -130,7 +181,10 @@ async function loadAppData() {
     fetchSpots(_loc.lat, _loc.lon, 10).catch(() => [])
   ]);
   _airQuality = airQ;
-  _weekData = calcWeekData(weather, _airQuality, _loc.lat, _loc.lon, westData);
+  _weekData = _applyScoreEMA(
+    calcWeekData(weather, _airQuality, _loc.lat, _loc.lon, westData),
+    _loc
+  );
   const spotAvgScores = calcNearbyAvgScore(nearbySpots, _weekData, _loc.lat, _loc.lon);
 
   await initMainScreen(_loc, _city, _weekData, spotAvgScores);
@@ -198,7 +252,10 @@ async function handleRefresh() {
       fetchWesternHorizon(freshLoc.lat, freshLoc.lon).catch(() => null)
     ]);
     _airQuality = airQ;
-    _weekData = calcWeekData(weather, _airQuality, freshLoc.lat, freshLoc.lon, westData);
+    _weekData = _applyScoreEMA(
+      calcWeekData(weather, _airQuality, freshLoc.lat, freshLoc.lon, westData),
+      freshLoc
+    );
 
     await initMainScreen(_loc, _city, _weekData);
     showToast('נתונים עודכנו', 'success');

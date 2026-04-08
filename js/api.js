@@ -118,22 +118,22 @@ export async function fetchWeek(lat, lon) {
     }
   }
 
-  // Build ensemble from all successful responses
-  let datasets = [primary];
-  if (ecmwfResult.status === 'fulfilled' && ecmwfResult.value !== primary) datasets.push(ecmwfResult.value);
-  if (gfsResult.status  === 'fulfilled' && gfsResult.value  !== primary) datasets.push(gfsResult.value);
+  // Always average across 3 fixed slots — fill missing secondaries with primary so
+  // the ensemble denominator stays constant regardless of network availability.
+  // This prevents score jumps when ECMWF or GFS are temporarily unavailable.
+  const ecmwfData = ecmwfResult.status === 'fulfilled' && ecmwfResult.value !== primary ? ecmwfResult.value : primary;
+  const gfsData   = gfsResult.status   === 'fulfilled' && gfsResult.value   !== primary ? gfsResult.value   : primary;
+  const datasets  = [primary, ecmwfData, gfsData];
+  const realCount = new Set(datasets).size; // 1–3 unique models
 
-  // If we have multiple models, average the hourly arrays
-  if (datasets.length > 1) {
-    console.log(`[api] Ensemble: averaging ${datasets.length} models`);
-    const hourlyKeys = Object.keys(primary.hourly).filter(k => k !== 'time');
-    for (const key of hourlyKeys) {
-      primary.hourly[key] = averageHourlyArrays(datasets, key);
-    }
+  console.log(`[api] Ensemble: ${realCount} unique model(s) → averaging 3 slots`);
+  const hourlyKeys = Object.keys(primary.hourly).filter(k => k !== 'time');
+  for (const key of hourlyKeys) {
+    primary.hourly[key] = averageHourlyArrays(datasets, key);
   }
 
   // Store model count for confidence display
-  primary._modelCount = datasets.length;
+  primary._modelCount = realCount;
 
   setCache(cacheKey, primary, CACHE_TTL.weather);
   return primary;
