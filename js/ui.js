@@ -107,13 +107,15 @@ export function updateDynamicGradient(score = 5, turbidity = 0.3, palette = '', 
     return;
   }
 
-  // skyColors missing — use neutral dark fallback, never score-driven colour
+  // skyColors missing — use neutral dark fallback, never score-driven colour.
+  // Alphas mirror the reduced shipping values in skyGradient.js so the
+  // background photo stays visible even when physics data hasn't loaded yet.
   if (!skyColors) {
-    document.documentElement.style.setProperty('--dyn-bg-top',    'rgba(15, 6, 2, 0.50)');
-    document.documentElement.style.setProperty('--dyn-bg-mid',    'rgba(12, 5, 2, 0.40)');
+    document.documentElement.style.setProperty('--dyn-bg-top',    'rgba(15, 6, 2, 0.35)');
+    document.documentElement.style.setProperty('--dyn-bg-mid',    'rgba(12, 5, 2, 0.28)');
     document.documentElement.style.setProperty('--dyn-bg-belt',   'rgba(10, 4, 8, 0.00)');
-    document.documentElement.style.setProperty('--dyn-bg-earth',  'rgba(5, 3, 4, 0.60)');
-    document.documentElement.style.setProperty('--dyn-bg-bottom', 'rgba(8,  3, 1, 0.97)');
+    document.documentElement.style.setProperty('--dyn-bg-earth',  'rgba(5, 3, 4, 0.35)');
+    document.documentElement.style.setProperty('--dyn-bg-bottom', 'rgba(8,  3, 1, 0.55)');
     return;
   }
 

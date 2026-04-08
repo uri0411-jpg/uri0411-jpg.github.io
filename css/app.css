@@ -59,12 +59,15 @@ body {
 .overlay {
   position: fixed;
   inset: 0;
+  /* Subtle darkening layer between the background photo and the physics-driven
+     sky gradient above. Kept deliberately light so the photo stays visible —
+     the physics gradient in .home-content does most of the colour work. */
   background: linear-gradient(
     180deg,
-    rgba(20,8,0,0.25) 0%,
-    rgba(20,8,0,0.08) 30%,
-    rgba(20,8,0,0.18) 60%,
-    rgba(10,4,0,0.65) 100%
+    rgba(20,8,0,0.12) 0%,
+    rgba(20,8,0,0.04) 30%,
+    rgba(20,8,0,0.08) 60%,
+    rgba(10,4,0,0.30) 100%
   );
   z-index: 1;
 }

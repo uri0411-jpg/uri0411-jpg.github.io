@@ -20,10 +20,14 @@ export function renderSkyGradient(skyColors, beltOfVenus = 0) {
   const { skyTop, skyMid, horizon } = skyColors;
 
   // Alpha scales with perceived brightness: brighter sky → stronger overlay.
-  // Wider range (0.30-0.92) vs old (0.65-0.95) so dim twilight skies stay subtle.
+  // Lowered from (0.30-0.92 / 0.25-0.83) so the background photo stays visible
+  // through the gradient instead of being masked out during vivid sunsets.
+  // The physics-driven hue is still fully preserved — only the cover strength
+  // was dialled down. Dim twilight skies stay subtle; bright skies let the
+  // photo breathe underneath.
   const topBright = (skyTop.r + skyTop.g + skyTop.b) / 765;
-  const topAlpha  = (0.30 + topBright * 0.62).toFixed(2);
-  const midAlpha  = (0.25 + topBright * 0.58).toFixed(2);
+  const topAlpha  = (0.15 + topBright * 0.55).toFixed(2);  // 0.15–0.70
+  const midAlpha  = (0.12 + topBright * 0.50).toFixed(2);  // 0.12–0.62
 
   // Belt of Venus: physics-derived pink-mauve — 55% warm horizon + 45% Rayleigh skyTop.
   // This replaces the hardcoded (180,60,160) magenta preset with condition-responsive color.
@@ -52,9 +56,9 @@ export function renderSkyGradient(skyColors, beltOfVenus = 0) {
   root.setProperty('--dyn-bg-belt',
     `rgba(${beltR},${beltG},${beltB},${beltA})`);
   root.setProperty('--dyn-bg-earth',
-    `rgba(${earthR},${earthG},${earthB},0.65)`);
+    `rgba(${earthR},${earthG},${earthB},0.40)`);
   root.setProperty('--dyn-bg-bottom',
-    `rgba(${horizon.r},${horizon.g},${horizon.b},0.97)`);
+    `rgba(${horizon.r},${horizon.g},${horizon.b},0.55)`);
 }
 
 function _lerp(a, b, t) {
