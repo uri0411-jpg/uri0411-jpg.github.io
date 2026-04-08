@@ -1,0 +1,256 @@
+{
+  "metadata": {
+    "generatedAt": "2026-04-08T22:30:18.831Z",
+    "note": "Canonical sky rendering fixtures. Regenerate only after deliberate phase changes that pass visual parity.",
+    "wavelengths_um": [
+      0.43,
+      0.45,
+      0.55,
+      0.6,
+      0.65
+    ],
+    "zones": [
+      "skyTop",
+      "skyMid",
+      "horizon",
+      "sun"
+    ]
+  },
+  "scenarios": {
+    "clean_sunset": {
+      "input": {
+        "sunAngleDeg": 3,
+        "turbidity": 0.15,
+        "humidityPct": 40,
+        "clouds": {
+          "low": 0,
+          "mid": 0,
+          "high": 0
+        },
+        "angstromExp": 0,
+        "ozoneDU": 300,
+        "mieGrowth": 1.035607,
+        "angstromBlended": 0.135
+      },
+      "output": {
+        "skyTop": [
+          0.79396105,
+          0.70960611,
+          0.41161766,
+          0.32521265,
+          0.26528178
+        ],
+        "skyMid": [
+          0.74165799,
+          0.70960611,
+          0.58802435,
+          0.55143667,
+          0.52659335
+        ],
+        "horizon": [
+          0.70267154,
+          0.70960611,
+          0.71951702,
+          0.72006295,
+          0.7213737
+        ],
+        "sun": [
+          0.66750043,
+          0.70472758,
+          0.81690561,
+          0.8463519,
+          0.8680149
+        ],
+        "airmass": 14.400693
+      }
+    },
+    "hazy_sunset": {
+      "input": {
+        "sunAngleDeg": 1,
+        "turbidity": 0.45,
+        "humidityPct": 70,
+        "clouds": {
+          "low": 0,
+          "mid": 0,
+          "high": 0
+        },
+        "angstromExp": 0,
+        "ozoneDU": 300,
+        "mieGrowth": 1.10166,
+        "angstromBlended": 0.09
+      },
+      "output": {
+        "skyTop": [
+          0.44816228,
+          0.41548142,
+          0.26771177,
+          0.21739865,
+          0.18084439
+        ],
+        "skyMid": [
+          0.41802405,
+          0.41548142,
+          0.38438131,
+          0.37085664,
+          0.36120265
+        ],
+        "horizon": [
+          0.39291283,
+          0.41548142,
+          0.48159056,
+          0.49871808,
+          0.51147745
+        ],
+        "sun": [
+          0.37248483,
+          0.40801611,
+          0.52471824,
+          0.55788311,
+          0.58237586
+        ],
+        "airmass": 23.408853
+      }
+    },
+    "overcast_stratus": {
+      "input": {
+        "sunAngleDeg": -1,
+        "turbidity": 0.25,
+        "humidityPct": 85,
+        "clouds": {
+          "low": 0.6,
+          "mid": 0.2,
+          "high": 0
+        },
+        "angstromExp": 0,
+        "ozoneDU": 300,
+        "mieGrowth": 1.191593,
+        "angstromBlended": 0.0675
+      },
+      "output": {
+        "skyTop": [
+          0.06060161,
+          0.06516434,
+          0.06318641,
+          0.05654602,
+          0.05014038
+        ],
+        "skyMid": [
+          0.04720454,
+          0.05439895,
+          0.0756454,
+          0.08041223,
+          0.08348369
+        ],
+        "horizon": [
+          0.03758027,
+          0.04579146,
+          0.07825253,
+          0.0888285,
+          0.09677333
+        ],
+        "sun": [
+          0.03445265,
+          0.04391132,
+          0.08577129,
+          0.10075097,
+          0.11232332
+        ],
+        "airmass": 61.764447
+      }
+    },
+    "cirrus_afterglow": {
+      "input": {
+        "sunAngleDeg": -3,
+        "turbidity": 0.2,
+        "humidityPct": 50,
+        "clouds": {
+          "low": 0,
+          "mid": 0,
+          "high": 0.4
+        },
+        "angstromExp": 0,
+        "ozoneDU": 300,
+        "mieGrowth": 1.050882,
+        "angstromBlended": 0.12
+      },
+      "output": {
+        "skyTop": [
+          0.0005925,
+          0.00125836,
+          0.00814233,
+          0.01154127,
+          0.01390583
+        ],
+        "skyMid": [
+          0.00053396,
+          0.00121565,
+          0.01128959,
+          0.13413767,
+          0.14885431
+        ],
+        "horizon": [
+          0.00041497,
+          0.00099617,
+          0.01126339,
+          0.13532584,
+          0.15187981
+        ],
+        "sun": [
+          0.00032502,
+          0.00082933,
+          0.01122457,
+          0.02107311,
+          0.03211347
+        ],
+        "airmass": 234.313799
+      }
+    },
+    "civil_twilight": {
+      "input": {
+        "sunAngleDeg": -5,
+        "turbidity": 0.15,
+        "humidityPct": 55,
+        "clouds": {
+          "low": 0,
+          "mid": 0.15,
+          "high": 0
+        },
+        "angstromExp": 0,
+        "ozoneDU": 300,
+        "mieGrowth": 1.06037,
+        "angstromBlended": 0.1125
+      },
+      "output": {
+        "skyTop": [
+          0,
+          0,
+          3.9e-7,
+          0.00000312,
+          0.0000118
+        ],
+        "skyMid": [
+          0,
+          0,
+          5.5e-7,
+          0.0000052,
+          0.00002304
+        ],
+        "horizon": [
+          0,
+          0,
+          6.5e-7,
+          0.00000648,
+          0.00003004
+        ],
+        "sun": [
+          0,
+          0,
+          5.6e-7,
+          0.00000603,
+          0.00002952
+        ],
+        "airmass": 888.908735
+      }
+    }
+  }
+}
