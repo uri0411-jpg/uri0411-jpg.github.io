@@ -1241,6 +1241,18 @@ body.has-install-banner .screen { padding-top: 56px; }
   transition: transform 0.2s ease, box-shadow 0.3s ease;
 }
 .score-badge:active { transform: scale(0.95); }
+/* Location quality badge — static, muted blue-silver (not weather-dependent) */
+.score-badge-location {
+  width: 38px; height: 38px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-weight: 700;
+  font-family: var(--font-title);
+  background: rgba(90, 120, 160, 0.18);
+  border: 1px solid rgba(120, 160, 200, 0.28);
+  color: rgba(160, 185, 210, 0.9);
+  flex-shrink: 0;
+}
 /* Shimmer sweep on high-score badges */
 .score-badge[data-shimmer]::after {
   content: '';

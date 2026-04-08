@@ -748,7 +748,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
         rayleighSpread:     physics.rayleighSpread,
         atmosphericClarity: physics.atmosphericClarity,
         solarElevation:     ssParams.solarElevation,
-        horizonGap:         ssParams.horizonGap ?? 0.5,
+        horizonClearance:   ssParams.horizonGap ?? 0.3,
         humidity:           ssParams.humidity,
         dust:               ssParams.dust,
       });

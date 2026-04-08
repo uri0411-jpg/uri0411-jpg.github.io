@@ -66,7 +66,7 @@ const sweetSpot = (x, center, width) =>
  *   - horizonGap:    +2.5  (light must reach clouds from below)
  *   - coverage sweet: +1.5  (75-85% is better than 100% — some sky shows)
  *   - clarity:       +1.0  (cleaner air below clouds = more vivid light)
- *   - bias:          -3.0  (heavy clouds default to poor without redeeming factors)
+ *   - bias:          -4.0  (heavy clouds default to poor without redeeming factors)
  */
 function cloudModel({ clouds, cloudHeightCategory, horizonClearance, physics }) {
   // Cloud height encoded: high=1.0, mid=0.5, low=0.15
@@ -88,7 +88,7 @@ function cloudModel({ clouds, cloudHeightCategory, horizonClearance, physics }) 
     clarity:        { value: physics.atmosphericClarity, weight: 1.0  },
   };
 
-  const bias = -3.0;
+  const bias = -4.0;
   let rawSum = bias;
   for (const f of Object.values(features)) {
     f.contribution = f.value * f.weight;
@@ -160,12 +160,12 @@ function dustModel({ turbidity, humidity, physics }) {
  * The optimal clear-sky sunset has turbidity < 0.25 and thin cirrus wisps
  * (5-20% coverage) that catch color without occluding.
  *
- * Weights:
- *   - rayleighSpread:   +3.5  (this IS the show in clear-sky mode)
- *   - clarity:          +2.0  (Beer-Lambert transmittance)
- *   - cloudAccent:      +1.5  (a few clouds add drama)
- *   - solarElevSweet:   +1.0  (peak color at 2-5° above horizon)
- *   - bias: -2.5
+ * Weights (recalibrated so a typical clear Israeli day scores ~60/100):
+ *   - rayleighSpread:   +2.5  (this IS the show in clear-sky mode)
+ *   - clarity:          +1.5  (Beer-Lambert transmittance)
+ *   - cloudAccent:      +0.8  (a few clouds add drama — reduced, near-constant at typical cover)
+ *   - solarElevSweet:   +0.5  (peak color at 2-5° above horizon — reduced, near-constant at sunset)
+ *   - bias: -3.5
  */
 function clearSkyModel({ clouds, solarElevation, physics }) {
   // A small amount of cloud (10-25%) adds visual interest to an otherwise
@@ -178,13 +178,13 @@ function clearSkyModel({ clouds, solarElevation, physics }) {
   const elevSweet = sweetSpot(solarElevation, 3, 5);
 
   const features = {
-    rayleighSpread: { value: physics.rayleighSpread,      weight: 3.5  },
-    clarity:        { value: physics.atmosphericClarity,   weight: 2.0  },
-    cloudAccent:    { value: cloudAccent,                  weight: 1.5  },
-    solarElevSweet: { value: elevSweet,                    weight: 1.0  },
+    rayleighSpread: { value: physics.rayleighSpread,      weight: 2.5  },
+    clarity:        { value: physics.atmosphericClarity,   weight: 1.5  },
+    cloudAccent:    { value: cloudAccent,                  weight: 0.8  },
+    solarElevSweet: { value: elevSweet,                    weight: 0.5  },
   };
 
-  const bias = -2.5;
+  const bias = -3.5;
   let rawSum = bias;
   for (const f of Object.values(features)) {
     f.contribution = f.value * f.weight;
@@ -247,7 +247,7 @@ function crepuscularRayProbability({ clouds, turbidity, solarElevation }) {
 export function computeScore({
   clouds = 0.3,
   cloudHeightCategory = 'mid',
-  horizonClearance = 0.5,
+  horizonClearance = 0.3,
   dust = null,
   humidity = null,
   visibility = null,

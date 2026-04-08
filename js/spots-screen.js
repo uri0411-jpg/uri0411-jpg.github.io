@@ -199,6 +199,42 @@ function calcSpotPotential(spot, bearing) {
   return Math.max(1, Math.min(5, Math.round(p * 2) / 2)); // round to 0.5
 }
 
+// ─── Location Quality Score (1-100, static) ──────────────────────────────────
+// Independent of weather — rates the geographic quality of a spot as a viewing
+// location for sunsets/sunrises. Factors: elevation, azimuth alignment, terrain
+// type, and proximity to the Mediterranean coast.
+function calcLocationQuality(spot, bearing) {
+  const elev   = spot.elevation ?? 0;
+  const ssAz   = getSunsetAzimuth();
+  const diff   = Math.abs(bearing - ssAz);
+  const norm   = diff > 180 ? 360 - diff : diff;
+
+  // A. Elevation (0-25 pts) — higher ground clears cloud horizons
+  const elevPts = elev >= 800 ? 25 : elev >= 500 ? 20 : elev >= 300 ? 15
+                : elev >= 150 ? 10 : elev >= 50  ?  5 : 0;
+
+  // B. Azimuth alignment to sunset (0-25 pts)
+  const azPts   = norm <= 15 ? 25 : norm <= 30 ? 20 : norm <= 45 ? 15
+                : norm <= 60 ? 10 : norm <= 90 ?  5 : 0;
+
+  // C. Spot type / terrain (0-25 pts) — open horizon quality
+  const typePts = isWesternCoastBeach(spot)       ? 25
+                : spot.type === 'נקודת תצפית'      ? 22
+                : spot.type === 'מצוק'              ? 20
+                : spot.type === 'פסגה'              ? 16
+                : spot.type === 'חוף'               ? 12 : 5;
+
+  // D. Proximity to Mediterranean coast (0-15 pts) via spot longitude
+  const lonDiff  = Math.max(0, spot.lon - 34.65);
+  const coastPts = lonDiff < 0.05 ? 15 : lonDiff < 0.15 ? 12
+                 : lonDiff < 0.35 ?  8 : lonDiff < 0.70 ?  4 : 0;
+
+  // E. Horizon warning penalty (-10 pts)
+  const penalty  = spot._horizonWarning ? -10 : 0;
+
+  return Math.max(1, Math.min(100, elevPts + azPts + typePts + coastPts + penalty));
+}
+
 // ─── Stars HTML ──────────────────────────
 function starsHTML(potential) {
   const full = Math.floor(potential);
@@ -339,6 +375,7 @@ export async function preloadSpotsData(weekData, loc) {
           ? 'גובה נמוך — בדוק ראות מערבית'
           : 'גובה לא ידוע — בדוק ראות מערבית';
       }
+      s._locationQuality = calcLocationQuality(s, s._bearing);
     });
     _preloadedSpots       = spots;
     _preloadedForLat      = loc.lat;
@@ -706,6 +743,8 @@ async function loadSpots() {
           ? 'גובה נמוך — בדוק ראות מערבית'
           : 'גובה לא ידוע — בדוק ראות מערבית';
       }
+      // Must be computed after _horizonWarning (penalty depends on it)
+      s._locationQuality = calcLocationQuality(s, s._bearing);
     });
     renderBestSpotHero();
     renderSpotsList();
@@ -740,8 +779,8 @@ function getFilteredSpots() {
     filtered.sort((a, b) => {
       const aScore = a._allScores?.[0]?.combined || 0;
       const bScore = b._allScores?.[0]?.combined || 0;
-      const aPot = (a._potential || 2) * 2;
-      const bPot = (b._potential || 2) * 2;
+      const aPot = (a._locationQuality || 50) / 10;
+      const bPot = (b._locationQuality || 50) / 10;
       const aDiff = Math.abs(a._bearing - eventAz); const aNorm = aDiff > 180 ? 360 - aDiff : aDiff;
       const bDiff = Math.abs(b._bearing - eventAz); const bNorm = bDiff > 180 ? 360 - bDiff : bDiff;
       const aAz = aNorm <= 30 ? 10 : aNorm <= 60 ? 5 : 0;
@@ -797,7 +836,7 @@ function renderBestSpotHero() {
           </div>
           <div>
             <div style="font-size:16px;font-weight:800;color:var(--cream);line-height:1.2">${esc(best.name)}</div>
-            <div style="font-size:11px;color:var(--cream-faint)">${esc(best.type)} · ${best.dist} ק"מ · ${starsHTML(best._potential)}</div>
+            <div style="font-size:11px;color:var(--cream-faint)">${esc(best.type)} · ${best.dist} ק"מ · <span style="color:rgba(160,185,210,0.85)">${best._locationQuality ?? '—'}/100 מיקום</span></div>
           </div>
         </div>
       </div>
@@ -973,9 +1012,20 @@ function renderSpotsList() {
       <div class="spot-card-inner">
         <div class="spot-header" onclick="toggleSpot(${i})">
           <div class="spot-header-right">
-            <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${metal.text};position:relative;overflow:hidden">
-              <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
-              <span style="position:relative;z-index:1;font-size:14px">${fmtScore(sc.combined)}</span>
+            <div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
+              <div>
+                <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${metal.text};position:relative;overflow:hidden">
+                  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
+                  <span style="position:relative;z-index:1;font-size:14px">${fmtScore(sc.combined)}</span>
+                </div>
+                <div style="font-size:9px;text-align:center;color:var(--gold-light);margin-top:2px">שקיעה</div>
+              </div>
+              <div>
+                <div class="score-badge score-badge-location">
+                  <span style="font-size:12px;font-weight:700">${s._locationQuality ?? '—'}</span>
+                </div>
+                <div style="font-size:9px;text-align:center;color:rgba(160,185,210,0.8);margin-top:2px">מיקום</div>
+              </div>
             </div>
             <div class="spot-header-info">
               <div class="spot-name">
@@ -983,7 +1033,7 @@ function renderSpotsList() {
                 <span class="spot-name-text">${esc(s.name)}</span>
               </div>
               <div class="spot-meta">
-                ${s.type} · ${starsHTML(s._potential)} · ${dirLabel} ${compassArrow(bearing)}
+                ${s.type} · ${dirLabel} ${compassArrow(bearing)}
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
                 ${buildSpotDecision(s, today)}
@@ -1030,7 +1080,7 @@ function renderSpotsList() {
             </div>
 
             <div class="fx-grid spot-info-grid">
-              <div class="fx-cell"><div class="fx-cell-lbl">פוטנציאל</div><div class="fx-cell-val">${starsHTML(s._potential)}</div><div class="fx-cell-sub">קבוע</div></div>
+              <div class="fx-cell"><div class="fx-cell-lbl">ניקוד מיקום</div><div class="fx-cell-val" style="color:rgba(160,185,210,0.9)">${s._locationQuality ?? '—'}<span style="font-size:10px;font-weight:400;color:var(--cream-faint)">/100</span></div><div class="fx-cell-sub">קבוע</div></div>
               <div class="fx-cell"><div class="fx-cell-lbl">כיוון</div><div class="fx-cell-val">${dirLabel}</div><div class="fx-cell-sub">${Math.round(bearing)}°</div></div>
               <div class="fx-cell"><div class="fx-cell-lbl">גובה</div><div class="fx-cell-val">${s.elevation || '—'}</div><div class="fx-cell-sub">${s.elevation ? 'מטר' : ''}</div></div>
             </div>
