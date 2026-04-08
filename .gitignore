@@ -11,6 +11,16 @@ dist/
 .env
 .env.local
 
+# Local IDE / tooling
+.claude/
+
+# Android build outputs + signing keystore (NEVER commit secrets)
+android/
+
+# Backtest intermediate outputs (regeneratable via scripts/build_learning_dataset.mjs)
+scripts/data/
+scripts/package-lock.json
+
 # OS
 .DS_Store
 Thumbs.db
