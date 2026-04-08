@@ -127,6 +127,7 @@ export async function fetchWeek(lat, lon, force = false) {
   const realCount = new Set(datasets).size; // 1–3 unique models
 
   console.log(`[api] Ensemble: ${realCount} unique model(s) → averaging 3 slots`);
+  if (!primary?.hourly) return primary;
   const hourlyKeys = Object.keys(primary.hourly).filter(k => k !== 'time');
   for (const key of hourlyKeys) {
     primary.hourly[key] = averageHourlyArrays(datasets, key);

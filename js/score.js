@@ -9,7 +9,7 @@
 
 import { formatTime, twilightRange, addMinutes, scoreToColorContinuous, scoreToLabel,
          degToDir, dateToHebDay, shortDate, buildTags, buildSmartCond,
-         calcSolarElevation, calcSolarAzimuth, calcGoldenHourMin } from './utils.js';
+         calcSolarElevation, calcSolarAzimuth, calcGoldenHourMin, getSolarDeclination } from './utils.js';
 import { WEATHER_CODES, SEASONAL_BASELINE, COAST_LON,
          LOCATION_CLIMATE, OVERRIDE_CODES } from './config.js';
 import { getBiasCorrection, getDynamicSeasonalBaseline, getCloudPenaltyAdjustment } from './calibration.js';
@@ -576,7 +576,8 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
   let dustVal    = aq ? valAt(aq.hourly?.dust,                  aqIdx, _aqDust)           : _aqDust;
   const pm25Val  = aq ? valAt(aq.hourly?.pm2_5,                 aqIdx, _aqDust * 0.25)    : _aqDust * 0.25;
   const pm10Val  = aq ? valAt(aq.hourly?.pm10,                  aqIdx, _aqDust * 1.5)     : _aqDust * 1.5;
-  const aodVal   = aq ? valAt(aq.hourly?.aerosol_optical_depth, aqIdx, _aqDust / 220)     : _aqDust / 220;
+  // AOD from API (direct measurement); fallback derived from dustVal after learning scaling below.
+  const _aodFromAPI  = aq ? (aq.hourly?.aerosol_optical_depth?.[aqIdx] ?? null) : null;
   const ozoneVal = aq ? valAt(aq.hourly?.ozone,                 aqIdx, 0)                 : 0;
 
   // Learning: apply forecast API input bias corrections + get learned bell peaks
@@ -590,6 +591,9 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
     dustVal        *= _ladj.inputScales.dustScale;
     _visibilityVal *= _ladj.inputScales.visibilityScale;
   }
+  // AOD: use direct API measurement when available; otherwise derive from (scaled) dustVal
+  // so AOD stays consistent with dust after learning corrections are applied.
+  const aodVal = (_aodFromAPI != null && !isNaN(_aodFromAPI)) ? _aodFromAPI : dustVal / 220;
 
   const cloudAnomaly = (baseline.clouds - _cloudsVal) / 30;
   const visAnomaly   = (_visibilityVal - baseline.visibility) / 10;
@@ -621,6 +625,8 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
     const wIdx    = (wTimes && wISOKey) ? findHourIndex(wTimes, wISOKey) : -1;
     cloudsLowWest = wIdx >= 0 ? valAt(westernData.hourly?.cloudcover_low, wIdx, 0) : 0;
   }
+  // horizonGap: fraction of western horizon that is clear (0 = blocked, 1 = open)
+  const horizonGap = Math.max(0, (100 - cloudsLowWest) / 100);
 
   return {
     clouds:           _cloudsVal,
@@ -649,6 +655,7 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
     tempDropRate,
     inversionStrength,
     cloudsLowWest,
+    horizonGap,
     twilightMode,
     weatherCode:      weatherCode || 0,
     tempAtSunset:     tempAtSunset || 25,
@@ -716,6 +723,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
     turbidity:           physics.turbidity,
     latitude:            lat,
     clouds:              ssParams.clouds / 100,
+    declination:         getSolarDeclination(date),
   });
 
   // Ångström exponent from PM2.5 / (PM10 + dust) ratio:

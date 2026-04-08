@@ -397,6 +397,16 @@ export function calcSolarElevation(lat, lon, date) {
   return Math.asin(sinElev) * 180 / Math.PI;
 }
 
+/**
+ * Solar declination for a given date (degrees, -23.5 to +23.5).
+ * Uses the same simplified formula as calcSolarElevation.
+ */
+export function getSolarDeclination(date) {
+  const d = date instanceof Date ? date : new Date(date);
+  const dayOfYear = Math.floor((d - new Date(d.getFullYear(), 0, 0)) / 86400000);
+  return 23.45 * Math.sin((2 * Math.PI / 365) * (dayOfYear - 81));
+}
+
 // ─────────────────────────────────────────
 //  SVG gauge arc for score (half-circle)
 // ─────────────────────────────────────────

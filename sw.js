@@ -36,6 +36,7 @@ const STATIC_ASSETS = [
   './js/sw-register.js',
   './js/calibration.js',
   './js/install-prompt.js',
+  './js/notifications.js',
   // Pulse 1-4 additions
   './js/debugPanel.js',
   './js/engine/physicsLayer.js',
@@ -52,6 +53,7 @@ const STATIC_ASSETS = [
   './js/render/sunDisk.js',
   './js/render/crepuscularRays.js',
   './js/data/environment.js',
+  './js/data/ozone_climatology.js',
   './learning-seed.json'
 ];
 

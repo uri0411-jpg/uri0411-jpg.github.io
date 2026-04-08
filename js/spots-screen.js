@@ -31,6 +31,7 @@ let _favorites    = loadFavorites();
 let _visited      = loadVisited();
 let _leafletReady = false;
 let _visibleCount = 15;
+let _loadingSpots = false; // guard against parallel loadSpots() calls
 
 // ─────────────────────────────────────────
 //  Lazy-load Leaflet CSS + JS on demand (5)
@@ -516,6 +517,7 @@ function buildSpotsShell() {
 //  MAP
 // ═════════════════════════════════════════
 async function initLeafletMap() {
+  if (_map) return; // already initialized — guard against stale retry timers
   try {
     await loadLeaflet();
   } catch (e) {
@@ -523,6 +525,7 @@ async function initLeafletMap() {
     setTimeout(initLeafletMap, 2000);
     return;
   }
+  if (_map) return; // another call completed while we were loading Leaflet
   const el = document.getElementById('spots-map');
   if (!el) return;
   const lat = _loc?.lat || 32.0853, lon = _loc?.lon || 34.7818;
@@ -627,11 +630,13 @@ function scrollToSpotCard(idx) {
 //  LOAD
 // ═════════════════════════════════════════
 async function loadSpots() {
+  if (_loadingSpots) return;
   if (!_loc) {
     const el = document.getElementById('spots-list');
     if (el) el.innerHTML = buildEmptyState('לא נמצא מיקום', 'לחץ "מיקום נוכחי" לאיתור');
     return;
   }
+  _loadingSpots = true;
 
   // ── Pre-load fast path ──────────────────────────────────
   const preloadValid =
@@ -649,6 +654,7 @@ async function loadSpots() {
     updateMapMarkers(getFilteredSpots());
     drawEventArc();
     checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+    _loadingSpots = false;
     return;
   }
 
@@ -689,6 +695,8 @@ async function loadSpots() {
     if (heroEl) heroEl.innerHTML = '';
     const el = document.getElementById('spots-list');
     if (el) el.innerHTML = buildEmptyState('שגיאה בטעינת נקודות', 'בדוק חיבור ונסה שוב');
+  } finally {
+    _loadingSpots = false;
   }
 }
 
