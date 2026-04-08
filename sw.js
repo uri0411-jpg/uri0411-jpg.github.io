@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v32';  // bumped: dedicated learning screen + real backtest seed
+const CACHE_NAME  = 'twl-v34';  // bumped: spot scroll-to-card + marker race fix
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -32,6 +32,7 @@ const STATIC_ASSETS = [
   './js/ui.js',
   './js/main-screen.js',
   './js/spots-screen.js',
+  './js/spotImages.js',
   './js/settings-screen.js',
   './js/learning-screen.js',
   './js/sw-register.js',

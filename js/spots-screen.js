@@ -9,9 +9,10 @@ import { scoreToColor, scoreToColorContinuous, scoreToMetal, scoreToLabel, distK
 import { showToast, showLoading, logoImg, esc } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
+import { fetchSpotImage } from './spotImages.js';
 
 let _spots        = [];
-let _sortMode     = 'smart';
+let _sortMode     = 'score';
 let _filterType   = 'all';
 let _radiusKm     = 25;
 // Pre-load cache
@@ -410,9 +411,12 @@ export async function initSpotsScreen(weekData) {
   _visibleCount = 15;
   const container = document.getElementById('screen-spots');
   if (!container) return;
-  if (_map) { _map.remove(); _map = null; _markers = []; }
+  if (_map) { _map.remove(); _map = null; _markers = []; _popupHandlerRegistered = false; }
   container.innerHTML = buildSpotsShell();
   attachSpotsEvents();
+  // Fire-and-forget: the map loads in parallel with loadSpots. initLeafletMap
+  // self-recovers — if spots finish first, updateMapMarkers early-returns and
+  // initLeafletMap calls updateMapMarkers itself when ready.
   initLeafletMap();
   if (!_loc) { showToast('לא נמצא מיקום — לחץ GPS', 'error'); return; }
   await loadSpots();
@@ -491,7 +495,7 @@ function buildSpotsShell() {
       </button>
       <button class="sort-pill ${_sortMode==='score'?'active':''}" id="sort-score">
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-        ציון
+        איכות צפייה
       </button>
       <button class="sort-pill ${_sortMode==='dist'?'active':''}" id="sort-dist">
         <svg width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
@@ -539,7 +543,24 @@ async function initLeafletMap() {
     iconSize: [14, 14], iconAnchor: [7, 7], className: ''
   });
   L.marker([lat, lon], { icon: userIcon }).addTo(_map).bindPopup('המיקום שלך');
+
+  // Delegated click handler — attach ONCE as soon as the map container exists,
+  // independent of whether spot markers have been drawn yet. This fires reliably
+  // on first tap of "הצג פרטים" in any popup, and avoids racing with loadSpots.
+  if (!_popupHandlerRegistered) {
+    _popupHandlerRegistered = true;
+    _map.getContainer().addEventListener('click', (ev) => {
+      const link = ev.target.closest?.('.spot-popup-link');
+      if (!link) return;
+      ev.preventDefault();
+      ev.stopPropagation();
+      scrollToSpotCard(parseInt(link.dataset.spotIdx));
+    });
+  }
+
   drawEventArc();
+  // If spots already loaded before the map was ready, draw their markers now.
+  if (_spots.length) updateMapMarkers(getFilteredSpots());
 }
 
 function drawEventArc() {
@@ -592,38 +613,38 @@ function updateMapMarkers(spots) {
     _markers.push(m);
     _markerSpotMap[spotKey(s.name, s.lat)] = idx;
   });
-
-  // Register popup click handler once
-  if (!_popupHandlerRegistered) {
-    _popupHandlerRegistered = true;
-    _map.on('popupopen', (e) => {
-      const link = e.popup.getElement()?.querySelector('.spot-popup-link');
-      if (link) {
-        link.addEventListener('click', (ev) => {
-          ev.preventDefault();
-          scrollToSpotCard(parseInt(link.dataset.spotIdx));
-        });
-      }
-    });
-  }
 }
 
 // ─── Map ↔ List sync ────────────────────
-function scrollToSpotCard(idx) {
+async function scrollToSpotCard(idx) {
   // If card not yet rendered (lazy load), expand visible count
   if (idx >= _visibleCount) {
     _visibleCount = idx + 5;
     renderSpotsList();
   }
-  requestAnimationFrame(() => {
-    const el = document.getElementById(`spot-expand-${idx}`);
-    const card = el?.closest('.spot-card');
-    if (!card) return;
-    if (el && !el.classList.contains('open')) window.toggleSpot(idx);
-    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
-    card.classList.add('spot-card-highlight');
-    setTimeout(() => card.classList.remove('spot-card-highlight'), 2500);
-  });
+  // Wait one tick for lazy render to land in the DOM.
+  await new Promise(r => setTimeout(r, 0));
+  const el = document.getElementById(`spot-expand-${idx}`);
+  const card = el?.closest('.spot-card');
+  if (!card) return;
+  // Open the card (kicks off 0.4s max-height transition)
+  if (el && !el.classList.contains('open')) window.toggleSpot(idx);
+  // Wait for the expand transition to complete before measuring — otherwise
+  // the scroll target is computed against a still-collapsed card height.
+  await new Promise(r => setTimeout(r, 420));
+  const screen = document.getElementById('screen-spots');
+  if (screen) {
+    const cardTop = card.getBoundingClientRect().top + screen.scrollTop;
+    const target = Math.max(0, cardTop - 80);
+    // Direct scrollTop assignment — CSS `scroll-behavior: smooth` on #screen-spots
+    // makes this animate. scrollTo({behavior:'smooth'}) was unreliable inside an
+    // async chain (animation got cancelled by subsequent DOM work).
+    screen.scrollTop = target;
+  } else {
+    card.scrollIntoView({ block: 'start' });
+  }
+  card.classList.add('spot-card-highlight');
+  setTimeout(() => card.classList.remove('spot-card-highlight'), 2500);
 }
 
 // ═════════════════════════════════════════
@@ -749,7 +770,8 @@ function getFilteredSpots() {
     return af - bf;
   });
 
-  return filtered;
+  // Cap at 100 so rank numbering is stable and bounded
+  return filtered.slice(0, 100);
 }
 
 // ═════════════════════════════════════════
@@ -1004,6 +1026,7 @@ function renderSpotsList() {
             </div>
             <div class="spot-header-info">
               <div class="spot-name">
+                <span class="spot-rank-badge" title="דירוג לפי איכות צפייה">${i + 1}</span>
                 <span class="spot-type-icon" style="color:${color}">${getTypeIcon(s.type)}</span>
                 <span class="spot-name-text">${esc(s.name)}</span>
               </div>
@@ -1036,6 +1059,14 @@ function renderSpotsList() {
 
         <div class="daily-expand" id="spot-expand-${i}">
           <div class="spot-expand-inner">
+            <div class="spot-photo" id="spot-photo-${i}" data-spot-idx="${i}">
+              <div class="spot-photo-skeleton">
+                <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+                  <circle cx="12" cy="12" r="4"/>
+                  <path d="M2 17l6-6 5 5 3-3 6 6"/>
+                </svg>
+              </div>
+            </div>
             <div class="spot-scores-row">
               <div class="spot-score-cell">
                 ${logoImg('sunset', 18)}
@@ -1096,7 +1127,7 @@ function renderSpotsList() {
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="18" cy="5" r="3"/><circle cx="6" cy="12" r="3"/><circle cx="18" cy="19" r="3"/><line x1="8.59" y1="13.51" x2="15.42" y2="17.49"/><line x1="15.41" y1="6.51" x2="8.59" y2="10.49"/></svg>
                 שתף
               </button>
-              <a href="https://www.google.com/search?q=${encodeURIComponent(s.name + ' שקיעה')}&tbm=isch" target="_blank" rel="noopener" class="spot-nav-btn">
+              <a href="https://www.google.com/maps/search/?api=1&query=${s.lat},${s.lon}" target="_blank" rel="noopener" class="spot-nav-btn" title="פתח במפות גוגל — תמונות משתמשים במיקום זה">
                 <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><circle cx="8.5" cy="8.5" r="1.5"/><path d="M21 15l-5-5L5 21"/></svg>
                 תמונות
               </a>
@@ -1311,7 +1342,37 @@ window.toggleSpot = function(i) {
       setTimeout(() => markerEl.classList.remove('spot-marker-pulse'), 800);
     }
   }
+  // Lazy-load spot photo on first open
+  if (isOpen) _loadSpotPhoto(i);
 };
+
+function _loadSpotPhoto(i) {
+  const container = document.getElementById(`spot-photo-${i}`);
+  if (!container || container.dataset.loaded) return;
+  const sorted = getFilteredSpots();
+  const spot = sorted[i];
+  if (!spot) return;
+  container.dataset.loaded = 'pending';
+  fetchSpotImage(spot).then(result => {
+    if (!result || !result.url) {
+      container.dataset.loaded = 'fail';
+      container.classList.add('spot-photo-empty');
+      return;
+    }
+    const credit = result.credit ? esc(result.credit).slice(0, 60) : '';
+    const page   = result.pageUrl || result.url;
+    const label  = result.sourceLabel || '';
+    container.dataset.loaded = 'ok';
+    container.innerHTML = `
+      <a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">
+        <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async">
+        <div class="spot-photo-credit">צילום: ${label}${credit ? ' — ' + credit : ''}</div>
+      </a>`;
+  }).catch(() => {
+    container.dataset.loaded = 'fail';
+    container.classList.add('spot-photo-empty');
+  });
+}
 window._toggleFav = function(i) {
   const sorted = getFilteredSpots();
   const s = sorted[i];

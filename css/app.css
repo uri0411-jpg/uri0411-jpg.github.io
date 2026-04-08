@@ -1774,6 +1774,8 @@ body.has-install-banner .screen { padding-top: 56px; }
   overflow: hidden;
   margin-bottom: 8px;
   padding: 0;
+  scroll-margin-top: 80px;
+  scroll-margin-bottom: 120px;
 }
 .spot-card-anim {
   animation: spotFadeIn 0.4s ease both;
@@ -1830,6 +1832,23 @@ body.has-install-banner .screen { padding-top: 56px; }
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+.spot-rank-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  padding: 0 6px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, var(--gold-light, #F0B84A), var(--gold, #D4820A));
+  color: var(--brown-dark, #3B1F08);
+  font-size: 12px;
+  font-weight: 900;
+  font-family: var(--font-body);
+  flex-shrink: 0;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.35), inset 0 1px 0 rgba(255,255,255,0.35);
+  letter-spacing: -0.3px;
 }
 .spot-type-icon {
   display: flex;
@@ -2141,18 +2160,77 @@ body.has-install-banner .screen { padding-top: 56px; }
   font-weight: 600;
 }
 
+/* Spot photo (embedded) */
+.spot-photo {
+  position: relative;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  border-radius: 12px;
+  overflow: hidden;
+  margin-bottom: 12px;
+  background: linear-gradient(135deg, rgba(60,30,12,0.55), rgba(30,15,6,0.65));
+  border: 1px solid rgba(212,165,116,0.22);
+}
+.spot-photo .spot-photo-skeleton {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: rgba(212,165,116,0.35);
+  animation: spotPhotoPulse 1.8s ease-in-out infinite;
+}
+@keyframes spotPhotoPulse {
+  0%, 100% { opacity: 0.55; }
+  50%      { opacity: 0.95; }
+}
+.spot-photo-empty .spot-photo-skeleton {
+  animation: none;
+  opacity: 0.6;
+}
+.spot-photo .spot-photo-link {
+  display: block;
+  width: 100%;
+  height: 100%;
+  text-decoration: none;
+  color: inherit;
+}
+.spot-photo img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.spot-photo-credit {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 6px 10px;
+  background: linear-gradient(to top, rgba(0,0,0,0.7), rgba(0,0,0,0));
+  color: rgba(245,230,200,0.85);
+  font-size: 10px;
+  font-weight: 500;
+  text-align: end;
+  direction: rtl;
+  pointer-events: none;
+}
+
 /* Navigation buttons */
 .spot-nav-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 8px;
+  width: 100%;
 }
 .spot-nav-btn {
-  flex: 1;
+  flex: 1 1 calc(33.333% - 8px);
+  min-width: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   gap: 6px;
-  padding: 10px 8px;
+  padding: 10px 6px;
   background: linear-gradient(135deg, #5A2D0C, #3B1A06);
   border: 1px solid rgba(212,165,116,0.25);
   border-radius: 12px;
@@ -2163,6 +2241,9 @@ body.has-install-banner .screen { padding-top: 56px; }
   cursor: pointer;
   transition: all 0.2s;
   font-family: var(--font-body);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 .spot-nav-btn:active { transform: scale(0.97); }
 

@@ -268,7 +268,14 @@ export async function fetchSpots(lat, lon, radiusKm = 25) {
       return {
         name, type, lat: slat, lon: slon,
         dist: Math.round(dist * 10) / 10,
-        elevation: el.tags?.ele ? Number(el.tags.ele) : null
+        elevation: el.tags?.ele ? Number(el.tags.ele) : null,
+        // Image-resolution hints (coordinate-bound); consumed by js/spotImages.js
+        _osmId:     el.id ?? null,
+        _osmType:   el.type ?? null,
+        _wikidata:  el.tags?.wikidata || null,
+        _wikipedia: el.tags?.wikipedia || null,
+        _commons:   el.tags?.wikimedia_commons || null,
+        _imageUrl:  el.tags?.image || null,
       };
     })
     .filter(s => s.dist <= cappedRadius)
