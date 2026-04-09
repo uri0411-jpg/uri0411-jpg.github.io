@@ -2950,8 +2950,8 @@ body.night-vision .quick-alert-fab {
   display: grid;
   grid-template-columns: 1fr auto auto;
   gap: 10px;
-  align-items: baseline;
-  padding: 5px 0;
+  align-items: start;
+  padding: 6px 0;
   font-size: 12px;
   border-bottom: 1px dashed rgba(245,220,180,0.08);
 }
@@ -3283,3 +3283,189 @@ body.night-vision .quick-alert-fab {
 .onboard-score-ok   { background: rgba(212, 130, 10, 0.25); color: #D4820A; }
 .onboard-score-low  { background: rgba(160, 100, 50, 0.20); color: #a08050; }
 .onboard-score-bad  { background: rgba(100, 70, 50, 0.20);  color: #887060; }
+
+/* ═══════════════════════════════════════════
+   EDUCATIONAL ACCORDION SYSTEM
+═══════════════════════════════════════════ */
+
+/* Section label with ? button */
+.edu-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: var(--cream-faint);
+  padding: 0 4px;
+  margin: 14px 0 6px;
+}
+
+/* ? toggle button */
+.edu-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  border: 1px solid rgba(245, 220, 180, 0.25);
+  background: rgba(245, 220, 180, 0.06);
+  color: var(--cream-faint);
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+  line-height: 1;
+}
+.edu-toggle-btn:hover,
+.edu-toggle-btn[aria-expanded="true"] {
+  background: rgba(212, 130, 10, 0.2);
+  border-color: var(--gold);
+  color: var(--gold);
+}
+.edu-toggle-sm {
+  width: 16px;
+  height: 16px;
+  font-size: 9px;
+}
+
+/* Expandable explanation panel */
+.edu-explainer {
+  overflow: hidden;
+  max-height: 0;
+  opacity: 0;
+  font-size: 12px;
+  color: var(--cream-dim);
+  line-height: 1.75;
+  direction: rtl;
+  transition: max-height 0.35s ease, opacity 0.25s ease, margin 0.25s ease;
+  margin-bottom: 0;
+}
+.edu-explainer.open {
+  max-height: 600px;
+  opacity: 1;
+  margin-bottom: 10px;
+}
+.edu-explainer p {
+  margin-bottom: 8px;
+}
+.edu-explainer strong {
+  color: var(--cream);
+  font-weight: 700;
+}
+.edu-explainer em {
+  color: var(--gold-light);
+  font-style: normal;
+}
+
+/* How it works button */
+.how-it-works-btn {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 12px 16px;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--cream-dim);
+  background: rgba(20, 10, 4, 0.45);
+  border: 1px solid rgba(212, 165, 116, 0.15);
+  border-radius: var(--r-card);
+  cursor: pointer;
+  text-align: right;
+  transition: background 0.2s, border-color 0.2s;
+}
+.how-it-works-btn:hover,
+.how-it-works-btn[aria-expanded="true"] {
+  background: rgba(212, 130, 10, 0.12);
+  border-color: rgba(212, 130, 10, 0.3);
+  color: var(--cream);
+}
+.how-it-works-btn span { flex: 1; }
+.how-chevron {
+  transition: transform 0.3s ease;
+  color: var(--cream-faint);
+  flex-shrink: 0;
+}
+.how-chevron.open { transform: rotate(180deg); }
+
+/* How-it-works expanded content */
+.how-explainer {
+  padding: 0 4px;
+}
+.how-explainer.open {
+  padding: 0 4px;
+}
+.how-steps {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  margin: 10px 0;
+}
+.how-step {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+}
+.how-step-num {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  background: rgba(212, 130, 10, 0.2);
+  border: 1px solid rgba(212, 130, 10, 0.35);
+  color: var(--gold);
+  font-size: 12px;
+  font-weight: 700;
+  flex-shrink: 0;
+  margin-top: 1px;
+}
+.how-step-desc {
+  font-size: 11.5px;
+  color: var(--cream-faint);
+  margin-top: 2px;
+  line-height: 1.6;
+}
+.how-ema-note {
+  font-size: 11.5px;
+  color: var(--cream-faint);
+  border-top: 1px solid rgba(245, 220, 180, 0.1);
+  padding-top: 8px;
+  margin-top: 2px;
+  line-height: 1.6;
+}
+
+/* KPI header row with ? button */
+.kpi-header-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 4px;
+}
+.kpi-edu {
+  font-size: 10.5px;
+  border-top: 1px solid rgba(245, 220, 180, 0.08);
+  padding-top: 6px;
+  margin-top: 4px;
+}
+
+/* Param description sub-line */
+.param-label-col {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  flex: 1;
+  min-width: 0;
+}
+.param-desc {
+  font-size: 9.5px;
+  color: var(--cream-faint);
+  line-height: 1.4;
+  opacity: 0.8;
+}
