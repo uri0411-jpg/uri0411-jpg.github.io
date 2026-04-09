@@ -20,6 +20,7 @@ import { initInstallPrompt }                   from './install-prompt.js';
 import { rearmSavedAlerts }                    from './notifications.js';
 import { initOnboarding }                      from './onboarding.js';
 import { scoreToLabel } from './utils.js';
+import { loadSkyMask }  from './render/skyMask.js';
 
 // ─────────────────────────────────────────
 //  Score EMA — smooth scores across page loads to reduce noise from
@@ -84,6 +85,8 @@ let _isRefreshing        = false; // FIX: debounce guard for refresh
 //  Boot
 // ─────────────────────────────────────────
 async function boot() {
+  loadSkyMask().catch(() => {});  // preload background.jpg in parallel with API calls
+
   // Detect stale session: if page reloads >5 min after last boot, force-refresh
   // weather data instead of serving from localStorage cache. Closes the gap
   // between pull-to-refresh (plain reload) and button refresh (force=true).

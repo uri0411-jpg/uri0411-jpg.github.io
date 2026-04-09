@@ -53,6 +53,8 @@ import { loadSkyMask, drawSkyMask, getSkyMaskSync } from './skyMask.js';
 
 const CANVAS_ID = 'sky-canvas';
 
+let _lastRenderArgs = null;  // cached params for mask-ready re-render
+
 // Canvas-position fractions for each of the 8 gradient stops (top → bottom)
 const STOP_POSITIONS = [0.00, 0.12, 0.25, 0.40, 0.58, 0.70, 0.83, 1.00];
 
@@ -201,6 +203,7 @@ function boostSaturation({ r, g, b }, targetS = 0.70) {
  *                                  Scales Mie cross-section as g² (cross-section ∝ r²).
  */
 export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp = 0, beltOfVenus = 0, clouds, mieGrowth = 1) {
+  _lastRenderArgs = [container, sunAngle_rad, turbidity, angstromExp, beltOfVenus, clouds, mieGrowth];
   if (!container) return;
 
   // #sky-layers is position:fixed inset:0, so its size matches the viewport.
@@ -227,7 +230,9 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
     // Kick off async mask load on first canvas creation. It will self-
     // cache; the next renderSkyCanvas call after it resolves will see
     // getSkyMaskSync() return the mask and clip to it.
-    loadSkyMask().catch(err => console.warn('[skyCanvas] mask load failed', err));
+    loadSkyMask()
+      .then(() => { if (_lastRenderArgs) renderSkyCanvas(..._lastRenderArgs); })
+      .catch(err => console.warn('[skyCanvas] mask load failed', err));
   }
 
   // Resize if needed
