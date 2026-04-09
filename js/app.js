@@ -141,6 +141,7 @@ async function boot() {
          <button onclick="navigator.serviceWorker?.getRegistrations().then(rs=>Promise.all(rs.map(r=>r.unregister()))).then(()=>caches.keys().then(ks=>Promise.all(ks.map(k=>caches.delete(k))))).then(()=>location.reload())" style="padding:.5rem 1rem;background:transparent;border:1px solid var(--cream);border-radius:8px;color:var(--cream);font-size:.85rem;cursor:pointer">נקה מטמון ונסה שוב</button>
        </div>`;
   } finally {
+    await loadSkyMask().catch(() => {}); // ensure mask is ready before first reveal
     showLoading(false);
   }
 
