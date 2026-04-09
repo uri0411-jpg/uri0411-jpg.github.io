@@ -7,7 +7,7 @@
 //      Crowdsourced cLow penalty calibration
 // ═══════════════════════════════════════════
 
-import { formatTime, twilightRange, addMinutes, scoreToColorContinuous, scoreToLabel,
+import { formatTime, twilightRange, addMinutes, scoreToLabel,
          degToDir, dateToHebDay, shortDate, buildTags, buildSmartCond,
          calcSolarElevation, calcSolarAzimuth, calcGoldenHourMin, getSolarDeclination } from './utils.js';
 import { WEATHER_CODES, SEASONAL_BASELINE, COAST_LON,

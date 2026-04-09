@@ -5,7 +5,7 @@
 
 import { fetchSpots, fetchCityName } from './api.js';
 import { loadLocation, getGPS, saveLocation } from './location.js';
-import { scoreToColorContinuous, scoreToMetal, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
+import { scoreToSkyColor, scoreToMetal, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
 import { showToast, showLoading, logoImg, esc } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
@@ -594,7 +594,7 @@ function updateMapMarkers(spots) {
     const eventScore = nextEvt.type === 'sunrise'
       ? (s._allScores?.[0]?.sr || 5)
       : (s._allScores?.[0]?.ss || 5);
-    const color = scoreToColorContinuous(sc);
+    const color = scoreToSkyColor(sc, null, null);
     const isFav = isFavorite(s.name, s.lat, s.lon);
     const isVis = isVisited(s.name, s.lat, s.lon);
     const size = isFav ? 18 : 14;
@@ -605,7 +605,7 @@ function updateMapMarkers(spots) {
       iconSize: [size, size], iconAnchor: [size/2, size/2], className: ''
     });
     const eventLabel = nextEvt.type === 'sunrise' ? 'זריחה' : 'שקיעה';
-    const popupContent = `<div dir="rtl" style="font-family:Rubik,sans-serif;font-size:13px"><b>${esc(s.name)}</b><br>${esc(s.type)} · ${fmtScore(sc)} · ${s.dist} ק"מ<br><span style="color:${scoreToColorContinuous(eventScore)}">${eventLabel}: ${fmtScore(eventScore)}</span><br><a href="#" class="spot-popup-link" data-spot-idx="${idx}" style="color:#F0B84A;font-size:11px;text-decoration:underline">הצג פרטים ↓</a></div>`;
+    const popupContent = `<div dir="rtl" style="font-family:Rubik,sans-serif;font-size:13px"><b>${esc(s.name)}</b><br>${esc(s.type)} · ${fmtScore(sc)} · ${s.dist} ק"מ<br><span style="color:${scoreToSkyColor(eventScore, null, null)}">${eventLabel}: ${fmtScore(eventScore)}</span><br><a href="#" class="spot-popup-link" data-spot-idx="${idx}" style="color:#F0B84A;font-size:11px;text-decoration:underline">הצג פרטים ↓</a></div>`;
     const m = L.marker([s.lat, s.lon], { icon: spotIcon })
       .addTo(_map)
       .bindPopup(popupContent);
@@ -791,7 +791,7 @@ function renderBestSpotHero() {
   const sc = best._allScores?.[0] || { combined: 5.0 };
   if (sc.combined < 4.5) { heroEl.innerHTML = ''; return; }
   const heroLoc = nextEvt.type === 'sunrise' ? best._locationQualitySunrise : best._locationQualitySunset;
-  const color = scoreToColorContinuous(sc.combined);
+  const color = scoreToSkyColor(sc.combined, null, null);
   const metal = scoreToMetal(sc.combined);
   const today = _weekData?.[0];
   const heroEventTime = today ? (nextEvt.type === 'sunrise' ? today.sunrise : today.sunset) : null;
@@ -806,7 +806,7 @@ function renderBestSpotHero() {
         <div style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">${heroTitle}</div>
         <div style="display:flex;align-items:center;gap:10px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-            <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${metal.text};position:relative;overflow:hidden;width:44px;height:44px;font-size:15px">
+            <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${color};position:relative;overflow:hidden;width:44px;height:44px;font-size:15px">
               <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
               <span style="position:relative;z-index:1">${fmtScore(sc.combined)}</span>
             </div>
@@ -863,7 +863,6 @@ function renderMiniWeekStrip(allScores) {
     <div class="spot-conditions-label">תחזית 5 ימים</div>
     <div class="spot-week-bar-row">
       ${allScores.slice(0, 5).map((sc, i) => {
-        const color = scoreToColorContinuous(sc.combined);
         const metal = scoreToMetal(sc.combined);
         let label = i < 2 ? dayLabels[i] : '';
         if (i >= 2) { const d = _weekData?.[i]?.date; if (d) label = days[new Date(d + 'T12:00:00').getDay()]; }
@@ -871,7 +870,7 @@ function renderMiniWeekStrip(allScores) {
         <div class="spot-week-bar-item">
           <div class="spot-week-bar-track">
             <div class="spot-week-bar-outer">
-              <div class="spot-week-bar-score" style="color:${metal.text}">${fmtScore(sc.combined)}</div>
+              <div class="spot-week-bar-score" style="color:${scoreToSkyColor(sc.combined, null, null)}">${fmtScore(sc.combined)}</div>
               <div class="spot-week-bar-fill" style="height:${sc.combined * 10}%;background:${metal.gradient}"></div>
             </div>
           </div>
@@ -973,7 +972,7 @@ function renderSpotsList() {
   listEl.innerHTML = visible.map((s, i) => {
     const scores = s._allScores || [{ ss: 5.0, sr: 5.0, tw: 5.0, combined: 5.0 }];
     const sc = scores[0];
-    const color = scoreToColorContinuous(sc.combined);
+    const color = scoreToSkyColor(sc.combined, null, null);
     const metal = scoreToMetal(sc.combined);
     const bearing = s._bearing || 0;
     const dirLabel = bearingToHeb(bearing);
@@ -1011,7 +1010,7 @@ function renderSpotsList() {
           <div class="spot-header-right">
             <div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
               <div>
-                <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${metal.text};position:relative;overflow:hidden">
+                <div class="score-badge" style="background:${metal.gradient};border:1px solid ${color}55;color:${color};position:relative;overflow:hidden">
                   <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
                   <span style="position:relative;z-index:1;font-size:14px">${fmtScore(sc.combined)}</span>
                 </div>
@@ -1075,7 +1074,7 @@ function renderSpotsList() {
               </div>
               <div class="spot-score-cell spot-score-cell-main">
                 <svg width="18" height="18" fill="none" stroke="var(--gold-light)" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <div class="spot-score-num" style="color:${scoreToColorContinuous(sc.combined)}">${fmtScore(sc.combined)}<span>/10</span></div>
+                <div class="spot-score-num" style="color:${color}">${fmtScore(sc.combined)}<span>/10</span></div>
                 <div class="spot-score-lbl">שמיים</div>
               </div>
               <div class="spot-score-cell">

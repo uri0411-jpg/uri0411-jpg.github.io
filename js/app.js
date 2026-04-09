@@ -18,7 +18,7 @@ import { recordPrediction, fetchActualForDate, getUnfilledDates, processLearning
 import { seedFromBacktest, getLearningStats, pinLearningSnapshot }  from './engine/learningEngine.js';
 import { initInstallPrompt }                   from './install-prompt.js';
 import { rearmSavedAlerts }                    from './notifications.js';
-import { scoreToColorContinuous, scoreToLabel } from './utils.js';
+import { scoreToLabel } from './utils.js';
 
 // ─────────────────────────────────────────
 //  Score EMA — smooth scores across page loads to reduce noise from

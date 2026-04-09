@@ -140,7 +140,7 @@ function ensureContrast(r, g, b, bgLum, minRatio) {
  * Continuous color from decimal score 1.0–10.0
  * Interpolates between adjacent SCORE_METALS hex colors
  */
-export function scoreToColorContinuous(score) {
+function scoreToColorContinuous(score) {
   const s = Math.max(1, Math.min(10, Number(score) || 5));
   const lo = Math.max(1, Math.floor(s));
   const hi = Math.min(10, lo + 1);

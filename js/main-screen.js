@@ -3,7 +3,7 @@
 //  Cinematic: dynamic glow, progress bars, haptic
 // ═══════════════════════════════════════════
 
-import { scoreToColorContinuous, scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
+import { scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
 import { logoImg, updateDynamicGradient, getCardBgLuma } from './ui.js';
 import { recordUserRating, hasRatedToday } from './calibration.js';
@@ -909,7 +909,7 @@ function renderWeekBars(weekData) {
           <div style="position:absolute;top:0;left:0;width:20%;height:100%;background:linear-gradient(90deg,rgba(0,0,0,0.22) 0%,rgba(0,0,0,0) 100%)"></div>
           <div style="position:absolute;top:0;right:0;width:20%;height:100%;background:linear-gradient(270deg,rgba(0,0,0,0.22) 0%,rgba(0,0,0,0) 100%)"></div>
           <div style="position:absolute;top:0;left:10%;right:10%;height:45%;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.30) 0%,rgba(255,255,255,0) 100%)"></div>
-          <span class="week-bar-score" style="position:relative;z-index:1;color:${metal.text}">${ds.toFixed(1)}</span>
+          <span class="week-bar-score" style="position:relative;z-index:1;color:${scoreToSkyColor(ds, d.skyColors, getCardBgLuma())}">${ds.toFixed(1)}</span>
         </div>
       </div>
       <div class="week-bar-day">${label}</div>
@@ -921,7 +921,7 @@ function renderWeekBars(weekData) {
 // ─────────────────────────────────────────
 //  Hourly forecast strip (full day)
 // ─────────────────────────────────────────
-function renderHourlyStrip(hourlyFull) {
+function renderHourlyStrip(hourlyFull, skyColors) {
   if (!hourlyFull || !hourlyFull.length) return '';
 
   const items = hourlyFull.map(h => {
@@ -952,7 +952,7 @@ function renderHourlyStrip(hourlyFull) {
         <div class="${rainClass}">${h.rain}%</div>
         <div class="hourly-wind">${h.wind}</div>
         ${h.score != null
-          ? `<div class="hourly-score" style="color:${scoreToColorContinuous(h.score)}">${h.score.toFixed(1)}</div>`
+          ? `<div class="hourly-score" style="color:${scoreToSkyColor(h.score, skyColors, getCardBgLuma())}">${h.score.toFixed(1)}</div>`
           : '<div class="hourly-score-spacer"></div>'
         }
       </div>`;
@@ -981,7 +981,7 @@ function renderDailyCards(weekData) {
       <!-- HEADER -->
       <div class="daily-header" onclick="toggleDaily(${i})" style="cursor:pointer;padding:14px 16px">
         <div style="display:flex;align-items:center;gap:10px">
-          <div class="score-badge" style="background:${dsMetal.gradient};border:1px solid ${dsColor}55;color:${dsMetal.text};position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div><span style="position:relative;z-index:1;font-size:13px">${ds.toFixed(1)}</span></div>
+          <div class="score-badge" style="background:${dsMetal.gradient};border:1px solid ${dsColor}55;color:${dsColor};position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div><span style="position:relative;z-index:1;font-size:13px">${ds.toFixed(1)}</span></div>
           <div>
             <div style="font-weight:700;font-size:15px;color:var(--cream)">${d.day} · ${d.shortDate}</div>
             <div style="font-size:11px;color:var(--cream-faint)">${d.cond}</div>
@@ -1044,7 +1044,7 @@ function renderDailyCards(weekData) {
         </div>
 
         <!-- ② HOURLY FORECAST -->
-        ${renderHourlyStrip(d.hourlyFull)}
+        ${renderHourlyStrip(d.hourlyFull, d.skyColors)}
 
         <!-- ③ Temp + condition -->
         <div class="daily-temp-row">
