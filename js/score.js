@@ -846,7 +846,6 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
     date, day: dateToHebDay(date), shortDate: shortDate(date),
     score, srScore, ssScore: effectiveSsScore, twScore, dramaLevel, goldenHourMin,
     certainty: ssResult.certainty,
-    scoreColor: scoreToColorContinuous(score),
     scoreLabel: scoreToLabel(score),
     sunrise: sunriseStr, sunset: sunsetStr, twilight: twilightRange(sunset), purpleLightTime,
     temp: `${temp}°`, tempMin: `${tempMin}°`, feelsLike: `${feelsLike}°`,
@@ -904,7 +903,6 @@ export function calcWeekData(weatherData, airQuality = null, lat = 32, lon = 34.
       // Heavy rain: washes air thoroughly — score boost + visibility display boost
       curr.ssScore = Math.min(10, Math.round((curr.ssScore + 0.7) * 10) / 10);
       curr.score   = Math.min(10, Math.round((curr.score   + 0.4) * 10) / 10);
-      curr.scoreColor = scoreToColorContinuous(curr.score);
       // Washout visibility boost: heavy rain scrubs aerosols — display 20% better
       curr._visibilityRaw = Math.round(curr._visibilityRaw * 1.20 * 10) / 10;
       curr.visibility = `${curr._visibilityRaw}`;
@@ -912,7 +910,6 @@ export function calcWeekData(weatherData, airQuality = null, lat = 32, lon = 34.
     } else if (prev._rainMmRaw > 1.5) {
       curr.ssScore = Math.min(10, Math.round((curr.ssScore + 0.5) * 10) / 10);
       curr.score   = Math.min(10, Math.round((curr.score   + 0.3) * 10) / 10);
-      curr.scoreColor = scoreToColorContinuous(curr.score);
       curr.tags = [...curr.tags, 'אחרי גשם — שמיים נקיים'];
     }
   }

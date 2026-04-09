@@ -7,7 +7,6 @@ import { WIND_DIRS } from './config.js';
 
 /**
  * Metallic sunset color system
- * scoreToColor(s) — returns hex string (backward compatible)
  * scoreToMetal(s) — returns full object { hex, gradient, text, glow, radial, edgeDark }
  */
 const SCORE_METALS = {
@@ -42,11 +41,6 @@ const SCORE_METALS = {
         gradient:'linear-gradient(180deg,#FFE050 0%,#FFEE50 25%,#E8D020 50%,#F0D830 75%,#FFE848 100%)',
         radial:'radial-gradient(ellipse 55% 75% at 50% 38%,rgba(255,240,100,0.55) 0%,rgba(0,0,0,0) 100%)' },
 };
-
-export function scoreToColor(s, _drama) {
-  const n = Math.min(10, Math.max(1, Math.round(Number(s)) || 1));
-  return SCORE_METALS[n].hex;
-}
 
 export function scoreToMetal(s) {
   const n = Math.min(10, Math.max(1, Math.round(Number(s)) || 1));
@@ -260,14 +254,6 @@ export function getTwilightDuration(sunsetISO) {
 }
 
 /**
- * Difference in minutes between two 'HH:MM' strings
- */
-export function minutesDiff(t1, t2) {
-  const toMin = t => { const [h, m] = t.split(':').map(Number); return h * 60 + m; };
-  return Math.abs(toMin(t2) - toMin(t1));
-}
-
-/**
  * Haversine distance in km between two lat/lon pairs
  */
 export function distKm(lat1, lon1, lat2, lon2) {
@@ -417,15 +403,6 @@ export function buildSmartCond(d) {
   if (clouds < 15) return 'שמיים נקיים';
 
   return null; // fallback לקוד מזג האוויר
-}
-
-// ─────────────────────────────────────────
-//  Golden Hour range: ~30 min before sunset → sunset
-// ─────────────────────────────────────────
-export function goldenHourRange(sunsetTimeStr) {
-  if (!sunsetTimeStr || sunsetTimeStr === '--:--') return '--:-- – --:--';
-  const start = addMinutes(sunsetTimeStr, -30);
-  return `${start}–${sunsetTimeStr}`;
 }
 
 // ─────────────────────────────────────────

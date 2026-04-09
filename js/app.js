@@ -58,7 +58,6 @@ function _applyScoreEMA(weekData, loc) {
       return {
         ...day,
         score:      finalScore,
-        scoreColor: scoreToColorContinuous(finalScore),
         scoreLabel: scoreToLabel(finalScore),
       };
     });

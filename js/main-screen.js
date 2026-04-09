@@ -3,7 +3,7 @@
 //  Cinematic: dynamic glow, progress bars, haptic
 // ═══════════════════════════════════════════
 
-import { scoreToColor, scoreToColorContinuous, scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
+import { scoreToColorContinuous, scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
 import { logoImg, updateDynamicGradient, getCardBgLuma } from './ui.js';
 import { recordUserRating, hasRatedToday } from './calibration.js';

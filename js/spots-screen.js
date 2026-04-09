@@ -5,7 +5,7 @@
 
 import { fetchSpots, fetchCityName } from './api.js';
 import { loadLocation, getGPS, saveLocation } from './location.js';
-import { scoreToColor, scoreToColorContinuous, scoreToMetal, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
+import { scoreToColorContinuous, scoreToMetal, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
 import { showToast, showLoading, logoImg, esc } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
