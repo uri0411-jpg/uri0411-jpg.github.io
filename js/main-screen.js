@@ -3,9 +3,9 @@
 //  Cinematic: dynamic glow, progress bars, haptic
 // ═══════════════════════════════════════════
 
-import { scoreToColor, scoreToColorContinuous, scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes } from './utils.js';
+import { scoreToColor, scoreToColorContinuous, scoreToMetal, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
-import { logoImg, updateDynamicGradient } from './ui.js';
+import { logoImg, updateDynamicGradient, getCardBgLuma } from './ui.js';
 import { recordUserRating, hasRatedToday } from './calibration.js';
 import { haptic } from './nav.js';
 import { initDebugPanel } from './debugPanel.js';
@@ -55,6 +55,48 @@ function cloudFractionsFor(day) {
     mid:  Math.max(0, Math.min(1, (day?._cloudMidRaw  ?? 0) / 100)),
     high: Math.max(0, Math.min(1, (day?._cloudHighRaw ?? 0) / 100)),
   };
+}
+
+// ─────────────────────────────────────────
+//  Live physics-driven score colors
+// ─────────────────────────────────────────
+function _updateLiveScoreColors(skyColors, mainScore) {
+  if (!skyColors?.horizon) return;
+  const bgLuma = getCardBgLuma();
+
+  // 1. Main gauge arc + number
+  const mainColor = scoreToSkyColor(mainScore, skyColors, bgLuma);
+  const gaugeText = document.querySelector('.gauge-score-text');
+  if (gaugeText) {
+    gaugeText.setAttribute('fill', mainColor);
+    gaugeText.style.filter = `drop-shadow(0 0 12px ${mainColor}44)`;
+  }
+  const gaugeArc = document.querySelector('.gauge-arc-fill');
+  if (gaugeArc) {
+    gaugeArc.setAttribute('stroke', mainColor);
+    gaugeArc.style.filter = `drop-shadow(0 0 6px ${mainColor}66)`;
+  }
+
+  // 2. Week bar scores, hourly scores, event scores
+  for (const el of document.querySelectorAll('#screen-main .week-bar-score, #screen-main .hourly-score, #screen-main .event-score-num')) {
+    const s = parseFloat(el.textContent);
+    if (!isNaN(s)) el.style.color = scoreToSkyColor(s, skyColors, bgLuma);
+  }
+
+  // 3. Daily card badges — text + border tint
+  for (const el of document.querySelectorAll('#screen-main .score-badge')) {
+    const span = el.querySelector('span');
+    const s = span ? parseFloat(span.textContent) : NaN;
+    if (!isNaN(s)) {
+      const c = scoreToSkyColor(s, skyColors, bgLuma);
+      el.style.color = c;
+      el.style.borderColor = c + '55';
+    }
+  }
+
+  // 4. Gauge glow — match physics color
+  const gaugeWrap = document.querySelector('.score-gauge-wrap');
+  if (gaugeWrap) gaugeWrap.style.setProperty('--glow-color', mainColor + '30');
 }
 
 // ─────────────────────────────────────────
@@ -117,6 +159,9 @@ function startLiveGradient(today, loc) {
       liveSkyColors,
       today.goldenWindow?.beltOfVenus || 0
     );
+
+    // Live-tint all score elements with physics sky colors
+    _updateLiveScoreColors(liveSkyColors, displayScore);
 
     // Score tier crossing — haptic pulse to signal entering prime time
     const newTier = displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low';
@@ -674,7 +719,7 @@ function buildMainHTML(loc, city, weekData) {
   if (!today) return '<div class="home-content"><p style="color:var(--cream)">שגיאה בטעינת נתונים</p></div>';
 
   const displayScore = _spotAvgScores?.[0] ?? today.score;
-  const displayColor = scoreToColorContinuous(displayScore);
+  const displayColor = scoreToSkyColor(displayScore, today.skyColors, getCardBgLuma());
   const displayLabel = scoreToStory(displayScore);
 
   const tomorrow = weekData[1] || null;
@@ -929,7 +974,7 @@ function renderDailyCards(weekData) {
   return weekData.map((d, i) => {
     const ds = (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score;
     const dsMetal = scoreToMetal(ds);
-    const dsColor = scoreToColorContinuous(ds);
+    const dsColor = scoreToSkyColor(ds, d.skyColors, getCardBgLuma());
     return `
     <div class="glass daily-card" style="margin-bottom:8px">
 
@@ -980,19 +1025,19 @@ function renderDailyCards(weekData) {
         <div class="event-score-row">
           <div class="event-score-panel event-score-panel--sunrise">
             <div class="logo-circle">${logoImg('sunrise', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToColorContinuous(d.srScore)}">${d.srScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToSkyColor(d.srScore, d.skyColors, getCardBgLuma())}">${d.srScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">זריחה</div>
             <div class="event-score-time">${d.sunrise}</div>
           </div>
           <div class="event-score-panel event-score-panel--sunset">
             <div class="logo-circle">${logoImg('sunset', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToColorContinuous(d.ssScore)}">${d.ssScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToSkyColor(d.ssScore, d.skyColors, getCardBgLuma())}">${d.ssScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">שקיעה</div>
             <div class="event-score-time">${d.sunset}</div>
           </div>
           <div class="event-score-panel event-score-panel--twilight">
             <div class="logo-circle">${logoImg('twilight', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToColorContinuous(d.twScore)}">${d.twScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToSkyColor(d.twScore, d.skyColors, getCardBgLuma())}">${d.twScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">דמדומים</div>
             <div class="event-score-time event-score-time--gold">${d.twilight}</div>
           </div>
@@ -1340,7 +1385,7 @@ function _showCompareOverlay(iA, iB) {
   const col = (d) => `
     <div style="flex:1;min-width:0">
       <div style="font-size:13px;font-weight:800;color:var(--cream);margin-bottom:8px">${d.day} ${d.shortDate}</div>
-      <div style="font-size:28px;font-weight:900;color:${d.scoreColor};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)">/10</span></div>
+      <div style="font-size:28px;font-weight:900;color:${scoreToSkyColor(d.score, d.skyColors, getCardBgLuma())};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)">/10</span></div>
       <div style="font-size:10px;color:var(--cream-faint);margin-bottom:10px">${d.scoreLabel}</div>
       ${[
         ['שקיעה', d.ssScore.toFixed(1), d.sunset],

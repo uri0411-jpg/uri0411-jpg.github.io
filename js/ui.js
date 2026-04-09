@@ -94,9 +94,24 @@ export function updateDynamicGradient(_score = 5, _turbidity = 0.3, _palette = '
   const skyBrightness = skyColors
     ? Math.min((skyColors.skyTop.r + skyColors.skyTop.g + skyColors.skyTop.b) / 765, 1)
     : 0.5; // neutral default when physics data hasn't loaded
+  const glassAlpha = 0.32 + (1 - skyBrightness) * 0.28;
   root.setProperty('--glass-blur',     `${(2 + (1 - skyBrightness) * 8).toFixed(1)}px`);
-  root.setProperty('--glass-alpha',    (0.32 + (1 - skyBrightness) * 0.28).toFixed(2));
+  root.setProperty('--glass-alpha',    glassAlpha.toFixed(2));
   root.setProperty('--glass-saturate', `${Math.round(110 + skyBrightness * 40)}%`);
+  root.setProperty('--sky-luma',       skyBrightness.toFixed(3));
+
+  // Estimated glass card background luminance for score contrast checks.
+  // Card base: rgb(22, 11, 4) composited at glassAlpha over ~#1a0e06 dark backdrop.
+  const bgR = Math.round(22 * glassAlpha + 26 * (1 - glassAlpha));
+  const bgG = Math.round(11 * glassAlpha + 14 * (1 - glassAlpha));
+  const bgB = Math.round(4  * glassAlpha +  6 * (1 - glassAlpha));
+  _cardBgLuma = _srgbLum(bgR) * 0.2126 + _srgbLum(bgG) * 0.7152 + _srgbLum(bgB) * 0.0722;
 }
+
+function _srgbLum(c) { c /= 255; return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4); }
+
+/** Glass card background luminance — updated every gradient tick */
+let _cardBgLuma = 0.02;
+export function getCardBgLuma() { return _cardBgLuma; }
 
 // ✓ ui.js — complete

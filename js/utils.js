@@ -63,6 +63,85 @@ function lerpColor(c1, c2, t) {
   return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
+/** Lerp between two {r,g,b} objects */
+function lerpRGB(a, b, t) {
+  return {
+    r: Math.round(a.r + (b.r - a.r) * t),
+    g: Math.round(a.g + (b.g - a.g) * t),
+    b: Math.round(a.b + (b.b - a.b) * t),
+  };
+}
+
+function rgbToHex(r, g, b) {
+  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
+}
+
+function rgbToHsl(r, g, b) {
+  r /= 255; g /= 255; b /= 255;
+  const max = Math.max(r, g, b), min = Math.min(r, g, b);
+  const l = (max + min) / 2;
+  if (max === min) return { h: 0, s: 0, l };
+  const d = max - min;
+  const s = l > 0.5 ? d / (2 - max - min) : d / (max + min);
+  let h;
+  if (max === r)      h = ((g - b) / d + (g < b ? 6 : 0)) / 6;
+  else if (max === g) h = ((b - r) / d + 2) / 6;
+  else                h = ((r - g) / d + 4) / 6;
+  return { h: h * 360, s, l };
+}
+
+function hslToRgb(h, s, l) {
+  h = ((h % 360) + 360) % 360;
+  const c = (1 - Math.abs(2 * l - 1)) * s;
+  const x = c * (1 - Math.abs(((h / 60) % 2) - 1));
+  const m = l - c / 2;
+  let r, g, b;
+  if (h < 60)       { r = c; g = x; b = 0; }
+  else if (h < 120) { r = x; g = c; b = 0; }
+  else if (h < 180) { r = 0; g = c; b = x; }
+  else if (h < 240) { r = 0; g = x; b = c; }
+  else if (h < 300) { r = x; g = 0; b = c; }
+  else              { r = c; g = 0; b = x; }
+  return {
+    r: Math.round((r + m) * 255),
+    g: Math.round((g + m) * 255),
+    b: Math.round((b + m) * 255),
+  };
+}
+
+/** WCAG relative luminance from linear-light 0-255 RGB */
+export function relativeLuminance(r, g, b) {
+  const [rs, gs, bs] = [r, g, b].map(c => {
+    c /= 255;
+    return c <= 0.03928 ? c / 12.92 : Math.pow((c + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * rs + 0.7152 * gs + 0.0722 * bs;
+}
+
+function contrastRatio(lum1, lum2) {
+  const lighter = Math.max(lum1, lum2);
+  const darker  = Math.min(lum1, lum2);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+/**
+ * Adjust lightness of {r,g,b} until contrast ratio against bgLum >= minRatio.
+ * Tries up to 8 nudges of ±0.05 lightness.
+ */
+function ensureContrast(r, g, b, bgLum, minRatio) {
+  let hsl = rgbToHsl(r, g, b);
+  const textLum = relativeLuminance(r, g, b);
+  const direction = textLum > bgLum ? 1 : -1; // push lighter if already lighter, darker otherwise
+  for (let i = 0; i < 8; i++) {
+    const lum = relativeLuminance(r, g, b);
+    if (contrastRatio(lum, bgLum) >= minRatio) break;
+    hsl.l = Math.max(0, Math.min(1, hsl.l + direction * 0.06));
+    const adj = hslToRgb(hsl.h, hsl.s, hsl.l);
+    r = adj.r; g = adj.g; b = adj.b;
+  }
+  return { r, g, b };
+}
+
 /**
  * Continuous color from decimal score 1.0–10.0
  * Interpolates between adjacent SCORE_METALS hex colors
@@ -73,6 +152,55 @@ export function scoreToColorContinuous(score) {
   const hi = Math.min(10, lo + 1);
   const t = s - lo;
   return lerpColor(SCORE_METALS[lo].hex, SCORE_METALS[hi].hex, t);
+}
+
+/**
+ * Physics-driven score color: sample the live sky gradient.
+ *   score 1 → skyTop (cool/muted)
+ *   score 4 → skyMid (transitional)
+ *   score 7 → horizon (warm/gold)
+ *   score 10 → sun (bright gold/white)
+ *
+ * Includes WCAG contrast safeguard against the glass card background.
+ * Falls back to SCORE_METALS when skyColors unavailable.
+ *
+ * @param {number} score            1.0–10.0
+ * @param {object|null} skyColors   { skyTop, skyMid, horizon, sun } each {r,g,b}
+ * @param {number} [cardBgLuma]     pre-computed glass card background luminance (0–1)
+ * @returns {string} hex color
+ */
+export function scoreToSkyColor(score, skyColors, cardBgLuma) {
+  if (!skyColors?.horizon) return scoreToColorContinuous(score);
+
+  const s = Math.max(1, Math.min(10, Number(score) || 5));
+  const t = (s - 1) / 9; // 0→1
+
+  // Piecewise lerp across 4 sky zones
+  let rgb;
+  if (t <= 1/3) {
+    rgb = lerpRGB(skyColors.skyTop, skyColors.skyMid, t * 3);
+  } else if (t <= 2/3) {
+    rgb = lerpRGB(skyColors.skyMid, skyColors.horizon, (t - 1/3) * 3);
+  } else {
+    rgb = lerpRGB(skyColors.horizon, skyColors.sun, (t - 2/3) * 3);
+  }
+
+  // Boost saturation: physics sky colors tend to be desaturated (sat ~0.1-0.2)
+  // but score text needs to pop. Minimum saturation floor based on score range.
+  let hsl = rgbToHsl(rgb.r, rgb.g, rgb.b);
+  const satFloor = 0.25 + t * 0.35; // low scores 0.25, high scores 0.60
+  if (hsl.s < satFloor) hsl.s = satFloor;
+  // Lightness floor: ensure text isn't too dark to read
+  if (hsl.l < 0.35) hsl.l = 0.35;
+  if (hsl.l > 0.85) hsl.l = 0.85;
+  rgb = hslToRgb(hsl.h, hsl.s, hsl.l);
+
+  // Contrast safeguard against glass card background
+  if (cardBgLuma != null) {
+    rgb = ensureContrast(rgb.r, rgb.g, rgb.b, cardBgLuma, 3.0);
+  }
+
+  return rgbToHex(rgb.r, rgb.g, rgb.b);
 }
 
 /**
@@ -428,12 +556,12 @@ export function buildGaugeArc(score, color, size = 120) {
       <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
             stroke="rgba(245,224,190,0.12)" stroke-width="${strokeW}" fill="none"
             stroke-linecap="round" />
-      <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
+      <path class="gauge-arc-fill" d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
             stroke="${color}" stroke-width="${strokeW}" fill="none"
             stroke-linecap="round"
             stroke-dasharray="${filled} ${gap}"
             style="filter:drop-shadow(0 0 6px ${color}66);transition:stroke-dasharray 0.6s ease" />
-      <text x="${cx}" y="${cy - 8}" text-anchor="middle"
+      <text class="gauge-score-text" x="${cx}" y="${cy - 8}" text-anchor="middle"
             font-family="var(--font-title)" font-size="32" font-weight="900"
             fill="${color}" style="filter:drop-shadow(0 0 12px ${color}44)">
         ${displayScore}
