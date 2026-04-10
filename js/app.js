@@ -122,6 +122,11 @@ async function boot() {
     setTimeout(() => reject(new Error('Boot timeout (30s) — בדוק חיבור לאינטרנט')), 30000)
   );
 
+  // FIX: register setLocation listener *before* loadAppData so GPS events
+  // fired during boot (e.g. during autoSeedIfNeeded or fetchWeek awaits)
+  // are not silently dropped before the handler is attached.
+  window.addEventListener('twilight:setLocation', handleSetLocation);
+
   try {
     await Promise.race([loadAppData(_isStaleSession), bootTimeout]);
   } catch (err) {
@@ -138,6 +143,11 @@ async function boot() {
   } finally {
     showLoading(false);
   }
+
+  // Post-boot reconciliation: if GPS saved a location to localStorage while
+  // loadAppData was running (and the event was queued/dropped), sync now.
+  // Uses coordinate mismatch — not isFallback — to detect any state divergence.
+  await syncLocationFromState();
 
   // ─── Screen change handler ───
   onScreenChange(async (id) => {
@@ -159,11 +169,25 @@ async function boot() {
   });
 
   window.addEventListener('twilight:refresh', handleRefresh);
-  window.addEventListener('twilight:setLocation', handleSetLocation);
   window.addEventListener('twilight:toast', (e) => {
     showToast(e.detail?.msg || '', e.detail?.type || 'info');
   });
   document.addEventListener('visibilitychange', handleVisibilityChange);
+}
+
+// ─────────────────────────────────────────
+//  Post-boot / post-resume location reconciliation
+//  Compares localStorage against the currently rendered _loc.
+//  If there is a coordinate mismatch, triggers a full re-fetch for the
+//  stored location. This is the authoritative sync path — it does not
+//  depend on event delivery timing.
+// ─────────────────────────────────────────
+async function syncLocationFromState() {
+  const stored = loadLocation();
+  if (!stored) return;
+  if (!_loc || _loc.lat !== stored.lat || _loc.lon !== stored.lon) {
+    await handleSetLocation({ detail: stored });
+  }
 }
 
 // ─────────────────────────────────────────
@@ -412,6 +436,8 @@ function handleVisibilityChange() {
     const elapsed = Date.now() - _lastVisible;
     if (elapsed > 30 * 60 * 1000) {
       handleRefresh();
+    } else {
+      syncLocationFromState();
     }
   }
 }
