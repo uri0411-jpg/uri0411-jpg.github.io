@@ -1297,6 +1297,9 @@ function attachMainEvents() {
 
   if (cityDisplay && searchBar) {
     cityDisplay.addEventListener('click', () => {
+      // Measure actual content height before opening so CSS transitions to exact size
+      // (avoids the max-height overshoot jank — see .location-search-bar in app.css)
+      searchBar.style.setProperty('--bar-open-height', searchBar.scrollHeight + 'px');
       searchBar.classList.add('open');
       cityDisplay.style.visibility = 'hidden';
       searchInput?.focus();

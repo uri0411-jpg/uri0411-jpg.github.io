@@ -563,6 +563,11 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 
 /* ─── LOCATION SEARCH BAR ─── */
+/* Animation: height 0 → var(--bar-open-height) — measured by JS before toggle.
+   This eliminates the max-height overshoot jank (animating empty space).
+   JS sets --bar-open-height = element.scrollHeight before classList.add('open').
+   Open easing: slight spring overshoot (cubic-bezier 0.34,1.10,0.64,1).
+   Close easing: standard ease-in — asymmetric close feels snappier. */
 .location-search-bar {
   display: flex;
   flex-direction: column;
@@ -571,14 +576,16 @@ body.has-install-banner .screen { padding-top: 56px; }
   background: var(--glass);
   border: 1px solid var(--glass-border);
   border-radius: var(--r-card);
-  overflow: hidden;
-  max-height: 0;
+  overflow: hidden;          /* required for height:0 clipping */
+  height: 0;
   opacity: 0;
   pointer-events: none;
-  transition: max-height 0.28s cubic-bezier(0.4,0,0.2,1), opacity 0.22s ease, padding 0.28s;
+  transition: height  0.28s cubic-bezier(0.34, 1.10, 0.64, 1),
+              opacity 0.22s ease,
+              padding 0.28s ease;
 }
 .location-search-bar.open {
-  max-height: 160px;
+  height: var(--bar-open-height, 120px); /* default fallback if JS hasn't run yet */
   opacity: 1;
   pointer-events: auto;
   padding: 12px 14px;
@@ -2639,7 +2646,7 @@ a:focus-visible,
     animation-duration: 0.8s !important;
     animation-iteration-count: infinite !important;
   }
-  /* Remove decorative glow halos entirely — they're purely visual, not informational */
+  /* Accessibility: remove decorative glow halo entirely for reduced-motion users */
   .score-gauge-wrap::before { display: none !important; }
 }
 
@@ -2659,6 +2666,8 @@ body.night-vision {
   --glass-blur:    6px;
 }
 body.night-vision .score-badge       { filter: brightness(0.45); }
+/* Night-vision: dim glow to 20% (intentionally different from reduced-motion above,
+   which hides it entirely — here we preserve faint ambient cue for dark-adapted eyes) */
 body.night-vision .score-gauge-wrap::before { opacity: 0.2 !important; }
 body.night-vision .home-title        { opacity: 0.55; }
 body.night-vision .bottom-nav        { background: rgba(8,3,1,0.96); }

@@ -2,12 +2,20 @@
 //  TWILIGHT — config.js v3
 // ═══════════════════════════════════════════
 
-export const OPEN_METEO_URL         = 'https://api.open-meteo.com/v1/forecast';
-export const OPEN_METEO_AQ_URL      = 'https://air-quality-api.open-meteo.com/v1/air-quality';
-export const OPEN_METEO_HIST_URL    = 'https://archive-api.open-meteo.com/v1/archive';
-export const NOMINATIM_URL          = 'https://nominatim.openstreetmap.org/reverse';
-export const OVERPASS_URL           = 'https://overpass-api.de/api/interpreter';
-export const OVERPASS_FALLBACK_URL  = 'https://overpass.kumi.systems/api/interpreter';
+// In the Claude preview sandbox (and similar browser environments), direct fetch
+// to external APIs is blocked at the network level, while the Node.js dev server
+// process has unrestricted access. When running on localhost, route all API calls
+// through server.js's transparent proxy (/proxy/*) instead of the real endpoints.
+// In production the real URLs are used directly — no server.js, no proxy.
+const _DEV = typeof location !== 'undefined' &&
+  (location.hostname === 'localhost' || location.hostname === '127.0.0.1');
+
+export const OPEN_METEO_URL         = _DEV ? '/proxy/weather'       : 'https://api.open-meteo.com/v1/forecast';
+export const OPEN_METEO_AQ_URL      = _DEV ? '/proxy/airq'          : 'https://air-quality-api.open-meteo.com/v1/air-quality';
+export const OPEN_METEO_HIST_URL    = _DEV ? '/proxy/archive'       : 'https://archive-api.open-meteo.com/v1/archive';
+export const NOMINATIM_URL          = _DEV ? '/proxy/geocode'       : 'https://nominatim.openstreetmap.org/reverse';
+export const OVERPASS_URL           = _DEV ? '/proxy/overpass'      : 'https://overpass-api.de/api/interpreter';
+export const OVERPASS_FALLBACK_URL  = _DEV ? '/proxy/overpass-kumi' : 'https://overpass.kumi.systems/api/interpreter';
 
 export const CACHE_TTL = {
   weather: 60,

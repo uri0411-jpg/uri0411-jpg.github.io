@@ -4,8 +4,12 @@
 //  Plain JS (no ES6 modules in SW)
 // ═══════════════════════════════════════════
 
-// 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v44';  // bumped: PERCEPTUAL_BOOST=0 (violet palette) + night sky (stars+moon)
+// DEPLOY: Update BUILD_DATE before each deploy. Or run this one-liner to auto-bump:
+//   node -e "const f='sw.js',d=new Date().toISOString().slice(0,10).replace(/-/g,''); \
+//            require('fs').writeFileSync(f, require('fs').readFileSync(f,'utf8') \
+//            .replace(/BUILD_DATE = '\d+'/, \"BUILD_DATE = '\" + d + \"'\"))"
+const BUILD_DATE  = '20260411'; // YYYYMMDD — update per deploy
+const CACHE_NAME  = 'twl-v' + BUILD_DATE; // auto-namespaces cache per deploy
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -74,33 +78,32 @@ const API_PATTERNS = [
 
 // ─── INSTALL ───────────────────────────
 self.addEventListener('install', event => {
-  console.log('[SW] Installing...');
   event.waitUntil(
-    caches.open(CACHE_NAME).then(cache => {
-      console.log('[SW] Caching static assets');
-      return Promise.allSettled(
+    caches.open(CACHE_NAME).then(cache =>
+      Promise.allSettled(
         STATIC_ASSETS.map(async url => {
           try {
             const res = await fetch(url, { cache: 'no-store', headers: { 'cache-control': 'no-cache' } });
             if (res.ok) await cache.put(url, res);
-          } catch (e) { console.warn('[SW] Failed to cache:', url, e); }
+          } catch {
+            // Non-fatal: asset will be fetched and cached on first live request
+          }
         })
-      );
-    }).then(() => self.skipWaiting())
+      )
+    ).then(() => self.skipWaiting())
   );
 });
 
 // ─── ACTIVATE ──────────────────────────
 self.addEventListener('activate', event => {
-  console.log('[SW] Activating...');
   event.waitUntil(
-    caches.keys().then(keys =>
-      Promise.all(
+    caches.keys()
+      .then(keys => Promise.all(
         keys
           .filter(key => key !== CACHE_NAME && key !== TILE_CACHE)
-          .map(key => { console.log('[SW] Deleting old cache:', key); return caches.delete(key); })
-      )
-    ).then(() => self.clients.claim())
+          .map(key => caches.delete(key))
+      ))
+      .then(() => self.clients.claim())
   );
 });
 
@@ -119,7 +122,10 @@ self.addEventListener('fetch', event => {
   }
 
   const isAPI = API_PATTERNS.some(p => url.hostname.includes(p) || url.href.includes(p));
-  if (isAPI) {
+  // Dev proxy: same-origin /proxy/* paths forward to real APIs via server.js.
+  // Treat them identically to direct API calls (networkFirst + JSON offline fallback).
+  const isDevProxy = url.hostname === 'localhost' && url.pathname.startsWith('/proxy/');
+  if (isAPI || isDevProxy) {
     event.respondWith(networkFirst(request));
     return;
   }
@@ -198,12 +204,25 @@ async function staleWhileRevalidateTile(request) {
     || new Response('Tile unavailable', { status: 503, headers: { 'Content-Type': 'text/plain' } });
 }
 
+// In-memory counter avoids calling cache.keys() on every background tile fetch.
+// Starts at -1 (unknown). First call measures actual size; subsequent calls
+// increment. Reset to MAX_TILES after a trim; -1 again on SW restart.
+let _tileCacheSize = -1;
+
 async function trimTileCache(cache) {
-  const keys = await cache.keys();
-  if (keys.length > MAX_TILES) {
-    const excess = keys.slice(0, keys.length - MAX_TILES);
-    await Promise.all(excess.map(k => cache.delete(k)));
+  if (_tileCacheSize < 0) {
+    // First call or post-restart: measure the actual tile cache size
+    _tileCacheSize = (await cache.keys()).length;
+  } else {
+    _tileCacheSize++;
   }
+  if (_tileCacheSize <= MAX_TILES) return; // fast path: nothing to trim
+
+  // Only enumerate keys when we know we're over the limit
+  const keys   = await cache.keys();
+  const excess = keys.slice(0, keys.length - MAX_TILES);
+  await Promise.all(excess.map(k => cache.delete(k)));
+  _tileCacheSize = MAX_TILES;
 }
 
 // ─── PUSH NOTIFICATIONS ────────────────

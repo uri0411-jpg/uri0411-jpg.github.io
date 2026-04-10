@@ -18,9 +18,32 @@
  * so the entire night scene fades in/out coherently.
  */
 
-import { getSkyMaskSync, drawSkyMask } from './skyMask.js';
+import { getSkyMaskSync, drawSkyMask, loadSkyMask } from './skyMask.js';
 
 const CANVAS_ID = 'night-canvas';
+
+// ── Pre-rendered star field ───────────────────────────────────────────────────
+// Stars are painted once to an offscreen canvas at nightFactor=1.
+// Each live tick composites the whole field via a single drawImage + globalAlpha.
+// Invalidated only when the viewport dimensions change.
+let _starCanvas = null, _starW = 0, _starH = 0;
+
+// ── Pending render — mask race-condition guard ─────────────────────────────────
+// On the first renderNightSky call the sky mask may still be loading async.
+// Rather than draw unclipped stars over mountains, we defer: save the call
+// args here and re-invoke as soon as loadSkyMask() resolves (usually < 100 ms).
+let _pendingRenderArgs = null;
+
+// Pre-load mask at module evaluation time so it's ready before the first tick.
+loadSkyMask()
+  .then(() => {
+    if (_pendingRenderArgs) {
+      const { container, nightFactor, date } = _pendingRenderArgs;
+      _pendingRenderArgs = null;
+      renderNightSky(container, nightFactor, date);
+    }
+  })
+  .catch(() => {}); // mask failure is non-fatal — stars simply remain unclipped
 
 // ── Seeded star field ─────────────────────────────────────────────────────────
 // Fixed positions (same stars every night — perceptual stability).
@@ -51,6 +74,27 @@ function moonPhase(date) {
   const knownNewMoon = Date.UTC(2000, 0, 6, 18, 14);
   const daysSince    = (date.getTime() - knownNewMoon) / 86400000;
   return ((daysSince % 29.530588) + 29.530588) % 29.530588;
+}
+
+// ── Offscreen star field builder ──────────────────────────────────────────────
+// Renders all stars once to a cached HTMLCanvasElement with per-star opacity
+// tiers baked in at nightFactor=1. The live render scales uniformly via
+// globalAlpha, making the per-tick cost a single drawImage instead of 180 arcs.
+function _buildStarCanvas(w, h) {
+  if (_starCanvas && _starW === w && _starH === h) return _starCanvas;
+  const c   = document.createElement('canvas');
+  c.width   = w;
+  c.height  = h;
+  const ctx = c.getContext('2d');
+  for (const star of STARS) {
+    ctx.globalAlpha = star.mag > 0.7 ? 0.90 : star.mag > 0.35 ? 0.70 : 0.50;
+    ctx.fillStyle   = 'rgba(255,255,255,0.9)';
+    ctx.beginPath();
+    ctx.arc(star.px * w, star.py * h, star.r, 0, Math.PI * 2);
+    ctx.fill();
+  }
+  _starCanvas = c; _starW = w; _starH = h;
+  return c;
 }
 
 // ── Cached canvas dimensions ──────────────────────────────────────────────────
@@ -100,18 +144,15 @@ export function renderNightSky(container, nightFactor, date) {
   const ctx = canvas.getContext('2d');
   ctx.clearRect(0, 0, w, h);
 
-  // ── Stars ─────────────────────────────────────────────────────────────────
-  for (const star of STARS) {
-    // Three magnitude tiers
-    const baseOp = star.mag > 0.7 ? 0.9 : star.mag > 0.35 ? 0.7 : 0.5;
-    // Quadratic "kick-in": 0.6 floor lets stars appear during civil twilight
-    // before the sky is fully dark, matching real visual experience.
-    ctx.globalAlpha = baseOp * nightFactor * (0.6 + 0.4 * nightFactor);
-    ctx.fillStyle   = 'rgba(255,255,255,0.9)'; // slight sub-1 for screen blend punch
-    ctx.beginPath();
-    ctx.arc(star.px * w, star.py * h, star.r, 0, Math.PI * 2);
-    ctx.fill();
-  }
+  // ── Stars — single drawImage from pre-rendered offscreen canvas ───────────────
+  // nightFactor * (0.6 + 0.4*nightFactor): 0.6 floor gives early kick-in during
+  // civil twilight before sky is fully dark, matching real visual experience.
+  // Per-star opacity tiers are baked into the offscreen canvas; only the shared
+  // scale factor changes per tick, so the blend path is a single composited blit.
+  const starC = _buildStarCanvas(w, h);
+  ctx.globalAlpha = nightFactor * (0.6 + 0.4 * nightFactor);
+  ctx.drawImage(starC, 0, 0);
+  ctx.globalAlpha = 1;
 
   // ── Moon ──────────────────────────────────────────────────────────────────
   const moonAge     = moonPhase(date);
@@ -159,14 +200,19 @@ export function renderNightSky(container, nightFactor, date) {
 
   // ── Clip to sky mask ──────────────────────────────────────────────────────
   // Stars and moon must not appear on mountains, trees, or dark ground silhouettes.
-  // destination-in keeps night canvas pixels only where the mask is non-zero.
-  const mask = getSkyMaskSync?.();
-  if (mask) {
-    ctx.globalAlpha = 1;
-    ctx.globalCompositeOperation = 'destination-in';
-    drawSkyMask(ctx, w, h);
-    ctx.globalCompositeOperation = 'source-over';
+  // Guard: if the mask hasn't resolved yet, save call args and clear the canvas
+  // (no unclipped stars). The module-level loadSkyMask().then() re-invokes us
+  // the instant the mask is ready (typically < 100 ms after first load).
+  const mask = getSkyMaskSync();
+  if (!mask) {
+    _pendingRenderArgs = { container, nightFactor, date };
+    ctx.clearRect(0, 0, w, h);
+    return;
   }
+  ctx.globalAlpha = 1;
+  ctx.globalCompositeOperation = 'destination-in';
+  drawSkyMask(ctx, w, h);
+  ctx.globalCompositeOperation = 'source-over';
 }
 
 /**

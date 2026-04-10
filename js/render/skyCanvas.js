@@ -282,7 +282,31 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
   const elevDeg = sunAngle_rad * 180 / Math.PI;
   const boostT  = Math.max(0, Math.min(1, (12 - elevDeg) / 10));
   const targetS = 0.30 + 0.45 * boostT;  // 0.30 → 0.75
-  const saturated = colors.map(c => boostSaturation(c, targetS));
+
+  // ── Night indigo anchor ───────────────────────────────────────────────────
+  // Physics at night yields warm-brown (ozone + high air-mass warmth).
+  // boostSaturation amplifies it, then hue blend rotates the photo brown.
+  // Blend all stops toward deep indigo BEFORE saturation boost so the hue
+  // blend fires blue-violet instead of brown at night.
+  //
+  // Color: HSL 256° (blue-indigo), S=0.64, L=0.20 — natural real-sky tone,
+  // subtler than pure violet (270°). Chosen to avoid a neon-purple artifact.
+  //
+  // Ramp: smoothstep(0, 1, t) for a completely jump-free S-curve transition.
+  //   elevDeg > −4°  → anchor = 0.0  (pure physics, twilight and above)
+  //   elevDeg < −24° → anchor = 1.0  (full indigo, deep night)
+  const NIGHT_INDIGO   = { r: 24, g: 18, b: 82 }; // HSL ≈ 256°, blue-indigo
+  const _nRaw          = Math.max(0, Math.min(1, (-elevDeg - 4) / 20));
+  const nightAnchorStr = _nRaw * _nRaw * (3 - 2 * _nRaw); // smoothstep
+  const anchoredColors = nightAnchorStr > 0
+    ? colors.map(c => ({
+        r: Math.round(c.r + (NIGHT_INDIGO.r - c.r) * nightAnchorStr),
+        g: Math.round(c.g + (NIGHT_INDIGO.g - c.g) * nightAnchorStr),
+        b: Math.round(c.b + (NIGHT_INDIGO.b - c.b) * nightAnchorStr),
+      }))
+    : colors;
+
+  const saturated = anchoredColors.map(c => boostSaturation(c, targetS));
 
   // ── Build vertical gradient ───────────────────────────────────────────────
   const grad = ctx.createLinearGradient(0, 0, 0, h);
