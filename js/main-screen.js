@@ -16,6 +16,7 @@ import { computeSkyColor } from './engine/skyColor.js';
 import { renderSunDisk, removeSunDisk } from './render/sunDisk.js';
 import { renderCrepuscularRays, removeCrepuscularRays } from './render/crepuscularRays.js';
 import { renderSkyCanvas, removeSkyCanvas } from './render/skyCanvas.js';
+import { renderNightSky, removeNightSky } from './render/nightSky.js';
 
 let _weekData = [];
 let _city = '';
@@ -147,6 +148,12 @@ function _updateLiveScoreColors(skyColors, mainScore) {
 // Track how long the main screen has been open (for night vision auto-trigger)
 let _screenOpenTime = 0;
 
+// Shared scalar for all night effects (background dim, stars, moon).
+// 0 at civil twilight (−6°), 1 at deep night (−26°).
+function getNightFactor(elevDeg) {
+  return Math.max(0, Math.min(1, (-elevDeg - 6) / 20));
+}
+
 function startLiveGradient(today, loc) {
   const displayScore = _spotAvgScores?.[0] ?? today.score;
   _screenOpenTime = Date.now();
@@ -240,7 +247,24 @@ function startLiveGradient(today, loc) {
       const brite = s >= 0.8 ? 1.0
                   : s >= 0.5 ? 0.82 + (s - 0.5) / 0.3 * 0.18
                   :            0.62 + (s / 0.5) * 0.20;
-      bgEl.style.filter = `saturate(${sat.toFixed(2)}) brightness(${brite.toFixed(2)})`;
+
+      // Night dimming: fade photo toward dark below civil twilight (−6°).
+      // min brightness: 0.18–0.25 keeps the hue-blend signal alive even at deep night.
+      const nf         = getNightFactor(liveElevDeg);
+      const nightBrite = 1 - nf * 0.65;
+      const minBrite   = 0.18 + 0.07 * (1 - nf);
+      const finalBrite = Math.max(minBrite, brite * nightBrite);
+      bgEl.style.filter = `saturate(${sat.toFixed(2)}) brightness(${finalBrite.toFixed(2)})`;
+    }
+
+    // Night sky: stars + moon when sun is below civil twilight.
+    // 0.02 hysteresis threshold prevents add/remove flicker at the boundary.
+    const skyLayersNight = document.getElementById('sky-layers');
+    const nf = getNightFactor(liveElevDeg);
+    if (nf > 0.02) {
+      renderNightSky(skyLayersNight, nf, new Date());
+    } else {
+      removeNightSky(skyLayersNight);
     }
 
     // Night vision: auto-engage when sun is below -2° and screen open > 2 min

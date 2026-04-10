@@ -5,7 +5,7 @@
 // ═══════════════════════════════════════════
 
 // 🔴 BUMP THIS ON EVERY DEPLOY (twl-v3, twl-v4, ...)
-const CACHE_NAME  = 'twl-v43';  // bumped: non-blocking GPS boot + location reliability fixes
+const CACHE_NAME  = 'twl-v44';  // bumped: PERCEPTUAL_BOOST=0 (violet palette) + night sky (stars+moon)
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
 
@@ -54,6 +54,7 @@ const STATIC_ASSETS = [
   './js/render/skyMask.js',
   './js/render/sunDisk.js',
   './js/render/crepuscularRays.js',
+  './js/render/nightSky.js',
   './js/data/environment.js',
   './js/data/ozone_climatology.js',
   './learning-seed.json'

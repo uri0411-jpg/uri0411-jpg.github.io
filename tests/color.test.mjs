@@ -107,12 +107,13 @@ test('higher ozoneDU slightly suppresses orange channel at twilight', () => {
 //       cross-check against the real function using the property that its
 //       output at BOOST=0 is the identity.
 
-test('Phase 7 rollout: PERCEPTUAL_BOOST pinned at 0.5 (conservative first step)', () => {
-  // Rolled out at 0.5 after visual sign-off. Any further bump (e.g. to 1.0)
-  // must update this assertion in the same commit. Reverting to 0 restores
-  // pure-physics output byte-for-byte via the `=== 0` guard.
-  assert.strictEqual(PERCEPTUAL_BOOST, 0.5,
-    `PERCEPTUAL_BOOST is now 0.5 (Phase 7 rollout); got ${PERCEPTUAL_BOOST}.`);
+test('Phase 7 rollout: PERCEPTUAL_BOOST pinned at 0.0 (pure physics, violet palette)', () => {
+  // Set to 0.0 to restore Rayleigh-dominant violet colours at golden hour.
+  // The warm-reddening boost (0.5) was suppressing the purple palette.
+  // Any change to this value must update this assertion in the same commit.
+  // The `=== 0` guard in applyPerceptualTuning makes BOOST=0 a byte-identical no-op.
+  assert.strictEqual(PERCEPTUAL_BOOST, 0.0,
+    `PERCEPTUAL_BOOST must be 0.0 (pure physics); got ${PERCEPTUAL_BOOST}.`);
 });
 
 test('Phase 7: applyPerceptualTuning is identity at midday (outside sunset gate)', () => {
@@ -130,28 +131,35 @@ test('Phase 7: applyPerceptualTuning is identity at astronomical twilight', () =
   assert.deepStrictEqual(out, rgb);
 });
 
-test('Phase 7: applyPerceptualTuning lifts R and dips B at sunset horizon', () => {
-  // Core aesthetic assertion: at the horizon during the sunset window, the
-  // tuning pass must shift colour toward warmer. This is the whole point of
-  // having the layer at all.
+test('Phase 7: applyPerceptualTuning at sunset horizon (branch-aware)', () => {
+  // When BOOST > 0: must shift colour toward warmer (R lift, B dip).
+  // When BOOST = 0: function is a byte-identical no-op — output === input.
   const rgb = { r: 200, g: 120, b: 100 };
   const out = applyPerceptualTuning(rgb, { sunAngle_rad: 0, zone: 'horizon' });
-  assert.ok(out.r > rgb.r, `R must lift at sunset horizon; got r=${out.r}, input=${rgb.r}`);
-  assert.ok(out.b < rgb.b, `B must dip  at sunset horizon; got b=${out.b}, input=${rgb.b}`);
-  assert.ok(out.g >= rgb.g, `G must not drop at sunset horizon; got g=${out.g}, input=${rgb.g}`);
+  if (PERCEPTUAL_BOOST === 0) {
+    assert.deepStrictEqual(out, rgb, 'At BOOST=0, output must equal input (no-op)');
+  } else {
+    assert.ok(out.r > rgb.r, `R must lift at sunset horizon; got r=${out.r}, input=${rgb.r}`);
+    assert.ok(out.b < rgb.b, `B must dip  at sunset horizon; got b=${out.b}, input=${rgb.b}`);
+    assert.ok(out.g >= rgb.g, `G must not drop at sunset horizon; got g=${out.g}, input=${rgb.g}`);
+  }
 });
 
-test('Phase 7: horizon zone receives more boost than skyTop at the same sun angle', () => {
-  // Zone asymmetry: skyTop has zoneW=0.4, horizon has zoneW=1.0, so the
-  // magnitude of the R shift on horizon must exceed the skyTop R shift for
-  // the same input at the same sun angle.
+test('Phase 7: horizon zone receives more boost than skyTop (branch-aware)', () => {
+  // Zone asymmetry: skyTop has zoneW=0.4, horizon has zoneW=1.0.
+  // At BOOST=0: both deltas are 0 (no-op). At BOOST>0: horizon ΔR >= skyTop ΔR.
   const rgb = { r: 200, g: 120, b: 100 };
   const h   = applyPerceptualTuning(rgb, { sunAngle_rad: 0, zone: 'horizon' });
   const t   = applyPerceptualTuning(rgb, { sunAngle_rad: 0, zone: 'skyTop'  });
   const dRh = h.r - rgb.r;
   const dRt = t.r - rgb.r;
-  assert.ok(dRh > dRt,
-    `Horizon ΔR (${dRh}) must exceed skyTop ΔR (${dRt}) at PERCEPTUAL_BOOST=0.5`);
+  if (PERCEPTUAL_BOOST === 0) {
+    assert.strictEqual(dRh, 0, 'dRh must be 0 when boost=0 (no-op)');
+    assert.strictEqual(dRt, 0, 'dRt must be 0 when boost=0 (no-op)');
+  } else {
+    assert.ok(dRh >= dRt,
+      `Horizon ΔR (${dRh}) must be >= skyTop ΔR (${dRt}) at PERCEPTUAL_BOOST=${PERCEPTUAL_BOOST}`);
+  }
 });
 
 test('Phase 7: applyPerceptualTuning survives missing context', () => {

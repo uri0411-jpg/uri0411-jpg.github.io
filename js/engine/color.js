@@ -191,7 +191,7 @@ export function blendColors(physicsColor, legacyColor, physicsWeight = 0.7) {
  * Ships active at 0.5. Setting to 0 restores pure-physics output
  * (byte-for-byte no-op via the `=== 0` guard below).
  */
-export const PERCEPTUAL_BOOST = 0.5;
+export const PERCEPTUAL_BOOST = 0.0;
 
 // Per-zone asymmetry: horizon gets the full boost, zenith barely any.
 // Matches the physical intuition that sunset reddening is strongest along
