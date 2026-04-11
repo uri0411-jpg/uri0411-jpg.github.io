@@ -5,7 +5,7 @@
 
 import { fetchSpots, fetchCityName } from './api.js';
 import { loadLocation, getGPS, saveLocation } from './location.js';
-import { scoreToSkyBg, scoreToSkyColor, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
+import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
@@ -863,15 +863,20 @@ function renderMiniWeekStrip(allScores) {
     <div class="spot-conditions-label">תחזית 5 ימים</div>
     <div class="spot-week-bar-row">
       ${allScores.slice(0, 5).map((sc, i) => {
-        const barSkyBg = scoreToSkyBg(sc.combined, _weekData?.[i]?.skyColors);
+        const skyColors = _weekData?.[i]?.skyColors;
+        const barStyle  = scoreToBarStyle(sc.combined, skyColors);
+        const heightPct = Math.max(5, Math.round((sc.combined - 1) / 9 * 100));
+        const bg = barStyle.watercolor ? `url(${barStyle.watercolor}) center/cover` : barStyle.gradient;
         let label = i < 2 ? dayLabels[i] : '';
         if (i >= 2) { const d = _weekData?.[i]?.date; if (d) label = days[new Date(d + 'T12:00:00').getDay()]; }
         return `
         <div class="spot-week-bar-item">
           <div class="spot-week-bar-track">
             <div class="spot-week-bar-outer">
-              <div class="spot-week-bar-score" style="color:${scoreToSkyColor(sc.combined, _weekData?.[i]?.skyColors, getCardBgLuma())}">${fmtScore(sc.combined)}</div>
-              <div class="spot-week-bar-fill" style="height:${sc.combined * 10}%;background:${barSkyBg.gradient}"></div>
+              <div class="spot-week-bar-score" style="color:${scoreToSkyColor(sc.combined, skyColors, getCardBgLuma())}">${fmtScore(sc.combined)}</div>
+              <div class="spot-week-bar-fill"
+                   data-score="${sc.combined.toFixed(1)}"
+                   style="height:${heightPct}%;background:${bg};border-color:${barStyle.borderColor};box-shadow:${barStyle.glow}"></div>
             </div>
           </div>
           <div class="spot-week-bar-label">${label}</div>

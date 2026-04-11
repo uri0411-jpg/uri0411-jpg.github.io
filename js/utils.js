@@ -5,6 +5,86 @@
 
 import { WIND_DIRS } from './config.js';
 
+// 7-stop sunset ramp (sampled from reference painting — vivid, saturated)
+const SUNSET = [
+  { r: 55,  g: 115, b: 230 },  // t=0.00 — electric sky blue
+  { r: 100, g: 40,  b: 200 },  // t=0.17 — vivid indigo
+  { r: 205, g: 20,  b: 170 },  // t=0.33 — vivid magenta
+  { r: 235, g: 55,  b: 125 },  // t=0.50 — hot pink
+  { r: 235, g: 95,  b: 65 },   // t=0.67 — warm coral
+  { r: 235, g: 148, b: 28 },   // t=0.83 — rich orange
+  { r: 248, g: 202, b: 32 },   // t=1.00 — bright gold
+];
+
+function sampleSunset(t) {
+  t = Math.max(0, Math.min(1, t));
+  const idx = t * (SUNSET.length - 1);
+  const lo = Math.floor(idx);
+  const hi = Math.min(lo + 1, SUNSET.length - 1);
+  const frac = idx - lo;
+  return lerpRGB(SUNSET[lo], SUNSET[hi], frac);
+}
+
+// ─── Canvas watercolor bar texture ───────────────────────────────────────────
+const _watercolorCache = new Map();
+
+function generateWatercolorBar(score, width = 60, height = 120) {
+  const canvas = document.createElement('canvas');
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext('2d');
+
+  const t = (Math.max(1, Math.min(10, score)) - 1) / 9;
+  const top = sampleSunset(Math.max(0, t - 0.15));
+  const mid = sampleSunset(t);
+  const bot = sampleSunset(Math.min(1, t + 0.15));
+
+  // 1. Base gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, height);
+  grad.addColorStop(0,   `rgba(${top.r},${top.g},${top.b},0.85)`);
+  grad.addColorStop(0.5, `rgba(${mid.r},${mid.g},${mid.b},0.95)`);
+  grad.addColorStop(1,   `rgba(${bot.r},${bot.g},${bot.b},0.80)`);
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, width, height);
+
+  // 2. Watercolor blobs — semi-transparent radial spots
+  // Use seeded random (score-based) for consistent look per score
+  let seed = Math.round(score * 100);
+  const rand = () => { seed = (seed * 16807 + 0) % 2147483647; return seed / 2147483647; };
+
+  for (let i = 0; i < 14; i++) {
+    const blobT = Math.max(0, Math.min(1, t + (rand() - 0.5) * 0.28));
+    const c = sampleSunset(blobT);
+    const x = rand() * width;
+    const y = rand() * height;
+    const r = 12 + rand() * 35;
+
+    const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
+    rg.addColorStop(0,   `rgba(${c.r},${c.g},${c.b},0.28)`);
+    rg.addColorStop(0.5, `rgba(${c.r},${c.g},${c.b},0.10)`);
+    rg.addColorStop(1,   `rgba(${c.r},${c.g},${c.b},0)`);
+    ctx.fillStyle = rg;
+    ctx.fillRect(0, 0, width, height);
+  }
+
+  // 3. Top gem highlight
+  const shine = ctx.createRadialGradient(width / 2, 0, 0, width / 2, 0, height * 0.6);
+  shine.addColorStop(0, 'rgba(255,255,255,0.22)');
+  shine.addColorStop(1, 'rgba(255,255,255,0)');
+  ctx.fillStyle = shine;
+  ctx.fillRect(0, 0, width, height);
+
+  return canvas.toDataURL('image/png');
+}
+
+export function getWatercolorBg(score) {
+  const key = Math.round(score * 10);
+  if (!_watercolorCache.has(key)) {
+    _watercolorCache.set(key, generateWatercolorBar(score));
+  }
+  return _watercolorCache.get(key);
+}
+
 /**
  * Sky-derived background for score bars, badges, and strips.
  * Replaces the old metallic palette with physics-driven sky colours.
@@ -31,33 +111,36 @@ export function scoreToSkyBg(score, skyColors) {
     rgb = hslToRgb(hue, sat, lit);
   }
 
-  // Fixed score→hue palette — physics hue is NOT used for bar fills.
-  // Israeli golden-hour physics always yields H≈40° for every score, so
-  // every bar looks identical amber-brown. Instead: fixed two-zone palette:
-  //   Score  1–6.5  → steel-blue → purple  (poor/mediocre sky, cool feel)
-  //   Score  6.5–10 → amber → bright gold  (good/excellent, warm vivid)
-  // Clear visual contrast even when the full week clusters in one zone.
-  let h, s_bar, l_bar;
-  if (t < 0.61) {
-    // Poor → mediocre: blue (230°) → purple (270°)
-    const p = t / 0.61;
-    h     = 230 + p * 40;          // 230° → 270°
-    s_bar = 0.70 - p * 0.08;       // 0.70 → 0.62
-    l_bar = 0.37 + p * 0.01;       // 0.37 → 0.38
-  } else {
-    // Good → excellent: gold (40°) → brilliant orange-gold (28°)
-    const p = (t - 0.61) / 0.39;
-    h     = 40 - p * 12;           // 40° → 28°
-    s_bar = 0.85 + p * 0.10;       // 0.85 → 0.95
-    l_bar = 0.40 + p * 0.09;       // 0.40 → 0.49
-  }
-  const base  = hslToRgb(h, s_bar, l_bar);
-  const light = hslToRgb(h, s_bar * 0.85, Math.min(0.62, l_bar + 0.13));
-  const dark  = hslToRgb(h, s_bar,        Math.max(0.12, l_bar - 0.11));
+  // Watercolor slice: wide span (±0.22) across 7 organic stops.
+  // Asymmetric sampling with saturation modulation:
+  //   top = dry wet-front (light, desaturated)
+  //   center = loaded brush (peak saturation)
+  //   bottom = settled pigment (darkest)
+  const SLICE = 0.22;
+  const r0 = sampleSunset(Math.max(0, t - SLICE));
+  const r1 = sampleSunset(Math.max(0, t - SLICE * 0.6));
+  const r2 = sampleSunset(Math.max(0, t - SLICE * 0.2));
+  const r3 = sampleSunset(t);
+  const r4 = sampleSunset(Math.min(1, t + SLICE * 0.3));
+  const r5 = sampleSunset(Math.min(1, t + SLICE * 0.65));
+  const r6 = sampleSunset(Math.min(1, t + SLICE));
 
-  const hex = rgbToHex(base.r, base.g, base.b);
+  // Wet front: lighten + desaturate (paper showing through)
+  const h0 = rgbToHsl(r0.r, r0.g, r0.b);
+  const wet = hslToRgb(h0.h, h0.s * 0.78, Math.min(0.68, h0.l + 0.12));
+
+  // Loaded center: boost saturation
+  const hc = rgbToHsl(r3.r, r3.g, r3.b);
+  const loaded = hslToRgb(hc.h, Math.min(1, hc.s * 1.08), hc.l);
+
+  // Settled bottom: darken
+  const hb = rgbToHsl(r6.r, r6.g, r6.b);
+  const settled = hslToRgb(hb.h, Math.min(1, hb.s * 1.05), Math.max(0.10, hb.l * 0.92));
+
+  const hex = rgbToHex(loaded.r, loaded.g, loaded.b);
+  const c  = (c) => rgbToHex(c.r, c.g, c.b);
   return {
-    gradient: `linear-gradient(180deg,${rgbToHex(light.r,light.g,light.b)} 0%,${hex} 50%,${rgbToHex(dark.r,dark.g,dark.b)} 100%)`,
+    gradient: `linear-gradient(180deg,${c(wet)} 0%,${c(r1)} 10%,${c(r2)} 28%,${hex} 50%,${c(r4)} 68%,${c(r5)} 85%,${c(settled)} 100%)`,
     glow: `${hex}88`,
     strip: hex,
   };
@@ -602,5 +685,21 @@ export function calcGoldenHourMin(lat, date) {
   if (rateDegPerHour <= 0) return 28;
   return Math.round(6 / rateDegPerHour * 60);
 }
+// ─── Cinematic Bar Style ─────────────────────────────────────────────────────
 
-// ✓ utils.js v4 — complete
+/**
+ * scoreToBarStyle(score, skyColors)
+ * Returns { gradient, borderColor, glow, shimmer } for bar fills.
+ * Luminous Sky Bar Style v2
+ * Premium depth + sky-glow aesthetic for dark theme.
+ */
+export function scoreToLuminousBarStyle(score, skyColors) {
+  const bg = scoreToSkyBg(score, skyColors);
+  const watercolor = getWatercolorBg(score);
+  const borderColor = bg.strip + 'dd';
+  const innerHighlight = 'rgba(255,255,255,0.18)';
+  const glow = `inset 0 1px 1px rgba(255,255,255,0.4), 0 0 6px ${bg.glow}, 0 0 20px ${bg.strip}55, 0 0 40px ${bg.strip}22, 0 6px 16px rgba(0,0,0,0.55)`;
+  const shimmer = score >= 6.5;
+  return { gradient: bg.gradient, watercolor, borderColor, glow, shimmer, innerHighlight };
+}
+export { scoreToLuminousBarStyle as scoreToBarStyle };

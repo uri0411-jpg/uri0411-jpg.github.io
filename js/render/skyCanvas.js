@@ -189,6 +189,12 @@ function boostSaturation({ r, g, b }, targetS = 0.70) {
 /**
  * Render (or update) the physics-based sky canvas inside a container.
  *
+ * WORKER-READY (v46): All physics helpers used here (computeAtmosphere,
+ * spectrumToRGB, applyPerceptualTuning) are pure functions with no DOM
+ * dependencies. The `ctx` parameter accepts both HTMLCanvasElement context
+ * and OffscreenCanvasRenderingContext2D, making this function safe to run
+ * inside a Web Worker when activated (see js/workers/skyWorker.js).
+ *
  * @param {Element} container       The #sky-layers root (sibling of .bg-sunset)
  * @param {number}  sunAngle_rad    Current solar elevation in radians
  * @param {number}  turbidity       0–1 aerosol loading
@@ -283,20 +289,28 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
   const boostT  = Math.max(0, Math.min(1, (12 - elevDeg) / 10));
   const targetS = 0.30 + 0.45 * boostT;  // 0.30 → 0.75
 
+  // ── Horizon correction ────────────────────────────────────────────────────
+  // When the sun is just below the horizon (0° → −4°) the Mie scattering
+  // residual is still warm-orange. boostSaturation would amplify that warmth
+  // to targetS=0.75 before the night anchor fires. Cap it here to prevent
+  // a brown flash in the 0° → −1° window.
+  const horizonCorrection = Math.max(0, Math.min(1, -elevDeg / 4)); // 0 at 0°, 1 at −4°
+  const effectiveTargetS  = targetS * (1 - horizonCorrection * 0.35);
+
   // ── Night indigo anchor ───────────────────────────────────────────────────
   // Physics at night yields warm-brown (ozone + high air-mass warmth).
   // boostSaturation amplifies it, then hue blend rotates the photo brown.
   // Blend all stops toward deep indigo BEFORE saturation boost so the hue
   // blend fires blue-violet instead of brown at night.
   //
-  // Color: HSL 256° (blue-indigo), S=0.64, L=0.20 — natural real-sky tone,
-  // subtler than pure violet (270°). Chosen to avoid a neon-purple artifact.
+  // Color: HSL 264° (violet-indigo), S=0.77, L=0.17 — deep natural real-sky tone,
+  // shifted toward pure violet (270°) to eliminate warm-brown residuals at dusk.
   //
   // Ramp: smoothstep(0, 1, t) for a completely jump-free S-curve transition.
-  //   elevDeg > −4°  → anchor = 0.0  (pure physics, twilight and above)
-  //   elevDeg < −24° → anchor = 1.0  (full indigo, deep night)
-  const NIGHT_INDIGO   = { r: 24, g: 18, b: 82 }; // HSL ≈ 256°, blue-indigo
-  const _nRaw          = Math.max(0, Math.min(1, (-elevDeg - 4) / 20));
+  //   elevDeg > −1°  → anchor = 0.0  (pure physics, twilight and above)
+  //   elevDeg < −21° → anchor = 1.0  (full violet-indigo, deep night)
+  const NIGHT_INDIGO   = { r: 18, g: 10, b: 78 }; // HSL ≈ 264°, deep violet-indigo
+  const _nRaw          = Math.max(0, Math.min(1, (-elevDeg - 1) / 20));
   const nightAnchorStr = _nRaw * _nRaw * (3 - 2 * _nRaw); // smoothstep
   const anchoredColors = nightAnchorStr > 0
     ? colors.map(c => ({
@@ -306,7 +320,7 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
       }))
     : colors;
 
-  const saturated = anchoredColors.map(c => boostSaturation(c, targetS));
+  const saturated = anchoredColors.map(c => boostSaturation(c, effectiveTargetS));
 
   // ── Build vertical gradient ───────────────────────────────────────────────
   const grad = ctx.createLinearGradient(0, 0, 0, h);

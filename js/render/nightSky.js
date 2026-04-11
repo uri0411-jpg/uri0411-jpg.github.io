@@ -87,10 +87,25 @@ function _buildStarCanvas(w, h) {
   c.height  = h;
   const ctx = c.getContext('2d');
   for (const star of STARS) {
-    ctx.globalAlpha = star.mag > 0.7 ? 0.90 : star.mag > 0.35 ? 0.70 : 0.50;
+    const opacity = star.mag > 0.7 ? 0.90 : star.mag > 0.35 ? 0.70 : 0.50;
+    const px = star.px * w;
+    const py = star.py * h;
+    // Soft halo for the brightest stars (mag > 0.85) — Gaussian-style radial glow.
+    // Drawn first so the star disk composites on top with full opacity.
+    if (star.mag > 0.85) {
+      const grd = ctx.createRadialGradient(px, py, 0, px, py, star.r * 4);
+      grd.addColorStop(0,   `rgba(220,210,255,${opacity * 0.35})`);
+      grd.addColorStop(1,   'rgba(220,210,255,0)');
+      ctx.globalAlpha = 1;
+      ctx.fillStyle   = grd;
+      ctx.beginPath();
+      ctx.arc(px, py, star.r * 4, 0, Math.PI * 2);
+      ctx.fill();
+    }
+    ctx.globalAlpha = opacity;
     ctx.fillStyle   = 'rgba(255,255,255,0.9)';
     ctx.beginPath();
-    ctx.arc(star.px * w, star.py * h, star.r, 0, Math.PI * 2);
+    ctx.arc(px, py, star.r, 0, Math.PI * 2);
     ctx.fill();
   }
   _starCanvas = c; _starW = w; _starH = h;
@@ -159,8 +174,10 @@ export function renderNightSky(container, nightFactor, date) {
   const phase       = moonAge / 29.530588;  // 0=new, 0.5=full, 1=new again
 
   // lunarBright: 0 at new moon, 1 at full moon, symmetric for waxing/waning.
-  // Formula: 1 − |2·phase − 1|  gives 0→1→0 across the cycle.
-  const lunarBright = 1 - Math.abs(2 * phase - 1);
+  // sin(phase·π) gives the correct astronomical shape: peaks at full moon
+  // (phase=0.5), zero at new moon (phase=0/1). The previous |2p−1| formula
+  // incorrectly peaked at half-moon and under-lit the full moon.
+  const lunarBright = Math.sin(phase * Math.PI);
 
   // Moon opacity: dim at new moon, bright at full moon, scaled by night depth.
   const finalMoonOp = Math.min(0.92, (0.1 + lunarBright * 0.85) * nightFactor);

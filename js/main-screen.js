@@ -3,7 +3,7 @@
 //  Cinematic: dynamic glow, progress bars, haptic
 // ═══════════════════════════════════════════
 
-import { scoreToSkyBg, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
+import { scoreToSkyBg, scoreToBarStyle, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
 import { logoImg, updateDynamicGradient, getCardBgLuma, isAdvancedMode } from './ui.js';
 import { recordUserRating, hasRatedToday } from './calibration.js';
@@ -98,14 +98,19 @@ function _updateLiveScoreColors(skyColors, mainScore) {
     if (!isNaN(s)) el.style.color = scoreToSkyColor(s, skyColors, bgLuma);
   }
 
-  // 3. Week bar fills — background gradient from sky colors
+  // 3. Week bar fills — watercolor texture + glow
   for (const el of document.querySelectorAll('.week-bar-fill')) {
     const scoreEl = el.querySelector('.week-bar-score');
-    const s = scoreEl ? parseFloat(scoreEl.textContent) : NaN;
+    const s = scoreEl ? parseFloat(scoreEl.dataset.score ?? scoreEl.textContent) : NaN;
     if (!isNaN(s)) {
-      const bg = scoreToSkyBg(s, skyColors);
-      el.style.background = bg.gradient;
-      el.style.boxShadow = `0 0 8px ${bg.glow}`;
+      const barStyle = scoreToBarStyle(s, skyColors);
+      el.style.background  = barStyle.watercolor
+        ? `url(${barStyle.watercolor}) center/cover`
+        : barStyle.gradient;
+      el.style.borderColor = barStyle.borderColor;
+      el.style.boxShadow   = barStyle.glow;
+      if (barStyle.shimmer) el.setAttribute('data-shimmer', '');
+      else el.removeAttribute('data-shimmer');
     }
   }
 
@@ -659,6 +664,7 @@ function buildScoreExplainer(today) {
   const paletteHe = today.palette?.styleHe ?? '';
 
   // ── Bar builder with optional detail ──
+  // color is expected as rgba(…) for glass transparency to show through
   const bar = (label, value, color, detail) => `
     <div class="explainer-row">
       <span class="explainer-label">${label}</span>
@@ -1013,27 +1019,27 @@ function buildMainHTML(loc, city, weekData) {
         <span>${recommendation}</span>
       </div>
 
-      <!-- Bottom stats row with progress fills -->
+      <!-- Bottom stats grid — 2×2 premium tiles -->
       <div class="score-stats-row">
-        <div class="stat-pill" style="--fill-pct:${today._cloudRaw}%;animation-delay:0ms" ${today._cloudRaw >= 20 && today._cloudRaw <= 40 ? 'data-optimal="true"' : today._cloudRaw > 70 ? 'data-bad="true"' : ''}>
-          <svg width="13" height="13" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>
-          <span>${today.cloud}</span>
-          <span class="stat-lbl">עננות</span>
+        <div class="stat-tile" style="--fill-pct:${today._cloudRaw}%;animation-delay:0ms" ${today._cloudRaw >= 20 && today._cloudRaw <= 40 ? 'data-optimal="true"' : today._cloudRaw > 70 ? 'data-bad="true"' : ''}>
+          <svg class="stat-tile-icon" width="22" height="22" fill="none" stroke="var(--cream-faint)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M17.5 19H9a7 7 0 1 1 6.71-9h1.79a4.5 4.5 0 1 1 0 9z"/></svg>
+          <span class="stat-tile-value">${today.cloud}</span>
+          <span class="stat-tile-label">עננות</span>
         </div>
-        <div class="stat-pill" style="--fill-pct:${today._humidityRaw}%;animation-delay:50ms" ${today._humidityRaw >= 40 && today._humidityRaw <= 60 ? 'data-optimal="true"' : today._humidityRaw > 80 ? 'data-bad="true"' : ''}>
-          <svg width="13" height="13" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 4-7 13-7 13S5 13 5 9a7 7 0 0 1 7-7z"/></svg>
-          <span>${today.humidity}</span>
-          <span class="stat-lbl">לחות</span>
+        <div class="stat-tile" style="--fill-pct:${today._humidityRaw}%;animation-delay:50ms" ${today._humidityRaw >= 40 && today._humidityRaw <= 60 ? 'data-optimal="true"' : today._humidityRaw > 80 ? 'data-bad="true"' : ''}>
+          <svg class="stat-tile-icon" width="22" height="22" fill="none" stroke="var(--cream-faint)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M12 2a7 7 0 0 1 7 7c0 4-7 13-7 13S5 13 5 9a7 7 0 0 1 7-7z"/></svg>
+          <span class="stat-tile-value">${today.humidity}</span>
+          <span class="stat-tile-label">לחות</span>
         </div>
-        <div class="stat-pill" style="--fill-pct:${Math.min(100, today._windRaw * 2.5)}%;animation-delay:100ms" ${today._windRaw < 10 ? 'data-optimal="true"' : today._windRaw > 30 ? 'data-bad="true"' : ''}>
-          <svg width="13" height="13" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
-          <span>${today.wind}</span>
-          <span class="stat-lbl">רוח</span>
+        <div class="stat-tile" style="--fill-pct:${Math.min(100, today._windRaw * 2.5)}%;animation-delay:100ms" ${today._windRaw < 10 ? 'data-optimal="true"' : today._windRaw > 30 ? 'data-bad="true"' : ''}>
+          <svg class="stat-tile-icon" width="22" height="22" fill="none" stroke="var(--cream-faint)" stroke-width="1.5" viewBox="0 0 24 24"><path d="M5 12h14M12 5l7 7-7 7"/></svg>
+          <span class="stat-tile-value">${today.wind}</span>
+          <span class="stat-tile-label">רוח</span>
         </div>
-        <div class="stat-pill" style="--fill-pct:${Math.min(100, (today._visibilityRaw / 30) * 100)}%;animation-delay:150ms" ${today._visibilityRaw >= 20 ? 'data-optimal="true"' : today._visibilityRaw < 5 ? 'data-bad="true"' : ''}>
-          <svg width="13" height="13" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="16" y2="14"/></svg>
-          <span>${today.visibility} ק״מ</span>
-          <span class="stat-lbl">נראות</span>
+        <div class="stat-tile" style="--fill-pct:${Math.min(100, (today._visibilityRaw / 30) * 100)}%;animation-delay:150ms" ${today._visibilityRaw >= 20 ? 'data-optimal="true"' : today._visibilityRaw < 5 ? 'data-bad="true"' : ''}>
+          <svg class="stat-tile-icon" width="22" height="22" fill="none" stroke="var(--cream-faint)" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="12" x2="16" y2="14"/></svg>
+          <span class="stat-tile-value">${today.visibility} ק״מ</span>
+          <span class="stat-tile-label">נראות</span>
         </div>
       </div>
     </div>
@@ -1060,6 +1066,15 @@ function buildMainHTML(loc, city, weekData) {
 // ─────────────────────────────────────────
 function renderWeekBars(weekData) {
   const dayLetters = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
+  const bgLuma = getCardBgLuma();
+
+  // Relative height scaling — exaggerate differences when scores cluster
+  const allScores = weekData.map((d, i) =>
+    (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score);
+  const minS  = Math.min(...allScores);
+  const maxS  = Math.max(...allScores);
+  const range = Math.max(0.5, maxS - minS);
+
   return weekData.map((d, i) => {
     let label;
     if (i === 0) label = 'היום';
@@ -1069,15 +1084,23 @@ function renderWeekBars(weekData) {
       label = dayLetters[dt.getDay()];
     }
     const ds = (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score;
-    const skyBg = scoreToSkyBg(ds, d.skyColors);
+    const barStyle   = scoreToBarStyle(ds, d.skyColors);
+    const relativeT  = (ds - minS) / range;
+    const heightPct  = Math.max(20, Math.round(25 + relativeT * 75));
+    const scoreColor = scoreToSkyColor(ds, d.skyColors, bgLuma);
+    const animDelay  = i * 55;
+    const shimmer    = barStyle.shimmer ? ' data-shimmer' : '';
+    const bg = barStyle.watercolor
+      ? `url(${barStyle.watercolor}) center/cover`
+      : barStyle.gradient;
+
     return `
     <div class="week-bar-item" onclick="toggleDaily(${i})">
       <div class="week-bar-track">
-        <div class="week-bar-fill" style="height:${ds * 10}%;background:${skyBg.gradient};box-shadow:0 0 8px ${skyBg.glow};position:relative;overflow:hidden;animation:barGrow 0.5s cubic-bezier(0.34,1.56,0.64,1) both;animation-delay:${i * 55}ms">
-          <div style="position:absolute;top:0;left:0;width:20%;height:100%;background:linear-gradient(90deg,rgba(0,0,0,0.22) 0%,rgba(0,0,0,0) 100%)"></div>
-          <div style="position:absolute;top:0;right:0;width:20%;height:100%;background:linear-gradient(270deg,rgba(0,0,0,0.22) 0%,rgba(0,0,0,0) 100%)"></div>
-          <div style="position:absolute;top:0;left:10%;right:10%;height:45%;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.30) 0%,rgba(255,255,255,0) 100%)"></div>
-          <span class="week-bar-score" style="position:relative;z-index:1;color:${scoreToSkyColor(ds, d.skyColors, getCardBgLuma())};background:rgba(10,4,0,0.30);border-radius:5px;padding:0 4px">${ds.toFixed(1)}</span>
+        <div class="week-bar-fill"
+             data-score="${ds.toFixed(1)}"${shimmer}
+             style="height:${heightPct}%;background:${bg};border-color:${barStyle.borderColor};box-shadow:${barStyle.glow};animation-delay:${animDelay}ms">
+          <span class="week-bar-score" data-score="${ds.toFixed(1)}" style="position:relative;z-index:3;color:${scoreColor};background:rgba(8,3,0,0.28);border-radius:4px;padding:0 3px">${ds.toFixed(1)}</span>
         </div>
       </div>
       <div class="week-bar-day">${label}</div>
