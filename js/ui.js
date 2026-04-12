@@ -95,10 +95,10 @@ export function updateDynamicGradient(_score = 5, _turbidity = 0.3, _palette = '
     ? Math.min((skyColors.skyTop.r + skyColors.skyTop.g + skyColors.skyTop.b) / 765, 1)
     : 0.5; // neutral default when physics data hasn't loaded
   const glassAlpha = 0.32 + (1 - skyBrightness) * 0.28;
-  root.setProperty('--glass-blur',     `${(2 + (1 - skyBrightness) * 8).toFixed(1)}px`);
-  root.setProperty('--glass-alpha',    glassAlpha.toFixed(2));
-  root.setProperty('--glass-saturate', `${Math.round(110 + skyBrightness * 40)}%`);
-  root.setProperty('--sky-luma',       skyBrightness.toFixed(3));
+  root.setProperty('--twl-dynamic-glass-blur',     `${(2 + (1 - skyBrightness) * 8).toFixed(1)}px`);
+  root.setProperty('--twl-dynamic-glass-alpha',    glassAlpha.toFixed(2));
+  root.setProperty('--twl-dynamic-glass-saturate', `${Math.round(110 + skyBrightness * 40)}%`);
+  root.setProperty('--twl-dynamic-sky-luma',       skyBrightness.toFixed(3));
 
   // Estimated glass card background luminance for score contrast checks.
   // Card base: rgb(22, 11, 4) composited at glassAlpha over ~#1a0e06 dark backdrop.

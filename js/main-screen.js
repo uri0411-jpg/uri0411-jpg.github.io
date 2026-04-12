@@ -251,7 +251,7 @@ function startLiveGradient(today, loc) {
     // Solar elevation → --ui-sky-t: 0 at -6° (dark), 1 at +6° (bright golden hour)
     // Drives nav blur and glass recession via CSS calc()
     const skyT = Math.max(0, Math.min(1, (liveElevDeg + 6) / 12));
-    document.documentElement.style.setProperty('--ui-sky-t', skyT.toFixed(3));
+    document.documentElement.style.setProperty('--twl-dynamic-ui-sky-t', skyT.toFixed(3));
 
     // Score-driven photo mood: saturate + brightness of the background photo
     // reflects the day's forecast quality so the scene matches the prediction.

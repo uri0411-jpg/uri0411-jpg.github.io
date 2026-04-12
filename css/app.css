@@ -2,37 +2,40 @@
    TWILIGHT — app.css
    Full design system, RTL, mobile-first
 ═══════════════════════════════════════════ */
+@import url('tokens.css');
 
-/* ─── TOKENS ─── */
+/* ─── TOKENS (alias bridge: old names → --twl-* tokens from tokens.css) ─── */
 :root {
-  --gold:          #D4820A;
-  --gold-light:    #F0B84A;
-  --cream:         #F5E6C8;
-  --cream-dim:     rgba(245,230,200,0.75);
-  --cream-faint:   rgba(245,230,200,0.45);
-  --brown-dark:    #3B1F08;
-  --brown-mid:     #6B3A0E;
-  --brown-btn:     #5A2D0C;
-  --brown-light:   #C49A6C;
-  --glass:         rgba(20,10,4,0.55);
-  --glass-border:  rgba(212,165,116,0.18);
-  --r-card:        18px;
-  --r-pill:        50px;
-  --font-title:    'Secular One', 'Rubik', sans-serif;
-  /* Glass dynamics — updated by updateDynamicGradient() for score-adaptive transparency */
-  --glass-blur:     8px;
-  --glass-alpha:    0.57;
-  --glass-saturate: 120%;
-  --font-body:     'Rubik', 'Heebo', sans-serif;
-  --font-spot:     'Playfair Display', serif;
+  /* Colors */
+  --gold:          var(--twl-color-accent-primary);
+  --gold-light:    var(--twl-color-accent-primary-light);
+  --cream:         var(--twl-color-text-primary);
+  --cream-dim:     var(--twl-color-text-secondary);
+  --cream-faint:   var(--twl-color-text-tertiary);
+  --brown-dark:    var(--twl-color-neutral-850);
+  --brown-mid:     var(--twl-color-neutral-700);
+  --brown-btn:     var(--twl-color-interactive-button-bg);
+  --brown-light:   var(--twl-color-neutral-200);
+  --glass:         var(--twl-color-surface-glass);
+  --glass-border:  var(--twl-color-surface-glass-border);
+  /* Layout */
+  --r-card:        var(--twl-radius-card);
+  --r-pill:        var(--twl-radius-pill);
+  /* Typography */
+  --font-title:    var(--twl-font-title);
+  --font-body:     var(--twl-font-body);
+  --font-spot:     var(--twl-font-spot);
+  /* Glass dynamics — updated by updateDynamicGradient() */
+  --glass-blur:     var(--twl-dynamic-glass-blur);
+  --glass-alpha:    var(--twl-dynamic-glass-alpha);
+  --glass-saturate: var(--twl-dynamic-glass-saturate);
   /* Score tier palette — updated dynamically by startLiveGradient() */
-  --score-high-color: #FFD060;
-  --score-high-glow:  rgba(255,200,50,0.40);
-  --score-mid-color:  #FF8C30;
-  --score-mid-glow:   rgba(255,120,30,0.30);
-  --score-low-color:  #7090C8;
-  --score-low-glow:   rgba(80,100,200,0.20);
-
+  --score-high-color: var(--twl-color-score-high);
+  --score-high-glow:  var(--twl-color-score-high-glow);
+  --score-mid-color:  var(--twl-color-score-mid);
+  --score-mid-glow:   var(--twl-color-score-mid-glow);
+  --score-low-color:  var(--twl-color-score-low);
+  --score-low-glow:   var(--twl-color-score-low-glow);
 }
 
 /* ── Accessibility: Reduced Motion ── */
@@ -75,7 +78,7 @@ html, body {
 }
 body {
   font-family: var(--font-body);
-  background: #1a0e06;
+  background: var(--twl-color-surface-app);
   color: var(--cream);
 }
 
@@ -125,8 +128,8 @@ body {
 body.has-install-banner .screen { padding-top: 56px; }
 
 /* ─── BOTTOM NAV ─── */
-/* --ui-sky-t: 0 = dark sky/night, 1 = bright golden hour — set by main-screen.js */
-:root { --ui-sky-t: 0.5; }
+/* --ui-sky-t: alias for dynamic token — set by main-screen.js */
+:root { --ui-sky-t: var(--twl-dynamic-ui-sky-t); }
 .bottom-nav {
   position: fixed;
   bottom: 20px;
@@ -199,7 +202,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 
 /* ─── BUTTONS ─── */
 .btn-pill {
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   border: 1px solid rgba(212,165,116,0.30);
   border-radius: var(--r-pill);
   color: var(--cream);
@@ -220,7 +223,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 .btn-pill:active { transform: scale(0.98); }
 
 .cat-btn {
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   border: 1px solid rgba(212,165,116,0.25);
   border-radius: 24px;
   color: var(--cream);
@@ -236,7 +239,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 .cat-btn.active,
 .cat-btn:active {
-  background: linear-gradient(135deg, #8B4A18, #5A2D0C);
+  background: linear-gradient(135deg, #8B4A18, var(--twl-color-neutral-800));
   border-color: rgba(212,165,116,0.5);
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
@@ -1577,7 +1580,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   display: flex;
   align-items: center;
   gap: 5px;
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   border: 1px solid rgba(212,165,116,0.28);
   border-radius: 12px;
   padding: 10px 14px;
@@ -1626,7 +1629,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   color: rgba(255,255,255,0.4) !important;
 }
 #spots-map .leaflet-control-attribution a { color: rgba(255,255,255,0.4) !important; }
-#spots-map { background: #1a0e06 !important; }
+#spots-map { background: var(--twl-color-surface-app) !important; }
 /* Darken the tile layer via CSS filter */
 #spots-map .leaflet-tile-pane { filter: brightness(0.85) contrast(1.05) saturate(0.85) sepia(0.1); }
 #spots-map .leaflet-popup-content-wrapper {
@@ -1674,7 +1677,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   inset: 0;
   z-index: 9999;
   border-radius: 0;
-  background: #1a0e06;
+  background: var(--twl-color-surface-app);
 }
 .spot-map-wrap.map-fullscreen #spots-map {
   height: 100vh !important;
@@ -1927,7 +1930,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   align-items: center;
   gap: 6px;
   padding: 10px 18px;
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   border: 1px solid rgba(212,165,116,0.35);
   border-radius: 24px;
   color: var(--cream);
@@ -2013,7 +2016,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   padding: 0 6px;
   border-radius: 12px;
   background: linear-gradient(135deg, var(--gold-light, #F0B84A), var(--gold, #D4820A));
-  color: var(--brown-dark, #3B1F08);
+  color: var(--twl-color-neutral-850);
   font-size: 12px;
   font-weight: 900;
   font-family: var(--font-body);
@@ -2442,7 +2445,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   justify-content: center;
   gap: 6px;
   padding: 10px 6px;
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   border: 1px solid rgba(212,165,116,0.25);
   border-radius: 12px;
   color: var(--cream);
@@ -2486,7 +2489,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 
 /* Map loading background */
-#spots-map { background: #1a0e06 !important; }
+#spots-map { background: var(--twl-color-surface-app) !important; }
 
 /* ═══════════════════════════════════════════
    WEATHER PARAMETER PROGRESS BARS
@@ -2921,12 +2924,9 @@ a:focus-visible,
    Reduces bright gold/cream elements to protect dark-adapted eyes.
    Red-tinted indicator because red light preserves night vision.
 ═══════════════════════════════════════════ */
+/* Night vision color overrides are in tokens.css (body.night-vision block).
+   Only non-token overrides remain here: */
 body.night-vision {
-  --gold:          #7A3E00;
-  --gold-light:    #9B5200;
-  --cream:         rgba(245, 220, 180, 0.52);
-  --cream-dim:     rgba(245, 220, 180, 0.38);
-  --cream-faint:   rgba(245, 220, 180, 0.25);
   --glass-alpha:   0.76;
   --glass-blur:    6px;
 }
@@ -2944,7 +2944,7 @@ body.night-vision .bottom-nav        { background: rgba(8,3,1,0.96); }
   left: 50%;
   transform: translateX(-50%);
   background: linear-gradient(135deg, var(--gold), #E8A020);
-  color: #1A0A02;
+  color: var(--twl-color-surface-app);
   border: none;
   border-radius: var(--r-pill);
   padding: 12px 26px;
@@ -2965,7 +2965,7 @@ body.night-vision .bottom-nav        { background: rgba(8,3,1,0.96); }
 .quick-alert-fab[hidden] { display: none; }
 /* Dim when night vision is active */
 body.night-vision .quick-alert-fab {
-  background: linear-gradient(135deg, #5A2D0C, #3B1A06);
+  background: linear-gradient(135deg, var(--twl-color-neutral-800), var(--twl-color-neutral-850));
   color: var(--cream);
   box-shadow: 0 4px 16px rgba(0,0,0,0.5);
 }
@@ -3508,7 +3508,7 @@ body.night-vision .quick-alert-fab {
 }
 .onboarding-btn-next {
   background: var(--gold);
-  color: #1a0e06;
+  color: var(--twl-color-surface-app);
 }
 .onboarding-btn-next:active { transform: scale(0.96); }
 .onboarding-btn-back {

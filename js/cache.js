@@ -114,6 +114,21 @@ export function getCacheAge(key) {
   } catch { return null; }
 }
 
-// ✎ fixed: setCache — QuotaExceededError triggers clearAll() + retry
-// ✎ added: getCacheAge — returns age in minutes for stale-data warning
+/**
+ * Returns stale cache data with age info, even if expired.
+ * Used for stale-while-revalidate pattern.
+ * @returns {{ data: any, ageMinutes: number, isExpired: boolean } | null}
+ */
+export function getStaleCacheWithAge(key) {
+  try {
+    const raw = localStorage.getItem(PREFIX + key);
+    if (!raw) return null;
+    const entry = JSON.parse(raw);
+    if (!entry.data) return null;
+    const ageMinutes = entry.created ? Math.round((Date.now() - entry.created) / 60000) : null;
+    const isExpired = Date.now() > entry.expires;
+    return { data: entry.data, ageMinutes, isExpired };
+  } catch { return null; }
+}
+
 // ✓ cache.js — complete

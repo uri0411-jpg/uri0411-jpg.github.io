@@ -8,7 +8,8 @@ import { OPEN_METEO_URL, OPEN_METEO_AQ_URL, NOMINATIM_URL, OVERPASS_URL, OVERPAS
 import { setCache, getCache, getStaleCache } from './cache.js';
 import { distKm } from './utils.js';
 
-const FETCH_TIMEOUT_MS = 40000;
+const FETCH_TIMEOUT_MS = 12000;
+const FETCH_TIMEOUT_SECONDARY_MS = 8000;
 
 async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS) {
   const controller = new AbortController();
@@ -78,66 +79,76 @@ function averageHourlyArrays(datasets, key) {
 }
 
 /**
- * Fetch 7-day weather forecast — ensemble of up to 3 models
- * Primary: best_match (auto), Secondary: ECMWF IFS, Tertiary: GFS
- * Falls back to primary-only if secondaries fail
+ * Fast weather fetch — primary model only (best_match).
+ * Used for initial render; ensemble refinement runs in background.
  */
-export async function fetchWeek(lat, lon, force = false) {
+export async function fetchWeekFast(lat, lon, force = false) {
   const cacheKey = `weather_${lat.toFixed(3)}_${lon.toFixed(3)}`;
   const cached = getCache(cacheKey);
   if (cached && !force) return cached;
 
-  // Fetch primary + secondaries in parallel — if primary (best_match) fails,
-  // fall back to whichever secondary model responded, then to stale cache.
-  const [primaryResult, ecmwfResult, gfsResult] = await Promise.allSettled([
-    fetchModel(lat, lon),
+  try {
+    const primary = await fetchModel(lat, lon);
+    primary._modelCount = 1;
+    setCache(cacheKey, primary, CACHE_TTL.weather);
+    return primary;
+  } catch (err) {
+    const stale = getStaleCache(cacheKey);
+    if (stale) {
+      console.warn('[api] fetchWeekFast: primary failed, using stale cache');
+      stale._isStale = true;
+      return stale;
+    }
+    throw err;
+  }
+}
+
+/**
+ * Background ensemble refinement — fetches ECMWF + GFS, averages with primary,
+ * updates cache, and returns the refined data.
+ * Returns null if refinement adds nothing (both secondaries failed or matched primary).
+ */
+export async function fetchWeekEnsemble(lat, lon, primaryData) {
+  if (!primaryData?.hourly) return null;
+
+  const [ecmwfResult, gfsResult] = await Promise.allSettled([
     fetchModel(lat, lon, 'ecmwf_ifs025'),
     fetchModel(lat, lon, 'gfs_seamless')
   ]);
 
-  let primary;
-  if (primaryResult.status === 'fulfilled') {
-    primary = primaryResult.value;
-  } else {
-    // best_match failed — try secondaries as primary
-    const fallback = ecmwfResult.status === 'fulfilled' ? ecmwfResult.value
-                   : gfsResult.status  === 'fulfilled' ? gfsResult.value
-                   : null;
-    if (fallback) {
-      console.warn('[api] fetchWeek: best_match failed, using secondary model as primary:', primaryResult.reason?.message);
-      primary = fallback;
-    } else {
-      // All models failed — try stale cache before crashing
-      const stale = getStaleCache(cacheKey);
-      if (stale) {
-        console.warn('[api] fetchWeek: all models failed, using stale cache');
-        stale._isStale = true; // signal to app.js to show offline banner
-        return stale;
-      }
-      throw primaryResult.reason;
-    }
+  const ecmwfData = ecmwfResult.status === 'fulfilled' ? ecmwfResult.value : primaryData;
+  const gfsData   = gfsResult.status   === 'fulfilled' ? gfsResult.value   : primaryData;
+  const datasets  = [primaryData, ecmwfData, gfsData];
+  const realCount = new Set(datasets).size;
+
+  if (realCount <= 1) {
+    console.log('[api] Ensemble: no secondary models available, skipping refinement');
+    return null;
   }
 
-  // Always average across 3 fixed slots — fill missing secondaries with primary so
-  // the ensemble denominator stays constant regardless of network availability.
-  // This prevents score jumps when ECMWF or GFS are temporarily unavailable.
-  const ecmwfData = ecmwfResult.status === 'fulfilled' && ecmwfResult.value !== primary ? ecmwfResult.value : primary;
-  const gfsData   = gfsResult.status   === 'fulfilled' && gfsResult.value   !== primary ? gfsResult.value   : primary;
-  const datasets  = [primary, ecmwfData, gfsData];
-  const realCount = new Set(datasets).size; // 1–3 unique models
+  // Deep-clone primary to avoid mutating the already-rendered data
+  const refined = JSON.parse(JSON.stringify(primaryData));
+  const hourlyKeys = Object.keys(refined.hourly).filter(k => k !== 'time');
+  for (const key of hourlyKeys) {
+    refined.hourly[key] = averageHourlyArrays(datasets, key);
+  }
+  refined._modelCount = realCount;
 
   console.log(`[api] Ensemble: ${realCount} unique model(s) → averaging 3 slots`);
-  if (!primary?.hourly) return primary;
-  const hourlyKeys = Object.keys(primary.hourly).filter(k => k !== 'time');
-  for (const key of hourlyKeys) {
-    primary.hourly[key] = averageHourlyArrays(datasets, key);
-  }
+  const cacheKey = `weather_${lat.toFixed(3)}_${lon.toFixed(3)}`;
+  setCache(cacheKey, refined, CACHE_TTL.weather);
+  return refined;
+}
 
-  // Store model count for confidence display
-  primary._modelCount = realCount;
-
-  setCache(cacheKey, primary, CACHE_TTL.weather);
-  return primary;
+/**
+ * Full ensemble fetch — backward-compatible wrapper.
+ * Used by handleRefresh / handleSetLocation where we want complete data.
+ */
+export async function fetchWeek(lat, lon, force = false) {
+  const primary = await fetchWeekFast(lat, lon, force);
+  if (primary._isStale) return primary; // offline — skip ensemble
+  const refined = await fetchWeekEnsemble(lat, lon, primary);
+  return refined || primary;
 }
 
 /**
@@ -157,7 +168,7 @@ export async function fetchAirQuality(lat, lon, force = false) {
   });
 
   try {
-    const res = await fetchWithTimeout(`${OPEN_METEO_AQ_URL}?${params}`);
+    const res = await fetchWithTimeout(`${OPEN_METEO_AQ_URL}?${params}`, {}, FETCH_TIMEOUT_SECONDARY_MS);
     if (!res.ok) throw new Error(`AQ API error ${res.status}`);
     const data = await res.json();
     setCache(cacheKey, data, CACHE_TTL.airq);
@@ -304,7 +315,7 @@ export async function fetchWesternHorizon(lat, lon, force = false) {
   });
 
   try {
-    const res = await fetchWithTimeout(`${OPEN_METEO_URL}?${params}`);
+    const res = await fetchWithTimeout(`${OPEN_METEO_URL}?${params}`, {}, FETCH_TIMEOUT_SECONDARY_MS);
     if (!res.ok) throw new Error(`Western horizon API error ${res.status}`);
     const data = await res.json();
     setCache(cacheKey, data, CACHE_TTL.weather);
