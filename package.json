@@ -1,0 +1,12 @@
+{
+  "name": "twilight-pwa",
+  "version": "0.46.0",
+  "private": true,
+  "scripts": {
+    "start":        "node server.js",
+    "build:tokens": "node scripts/build_tokens.mjs",
+    "bump-sw":      "node scripts/bump_sw.mjs",
+    "predeploy":    "node scripts/bump_sw.mjs",
+    "clean-seed":   "node scripts/clean_learning_seed.mjs"
+  }
+}

@@ -1,0 +1,48 @@
+{
+  "color": {
+    "surface": {
+      "app":          { "$type": "color", "$value": "#1A0E06" },
+      "glass":        { "$type": "color", "$value": "rgba(20, 10, 4, 0.55)" },
+      "glass-border": { "$type": "color", "$value": "rgba(212, 165, 116, 0.18)" }
+    },
+    "text": {
+      "primary":   { "$type": "color", "$value": "#F5E6C8" },
+      "secondary": { "$type": "color", "$value": "rgba(245, 230, 200, 0.75)" },
+      "tertiary":  { "$type": "color", "$value": "rgba(245, 230, 200, 0.45)" }
+    },
+    "accent": {
+      "primary":       { "$type": "color", "$value": "#D4820A" },
+      "primary-light": { "$type": "color", "$value": "#F0B84A" },
+      "gradient-top":  { "$type": "color", "$value": "#2D1B69" },
+      "gradient-bot":  { "$type": "color", "$value": "#F97316" }
+    },
+    "interactive": {
+      "button-bg":     { "$type": "color", "$value": "#5A2D0C" },
+      "button-border": { "$type": "color", "$value": "rgba(212, 165, 116, 0.30)" }
+    },
+    "score": {
+      "high":      { "$type": "color", "$value": "#FFB347" },
+      "high-glow": { "$type": "color", "$value": "rgba(255, 179, 71, 0.40)" },
+      "mid":       { "$type": "color", "$value": "#C84B4A" },
+      "mid-glow":  { "$type": "color", "$value": "rgba(200, 75, 74, 0.30)" },
+      "low":       { "$type": "color", "$value": "#3B2C6D" },
+      "low-glow":  { "$type": "color", "$value": "rgba(59, 44, 109, 0.20)" }
+    },
+    "status": {
+      "optimal": { "$type": "color", "$value": "#3CA03C" },
+      "neutral": { "$type": "color", "$value": "#F59E0B" },
+      "poor":    { "$type": "color", "$value": "#DC2828" }
+    }
+  },
+  "radius": {
+    "card":  { "$type": "dimension", "$value": "18px" },
+    "pill":  { "$type": "dimension", "$value": "50px" },
+    "badge": { "$type": "dimension", "$value": "10px" },
+    "bar":   { "$type": "dimension", "$value": "14px" }
+  },
+  "font": {
+    "title": { "$type": "fontFamily", "$value": "'Secular One', 'Rubik', sans-serif" },
+    "body":  { "$type": "fontFamily", "$value": "'Rubik', 'Heebo', sans-serif" },
+    "spot":  { "$type": "fontFamily", "$value": "'Playfair Display', serif" }
+  }
+}

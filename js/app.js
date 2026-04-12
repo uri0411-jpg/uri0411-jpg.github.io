@@ -5,7 +5,7 @@
 
 import { initNav, showScreen, onScreenChange } from './nav.js';
 import { getGPS, saveLocation, loadLocation }  from './location.js';
-import { fetchWeek, fetchWeekFast, fetchWeekEnsemble, fetchCityName, fetchAirQuality, fetchWesternHorizon, fetchSpots } from './api.js';
+import { fetchWeek, fetchWeekFast, fetchWeekEnsemble, fetchCityName, fetchAirQuality, fetchWesternHorizon } from './api.js';
 import { calcWeekData }                        from './score.js';
 import { initMainScreen, showMainSkeleton, repaintScoreColors } from './main-screen.js';
 import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots } from './spots-screen.js';
@@ -67,6 +67,20 @@ function _applyScoreEMA(weekData, loc) {
     return smoothed;
   } catch (_) {
     return weekData; // localStorage unavailable — silently skip
+  }
+}
+
+// ─────────────────────────────────────────
+//  Idle spot preload — deferred until browser is idle so it never
+//  competes with the critical render path. Falls back to setTimeout
+//  on browsers that don't support requestIdleCallback (e.g. Safari < 16).
+// ─────────────────────────────────────────
+function _scheduleSpotPreload(weekData, loc) {
+  const run = () => preloadSpotsData(weekData, loc).catch(e => console.warn('[spots] preload failed:', e.message));
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(run, { timeout: 8000 });
+  } else {
+    setTimeout(run, 4000);
   }
 }
 
@@ -262,7 +276,6 @@ async function loadAppData(forceRefresh = false) {
   const weatherPromise = fetchWeekFast(_loc.lat, _loc.lon, forceRefresh);
   const aqPromise      = fetchAirQuality(_loc.lat, _loc.lon, forceRefresh).catch(() => null);
   const westPromise    = fetchWesternHorizon(_loc.lat, _loc.lon, forceRefresh).catch(() => null);
-  const spotsPromise   = fetchSpots(_loc.lat, _loc.lon, 10).catch(() => []);
 
   // Wait for seed before pinning learning snapshot
   await seedPromise;
@@ -278,15 +291,15 @@ async function loadAppData(forceRefresh = false) {
     showToast('אין חיבור לאינטרנט — מציג נתונים שמורים', 'warn');
   }
 
-  // ── Phase 2: Enrich with non-critical data (AQ, horizon, spots) ──
-  const [airQ, westData, nearbySpots] = await Promise.all([aqPromise, westPromise, spotsPromise]);
+  // ── Phase 2: Enrich with non-critical data (AQ, horizon) ──
+  const [airQ, westData] = await Promise.all([aqPromise, westPromise]);
   _airQuality = airQ;
 
   // Recalculate only if we got additional data
   if (airQ || westData) {
     _weekData = calcWeekData(weather, _airQuality, _loc.lat, _loc.lon, westData);
   }
-  const spotAvgScores = calcNearbyAvgScore(nearbySpots, _weekData, _loc.lat, _loc.lon);
+  const spotAvgScores = calcNearbyAvgScore(null, _weekData);
 
   // ── Phase 3: Background ensemble refinement ──
   if (!weather._isStale) {
@@ -296,7 +309,7 @@ async function loadAppData(forceRefresh = false) {
         calcWeekData(refined, _airQuality, _loc.lat, _loc.lon, westData),
         _loc
       );
-      const freshSpotScores = calcNearbyAvgScore(nearbySpots, _weekData, _loc.lat, _loc.lon);
+      const freshSpotScores = calcNearbyAvgScore(null, _weekData);
       await initMainScreen(_loc, _city, _weekData, freshSpotScores);
       console.log(`[boot] ensemble refinement applied (${refined._modelCount} models)`);
     }).catch(err => console.warn('[boot] ensemble refinement failed:', err.message));
@@ -305,13 +318,9 @@ async function loadAppData(forceRefresh = false) {
     _weekData = _applyScoreEMA(_weekData, _loc);
   }
 
-  // Apply EMA to primary+AQ+horizon scores and do final render
-  if (!weather._isStale) {
-    _weekData = _applyScoreEMA(_weekData, _loc);
-  }
   await initMainScreen(_loc, _city, _weekData, spotAvgScores);
 
-  preloadSpotsData(_weekData, _loc).catch(() => {});
+  _scheduleSpotPreload(_weekData, _loc);
   updateThemeColor(_weekData);
 
   if (_weekData[0]) {
@@ -336,7 +345,7 @@ async function loadAppData(forceRefresh = false) {
     fetchCityName(_loc.lat, _loc.lon).then(city => {
       _city = city;
       saveLocation(_loc.lat, _loc.lon, city);
-    }).catch(() => {});
+    }).catch(e => console.warn('[boot] city name fetch failed:', e.message));
   }
 }
 
@@ -407,13 +416,19 @@ async function handleRefresh(e) {
 
     _spotsInitialized = false;
     invalidatePreloadedSpots();
-    preloadSpotsData(_weekData, _loc).catch(() => {});
+    _scheduleSpotPreload(_weekData, _loc);
   } catch (err) {
     console.error('[refresh]', err);
     showToast('עדכון נכשל', 'error');
   } finally {
     showLoading(false);
     _isRefreshing = false;
+    // Drain queued location if one arrived while we were refreshing
+    if (_pendingLocation) {
+      const pending = _pendingLocation;
+      _pendingLocation = null;
+      handleSetLocation({ detail: pending });
+    }
   }
 }
 
@@ -422,14 +437,14 @@ async function handleRefresh(e) {
 //  Manual location handler
 //  Triggered by twilight:setLocation custom event
 // ─────────────────────────────────────────
+let _pendingLocation = null; // queued location while refresh is in progress
+
 async function handleSetLocation(e) {
   const { lat, lon, city } = e.detail || {};
   if (!lat || !lon) return;
   if (_isRefreshing) {
-    // Don't silently drop — retry after current refresh completes
-    setTimeout(() =>
-      window.dispatchEvent(new CustomEvent('twilight:setLocation', { detail: e.detail }))
-    , 2000);
+    // Queue — will be processed when current refresh completes (see finally block)
+    _pendingLocation = e.detail;
     return;
   }
   _isRefreshing = true;
@@ -480,7 +495,7 @@ async function handleSetLocation(e) {
     showToast(`מיקום עודכן: ${_city}`, 'success');
 
     invalidatePreloadedSpots();
-    preloadSpotsData(_weekData, _loc).catch(() => {});
+    _scheduleSpotPreload(_weekData, _loc);
 
     // If spots screen is currently active, re-init it with fresh forecast
     if (_spotsInitialized) {
@@ -493,6 +508,12 @@ async function handleSetLocation(e) {
   } finally {
     showLoading(false);
     _isRefreshing = false;
+    // Drain queued location if one arrived while we were refreshing
+    if (_pendingLocation) {
+      const pending = _pendingLocation;
+      _pendingLocation = null;
+      handleSetLocation({ detail: pending });
+    }
   }
 }
 

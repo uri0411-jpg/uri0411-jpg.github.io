@@ -5,7 +5,7 @@
 
 import { fetchSpots, fetchCityName } from './api.js';
 import { loadLocation, getGPS, saveLocation } from './location.js';
-import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint } from './utils.js';
+import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint, getWatercolorBg } from './utils.js';
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
@@ -689,12 +689,13 @@ async function loadSpots() {
 
   try {
     _spots = await fetchSpots(_loc.lat, _loc.lon, _radiusKm);
-    _spots.forEach(s => {
+
+    // ── Score first page immediately for fast first paint ──────────────
+    function _scoreSpot(s) {
       s._allScores = calcSpotScores(s, _weekData, _loc.lat, _loc.lon);
-      s._driveMin = estimateDriveMin(s.dist);
-      // Topology warning: inland + low/unknown elevation = potential western horizon obstruction
-      const inland = s.lon > 34.92;
-      const lowElev = s.elevation !== null && s.elevation < 60;
+      s._driveMin  = estimateDriveMin(s.dist);
+      const inland      = s.lon > 34.92;
+      const lowElev     = s.elevation !== null && s.elevation < 60;
       const unknownElev = s.elevation === null && s.lon > 35.0;
       if (inland && s.type !== 'חוף' && (lowElev || unknownElev)) {
         s._horizonWarning = lowElev
@@ -704,12 +705,33 @@ async function loadSpots() {
       // Must be computed after _horizonWarning (warning affects horizPts)
       s._locationQualitySunset  = calcLocationQuality(s, s._bearing, 'sunset');
       s._locationQualitySunrise = calcLocationQuality(s, s._bearing, 'sunrise');
-    });
+    }
+
+    const FIRST_PAGE = 15;
+    _spots.slice(0, FIRST_PAGE).forEach(_scoreSpot);
     renderBestSpotHero();
     renderSpotsList();
     updateMapMarkers(getFilteredSpots());
     drawEventArc();
-    checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+
+    // ── Score remaining spots during idle time ──────────────────────────
+    const tail = _spots.slice(FIRST_PAGE);
+    if (tail.length) {
+      const scoreRest = () => {
+        tail.forEach(_scoreSpot);
+        renderBestSpotHero(); // hero may change once all spots are scored
+        renderSpotsList();
+        updateMapMarkers(getFilteredSpots());
+        checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+      };
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(scoreRest, { timeout: 3000 });
+      } else {
+        setTimeout(scoreRest, 100);
+      }
+    } else {
+      checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+    }
   } catch (e) {
     console.error('[spots] loadSpots failed:', e);
     _spots = [];
@@ -791,8 +813,11 @@ function renderBestSpotHero() {
   const sc = best._allScores?.[0] || { combined: 5.0 };
   if (sc.combined < 4.5) { heroEl.innerHTML = ''; return; }
   const heroLoc = nextEvt.type === 'sunrise' ? best._locationQualitySunrise : best._locationQualitySunset;
-  const heroSkyBg = scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors);
-  const heroColor = scoreToSkyColor(sc.combined, _weekData?.[0]?.skyColors, getCardBgLuma());
+  const heroBarStyle = scoreToBarStyle(sc.combined, _weekData?.[0]?.skyColors);
+  const [hbr, hbg, hbb] = heroBarStyle.scoreColorRgb.split(',').map(Number);
+  const heroBadgeBg  = `linear-gradient(to bottom,rgba(${hbr},${hbg},${hbb},0.40) 0%,rgba(${Math.round(hbr*0.55)},${Math.round(hbg*0.20)},0,0.55) 100%)`;
+  const heroWcBg     = getWatercolorBg(sc.combined);
+  const heroColor    = heroBarStyle.scoreColor; // kept for strip/strip usage below
   const today = _weekData?.[0];
   const heroEventTime = today ? (nextEvt.type === 'sunrise' ? today.sunrise : today.sunset) : null;
   const departure = heroEventTime ? calcDepartureTime(best._driveMin, heroEventTime, nextEvt.type) : null;
@@ -800,15 +825,13 @@ function renderBestSpotHero() {
 
   heroEl.innerHTML = `
   <div class="glass-strong spot-hero" style="--spot-color:${heroColor}">
-    <div class="spot-hero-strip" style="background:${heroSkyBg.strip}"></div>
+    <div class="spot-hero-strip" style="background:${scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors).strip}"></div>
     <div class="spot-hero-inner">
       <div class="spot-hero-top">
         <div style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">${heroTitle}</div>
         <div style="display:flex;align-items:center;gap:10px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-            <div class="score-badge" style="background:${heroSkyBg.gradient};border:1px solid ${heroColor}55;color:${heroColor};position:relative;overflow:hidden;width:44px;height:44px;font-size:15px">
-              <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
-              <span style="position:relative;z-index:1">${fmtScore(sc.combined)}</span>
+            <div class="score-badge" style="background:${heroBadgeBg};border:1px solid ${heroBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:rgba(255,255,255,0.97);filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden;width:44px;height:44px;font-size:15px" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${heroWcBg})"></div><span style="position:relative;z-index:3;text-shadow:0 0 8px rgba(255,255,255,0.6),0 1px 3px rgba(0,0,0,0.80)">${fmtScore(sc.combined)}</span>
             </div>
             <div style="font-size:9px;color:var(--gold-light);text-align:center">שמיים</div>
             <div class="score-badge score-badge-location" style="width:44px;height:36px;font-size:13px">${heroLoc ?? '—'}</div>
@@ -865,18 +888,17 @@ function renderMiniWeekStrip(allScores) {
       ${allScores.slice(0, 5).map((sc, i) => {
         const skyColors = _weekData?.[i]?.skyColors;
         const barStyle  = scoreToBarStyle(sc.combined, skyColors);
-        const heightPct = Math.max(5, Math.round((sc.combined - 1) / 9 * 100));
-        const bg = barStyle.watercolor ? `url(${barStyle.watercolor}) center/cover` : barStyle.gradient;
+        const heightCalc = `calc(max(15%, ((${sc.combined.toFixed(2)} - 3) / 7) * 100%))`;
         let label = i < 2 ? dayLabels[i] : '';
         if (i >= 2) { const d = _weekData?.[i]?.date; if (d) label = days[new Date(d + 'T12:00:00').getDay()]; }
         return `
         <div class="spot-week-bar-item">
           <div class="spot-week-bar-track">
             <div class="spot-week-bar-outer">
-              <div class="spot-week-bar-score" style="color:${scoreToSkyColor(sc.combined, skyColors, getCardBgLuma())}">${fmtScore(sc.combined)}</div>
+              <div class="spot-week-bar-score" style="color:rgba(255,248,235,0.95)">${fmtScore(sc.combined)}</div>
               <div class="spot-week-bar-fill"
                    data-score="${sc.combined.toFixed(1)}"
-                   style="height:${heightPct}%;background:${bg};border-color:${barStyle.borderColor};box-shadow:${barStyle.glow}"></div>
+                   style="--score-color:${barStyle.scoreColor};--score-color-rgb:${barStyle.scoreColorRgb};height:${heightCalc}"></div>
             </div>
           </div>
           <div class="spot-week-bar-label">${label}</div>
@@ -977,8 +999,11 @@ function renderSpotsList() {
   listEl.innerHTML = visible.map((s, i) => {
     const scores = s._allScores || [{ ss: 5.0, sr: 5.0, tw: 5.0, combined: 5.0 }];
     const sc = scores[0];
-    const cardSkyBg = scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors);
-    const cardColor = scoreToSkyColor(sc.combined, _weekData?.[0]?.skyColors, getCardBgLuma());
+    const cardBarStyle = scoreToBarStyle(sc.combined, _weekData?.[0]?.skyColors);
+    const [cnr, cng, cnb] = cardBarStyle.scoreColorRgb.split(',').map(Number);
+    const cardBadgeBg  = `linear-gradient(to bottom,rgba(${cnr},${cng},${cnb},0.40) 0%,rgba(${Math.round(cnr*0.55)},${Math.round(cng*0.20)},0,0.55) 100%)`;
+    const cardWcBg     = getWatercolorBg(sc.combined);
+    const cardColor    = cardBarStyle.scoreColor; // kept for strip usage
     const bearing = s._bearing || 0;
     const dirLabel = bearingToHeb(bearing);
     const driveMin = s._driveMin || 0;
@@ -1009,15 +1034,13 @@ function renderSpotsList() {
 
     return `
     <div class="glass spot-card spot-card-anim" style="--spot-color:${cardColor};--anim-delay:${i * 60}ms">
-      <div class="spot-color-strip" style="background:${cardSkyBg.strip}"></div>
+      <div class="spot-color-strip" style="background:${scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors).strip}"></div>
       <div class="spot-card-inner">
         <div class="spot-header" onclick="toggleSpot(${i})">
           <div class="spot-header-right">
             <div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
               <div>
-                <div class="score-badge" style="background:${cardSkyBg.gradient};border:1px solid ${cardColor}55;color:${cardColor};position:relative;overflow:hidden">
-                  <div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div>
-                  <span style="position:relative;z-index:1;font-size:14px">${fmtScore(sc.combined)}</span>
+                <div class="score-badge" style="background:${cardBadgeBg};border:1px solid ${cardBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:rgba(255,255,255,0.97);filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${cardWcBg})"></div><span style="position:relative;z-index:3;font-size:14px;text-shadow:0 0 8px rgba(255,255,255,0.6),0 1px 3px rgba(0,0,0,0.80)">${fmtScore(sc.combined)}</span>
                 </div>
                 <div style="font-size:9px;text-align:center;color:var(--gold-light);margin-top:2px">שקיעה</div>
               </div>

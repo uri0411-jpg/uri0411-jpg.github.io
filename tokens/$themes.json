@@ -1,0 +1,19 @@
+[
+  {
+    "id": "sunset",
+    "name": "Sunset",
+    "selectedTokenSets": {
+      "primitives": "source",
+      "semantic": "enabled"
+    }
+  },
+  {
+    "id": "night-vision",
+    "name": "Night Vision",
+    "selectedTokenSets": {
+      "primitives": "source",
+      "semantic": "enabled",
+      "semantic-night": "enabled"
+    }
+  }
+]

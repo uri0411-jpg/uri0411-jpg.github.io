@@ -3,7 +3,7 @@
 //  Cinematic: dynamic glow, progress bars, haptic
 // ═══════════════════════════════════════════
 
-import { scoreToSkyBg, scoreToBarStyle, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor } from './utils.js';
+import { scoreToSkyBg, scoreToBarStyle, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor, getWatercolorBg } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
 import { logoImg, updateDynamicGradient, getCardBgLuma, isAdvancedMode } from './ui.js';
 import { recordUserRating, hasRatedToday } from './calibration.js';
@@ -65,25 +65,27 @@ function _updateLiveScoreColors(skyColors, mainScore) {
   if (!skyColors?.horizon) return;
   const bgLuma = getCardBgLuma();
 
-  // 1. Main gauge arc + number
-  const mainColor = scoreToSkyColor(mainScore, skyColors, bgLuma);
-  const gaugeText = document.querySelector('.gauge-score-text');
-  if (gaugeText) {
-    gaugeText.setAttribute('fill', mainColor);
-    // Three-layer glow: near bloom, mid halo, dark grounding shadow
-    gaugeText.style.filter =
-      `drop-shadow(0 0 18px ${mainColor}BB) ` +
-      `drop-shadow(0 0 6px ${mainColor}66) ` +
-      `drop-shadow(0 2px 4px rgba(0,0,0,0.65))`;
-  }
+  // 1. Main gauge arc — neon color matches weekly forecast bar palette
+  const barStyle = scoreToBarStyle(mainScore, skyColors);
+  const mainColor = barStyle.scoreColor;
+  const mainColorRgb = barStyle.scoreColorRgb;
   const gaugeArc = document.querySelector('.gauge-arc-fill');
   if (gaugeArc) {
     gaugeArc.setAttribute('stroke', mainColor);
     gaugeArc.style.filter =
-      `drop-shadow(0 0 10px ${mainColor}99) ` +
-      `drop-shadow(0 0 4px ${mainColor}55)`;
+      `drop-shadow(0 0 8px ${mainColor}8C) ` +
+      `drop-shadow(0 0 18px ${mainColor}33) ` +
+      `drop-shadow(0 0 40px ${mainColor}12)`;
   }
-
+  const gaugeText = document.querySelector('.gauge-score-text');
+  if (gaugeText) {
+    gaugeText.setAttribute('fill', mainColor);
+    gaugeText.style.filter =
+      `drop-shadow(0 0 8px ${mainColor}8C) ` +
+      `drop-shadow(0 0 18px ${mainColor}33) ` +
+      `drop-shadow(0 0 40px ${mainColor}12) ` +
+      `drop-shadow(0 2px 4px rgba(0,0,0,0.80))`;
+  }
   // Update score tier CSS variables for glow layers + animations
   const tier = mainScore >= 7 ? 'high' : mainScore >= 4 ? 'mid' : 'low';
   const root = document.documentElement;
@@ -92,38 +94,37 @@ function _updateLiveScoreColors(skyColors, mainScore) {
   // Also update --glow-color (used by default ::before ring)
   root.style.setProperty('--glow-color', mainColor + '30');
 
-  // 2. Week bar scores, hourly scores, event scores — ALL screens (text color)
-  for (const el of document.querySelectorAll('.week-bar-score, .hourly-score, .event-score-num, .spot-week-bar-score, .spot-score-cell-main .spot-score-num')) {
+  // 2. Hourly scores, event scores, spot scores — ALL screens (text color)
+  //    Week bar scores excluded — they use fixed cream-white for contrast
+  for (const el of document.querySelectorAll('.hourly-score, .event-score-num, .spot-score-cell-main .spot-score-num')) {
     const s = parseFloat(el.textContent);
     if (!isNaN(s)) el.style.color = scoreToSkyColor(s, skyColors, bgLuma);
   }
 
-  // 3. Week bar fills — watercolor texture + glow
+  // 3. Week bar fills — update score color + liquid gradient on live sky tick
   for (const el of document.querySelectorAll('.week-bar-fill')) {
     const scoreEl = el.querySelector('.week-bar-score');
     const s = scoreEl ? parseFloat(scoreEl.dataset.score ?? scoreEl.textContent) : NaN;
     if (!isNaN(s)) {
       const barStyle = scoreToBarStyle(s, skyColors);
-      el.style.background  = barStyle.watercolor
-        ? `url(${barStyle.watercolor}) center/cover`
-        : barStyle.gradient;
-      el.style.borderColor = barStyle.borderColor;
-      el.style.boxShadow   = barStyle.glow;
-      if (barStyle.shimmer) el.setAttribute('data-shimmer', '');
-      else el.removeAttribute('data-shimmer');
+      const track = el.closest('.week-bar-track');
+      if (track) track.style.setProperty('--score-color-rgb', barStyle.scoreColorRgb);
+      el.style.setProperty('--bar-fill-gradient', _buildLiquidGradient(barStyle.scoreColorRgb, s));
     }
   }
 
-  // 4. Score badges — text + border tint + background — ALL screens (exclude location badges)
+  // 4. Score badges — neon palette matching weekly forecast bars
   for (const el of document.querySelectorAll('.score-badge:not(.score-badge-location)')) {
     const span = el.querySelector('span');
     const s = span ? parseFloat(span.textContent) : NaN;
     if (!isNaN(s)) {
-      const c = scoreToSkyColor(s, skyColors, bgLuma);
-      const bg = scoreToSkyBg(s, skyColors);
-      el.style.color = c;
-      el.style.borderColor = c + '55';
-      el.style.background = bg.gradient;
+      const bs = scoreToBarStyle(s, skyColors);
+      const [nr, ng, nb] = bs.scoreColorRgb.split(',').map(Number);
+      el.style.color = 'rgba(255,255,255,0.97)';
+      el.style.borderColor = bs.scoreColor + '55';
+      el.style.background = `linear-gradient(to bottom,rgba(${nr},${ng},${nb},0.40) 0%,rgba(${Math.round(nr*0.55)},${Math.round(ng*0.20)},0,0.55) 100%)`;
+      el.style.filter = 'saturate(1.45) brightness(1.18)';
+      el.style.borderTopColor = 'rgba(255,255,255,0.30)';
     }
   }
 
@@ -135,11 +136,15 @@ function _updateLiveScoreColors(skyColors, mainScore) {
     if (!isNaN(s)) el.style.background = scoreToSkyBg(s, skyColors).strip;
   }
 
-  // 6. Spot mini week bar fills
+  // 6. Spot mini week bar fills — set --score-color-rgb on parent track
   for (const el of document.querySelectorAll('.spot-week-bar-fill')) {
     const scoreEl = el.parentElement?.querySelector('.spot-week-bar-score');
     const s = scoreEl ? parseFloat(scoreEl.textContent) : NaN;
-    if (!isNaN(s)) el.style.background = scoreToSkyBg(s, skyColors).gradient;
+    if (!isNaN(s)) {
+      const barStyle = scoreToBarStyle(s, skyColors);
+      const track = el.closest('.spot-week-bar-track');
+      if (track) track.style.setProperty('--score-color-rgb', barStyle.scoreColorRgb);
+    }
   }
 
   // 7. data-score-tier refresh (score may drift across tier boundary at runtime)
@@ -894,7 +899,7 @@ function buildMainHTML(loc, city, weekData) {
   if (!today) return '<div class="home-content"><p style="color:var(--cream)">שגיאה בטעינת נתונים</p></div>';
 
   const displayScore = _spotAvgScores?.[0] ?? today.score;
-  const displayColor = scoreToSkyColor(displayScore, today.skyColors, getCardBgLuma());
+  const displayColor = scoreToBarStyle(displayScore, today.skyColors).scoreColor;
   const displayLabel = scoreToStory(displayScore);
 
   const tomorrow = weekData[1] || null;
@@ -1045,7 +1050,7 @@ function buildMainHTML(loc, city, weekData) {
     </div>
 
     <!-- 7-day bar chart -->
-    <div class="glass" style="padding:16px 14px 12px">
+    <div class="glass" style="padding:16px 14px 12px;background:rgba(10,5,2,0.04);backdrop-filter:blur(3px);border-color:rgba(255,200,100,0.08)">
       <div style="font-size:11px;font-weight:700;color:var(--gold);letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px">7 ימים קרובים</div>
       <div id="week-bars" class="week-bars-wrap">
         ${renderWeekBars(weekData)}
@@ -1062,19 +1067,36 @@ function buildMainHTML(loc, city, weekData) {
 }
 
 // ─────────────────────────────────────────
+//  Liquid depth gradient for week bars
+//  Bright warm surface → score color → dark abyss
+// ─────────────────────────────────────────
+function _buildLiquidGradient(scoreColorRgb, score) {
+  const [r, g, b] = scoreColorRgb.split(',').map(Number);
+  // Use exponential curve so low scores stay dark, high scores blaze — more spread
+  const t = Math.max(0, Math.min(1, ((score || 5) - 3) / 7));
+  const t2 = t * t; // exponential: compresses low end, expands high end
+  // Warm-shift: suppress blue fully, green grows aggressively only for high scores
+  const wr = Math.min(255, Math.round(r + (255 - r) * (0.02 + t2 * 0.38)));
+  const wg = Math.max(Math.round(g * (0.6 + t * 1.2)), Math.round(wr * (0.10 + t2 * 0.38)));
+  const wb = Math.round(b * 0.08);
+  // Top surface: near-black crimson for low → blazing gold-white for high
+  const topR = Math.min(255, Math.round(wr + (255 - wr) * (0.10 + t2 * 0.72)));
+  const topG = Math.min(255, Math.round(wg + (255 - wg) * (0.05 + t2 * 0.80)));
+  const topB = Math.round(wb * 0.1 + t2 * 45);
+  // Mid: dark maroon for low, vivid amber for high
+  const r1 = Math.round(wr * (0.55 - t * 0.18)), g1 = Math.round(wg * (0.20 + t2 * 0.18)), b1 = 0;
+  // Bottom abyss: near-black always, slight warm tint at high scores
+  const r2 = Math.round(wr * (0.07 + t2 * 0.08)), g2 = Math.round(wg * 0.02), b2 = 0;
+  return `linear-gradient(to bottom,rgba(${topR},${topG},${topB},0.50) 0%,rgba(${wr},${wg},${wb},0.42) 22%,rgba(${r1},${g1},${b1},0.32) 60%,rgba(${r2},${g2},${b2},0.20) 100%)`;
+}
+
+// ─────────────────────────────────────────
 //  Week bar chart
 // ─────────────────────────────────────────
 function renderWeekBars(weekData) {
   const dayLetters = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
-  const bgLuma = getCardBgLuma();
 
-  // Relative height scaling — exaggerate differences when scores cluster
-  const allScores = weekData.map((d, i) =>
-    (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score);
-  const minS  = Math.min(...allScores);
-  const maxS  = Math.max(...allScores);
-  const range = Math.max(0.5, maxS - minS);
-
+  // Height scaling — proportional: score 3→15%, score 10→100%
   return weekData.map((d, i) => {
     let label;
     if (i === 0) label = 'היום';
@@ -1085,22 +1107,17 @@ function renderWeekBars(weekData) {
     }
     const ds = (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score;
     const barStyle   = scoreToBarStyle(ds, d.skyColors);
-    const relativeT  = (ds - minS) / range;
-    const heightPct  = Math.max(20, Math.round(25 + relativeT * 75));
-    const scoreColor = scoreToSkyColor(ds, d.skyColors, bgLuma);
-    const animDelay  = i * 55;
-    const shimmer    = barStyle.shimmer ? ' data-shimmer' : '';
-    const bg = barStyle.watercolor
-      ? `url(${barStyle.watercolor}) center/cover`
-      : barStyle.gradient;
+    const heightCalc = `calc(max(15%, (${ds.toFixed(2)} / 10) * 100%))`;
+    const wcBg       = getWatercolorBg(ds);
+    const fillGrad   = _buildLiquidGradient(barStyle.scoreColorRgb, ds);
 
     return `
     <div class="week-bar-item" onclick="toggleDaily(${i})">
-      <div class="week-bar-track">
-        <div class="week-bar-fill"
-             data-score="${ds.toFixed(1)}"${shimmer}
-             style="height:${heightPct}%;background:${bg};border-color:${barStyle.borderColor};box-shadow:${barStyle.glow};animation-delay:${animDelay}ms">
-          <span class="week-bar-score" data-score="${ds.toFixed(1)}" style="position:relative;z-index:3;color:${scoreColor};background:rgba(8,3,0,0.28);border-radius:4px;padding:0 3px">${ds.toFixed(1)}</span>
+      <div class="week-bar-track" style="--score-color-rgb:${barStyle.scoreColorRgb}">
+        <div class="week-bar-fill" data-score="${ds.toFixed(1)}" ${ds >= 7 ? 'data-shimmer' : ''}
+             style="height:${heightCalc};--bar-fill-gradient:${fillGrad}">
+          <span class="week-bar-score" data-score="${ds.toFixed(1)}">${ds.toFixed(1)}</span>
+          <div class="week-bar-wc" style="background-image:url(${wcBg})"></div>
         </div>
       </div>
       <div class="week-bar-day">${label}</div>
@@ -1164,15 +1181,17 @@ function renderHourlyStrip(hourlyFull, skyColors) {
 function renderDailyCards(weekData) {
   return weekData.map((d, i) => {
     const ds = (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score;
-    const dsSkyBg = scoreToSkyBg(ds, d.skyColors);
-    const dsColor = scoreToSkyColor(ds, d.skyColors, getCardBgLuma());
+    const dsBarStyle = scoreToBarStyle(ds, d.skyColors);
+    const [dnr, dng, dnb] = dsBarStyle.scoreColorRgb.split(',').map(Number);
+    const dsBadgeBg  = `linear-gradient(to bottom,rgba(${dnr},${dng},${dnb},0.40) 0%,rgba(${Math.round(dnr*0.55)},${Math.round(dng*0.20)},0,0.55) 100%)`;
+    const dsWcBg     = getWatercolorBg(ds);
     return `
     <div class="glass daily-card" style="margin-bottom:8px">
 
       <!-- HEADER -->
       <div class="daily-header" onclick="toggleDaily(${i})" style="cursor:pointer;padding:14px 16px">
         <div style="display:flex;align-items:center;gap:10px">
-          <div class="score-badge" style="background:${dsSkyBg.gradient};border:1px solid ${dsColor}55;color:${dsColor};position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div style="position:absolute;inset:0;background:radial-gradient(ellipse 80% 100% at 50% 0%,rgba(255,255,255,0.25) 0%,rgba(255,255,255,0) 100%)"></div><span style="position:relative;z-index:1;font-size:13px">${ds.toFixed(1)}</span></div>
+          <div class="score-badge" style="background:${dsBadgeBg};border:1px solid ${dsBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:rgba(255,255,255,0.97);filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${dsWcBg})"></div><span style="position:relative;z-index:3;font-size:13px;text-shadow:0 0 8px rgba(255,255,255,0.6),0 1px 3px rgba(0,0,0,0.80)">${ds.toFixed(1)}</span></div>
           <div>
             <div style="font-weight:700;font-size:15px;color:var(--cream)">${d.day} · ${d.shortDate}</div>
             <div style="font-size:11px;color:var(--cream-faint)">${d.cond}</div>
@@ -1482,9 +1501,8 @@ function _refreshBellState(date) {
   });
   // Main bell (today)
   if (_weekData[0]?.date === date) {
-    const alerts2 = getSavedAlerts();
     const mainBell = document.getElementById('main-bell-btn');
-    const hasAny = Object.keys(alerts2).some(k => k.startsWith(date + '-'));
+    const hasAny = Object.keys(alerts).some(k => k.startsWith(date + '-'));
     mainBell?.classList.toggle('bell-btn--active', hasAny);
   }
 }

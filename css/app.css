@@ -31,12 +31,12 @@
   --glass-alpha:    var(--twl-dynamic-glass-alpha,    0.57);
   --glass-saturate: var(--twl-dynamic-glass-saturate, 120%);
   /* Score tier palette — updated dynamically by startLiveGradient() */
-  --score-high-color: var(--twl-color-score-high,      #FFD060);
-  --score-high-glow:  var(--twl-color-score-high-glow, rgba(255,200,50,0.40));
-  --score-mid-color:  var(--twl-color-score-mid,       #FF8C30);
-  --score-mid-glow:   var(--twl-color-score-mid-glow,  rgba(255,120,30,0.30));
-  --score-low-color:  var(--twl-color-score-low,       #7090C8);
-  --score-low-glow:   var(--twl-color-score-low-glow,  rgba(80,100,200,0.20));
+  --score-high-color: var(--twl-color-score-high,      #FFB347);
+  --score-high-glow:  var(--twl-color-score-high-glow, rgba(255,179,71,0.40));
+  --score-mid-color:  var(--twl-color-score-mid,       #C84B4A);
+  --score-mid-glow:   var(--twl-color-score-mid-glow,  rgba(200,75,74,0.30));
+  --score-low-color:  var(--twl-color-score-low,       #3B2C6D);
+  --score-low-glow:   var(--twl-color-score-low-glow,  rgba(59,44,109,0.20));
 }
 
 /* ── Accessibility: Reduced Motion ── */
@@ -389,10 +389,10 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 /* Week bars: overshoot bounce on entry */
 @keyframes barGrow {
-  0%   { height: 0%;    opacity: 0; transform: scaleX(0.75); }
-  55%  { height: 108%;  opacity: 1; transform: scaleX(1.03); }
-  80%  { height: 96%; }
-  100% { height: var(--bar-h, 100%); opacity: 1; transform: scaleX(1); }
+  0%   { transform: scaleY(0) scaleX(0.8); }
+  55%  { transform: scaleY(1.06) scaleX(1.02); }
+  80%  { transform: scaleY(0.97); }
+  100% { transform: scaleY(1) scaleX(1); }
 }
 /* Hourly bars: simple wave fade-grow */
 @keyframes hourlyBarIn {
@@ -689,6 +689,11 @@ body.has-install-banner .screen { padding-top: 56px; }
 .score-card {
   padding: 14px 16px 12px;
   animation: heroEntrance 0.5s ease both;
+  background: transparent;
+  border: 1px solid rgba(212,165,116,0.22);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
 }
 .score-top {
   display: flex;
@@ -1272,100 +1277,145 @@ body.has-install-banner .screen { padding-top: 56px; }
   display: flex;
   gap: 6px;
   align-items: flex-end;
-  height: 100px;
-  padding: 0 8px;
+  justify-content: space-between;
+  padding: 0 2px;
 }
 .week-bar-item {
   flex: 1;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 4px;
+  gap: 5px;
   cursor: pointer;
-  max-width: 38px;
+  min-width: 0;
   transition: transform 0.15s ease;
 }
 .week-bar-item:active { transform: scale(0.95); }
+/* ── Optical Engine: Dark Glass Tube ── */
 .week-bar-track {
   width: 100%;
-  height: 72px;
-  background: rgba(8, 6, 18, 0.75);
-  border: 1px solid rgba(212, 165, 90, 0.18);
-  border-radius: 8px 8px 0 0;
-  display: flex;
-  align-items: flex-end;
-  overflow: hidden;
+  height: 165px;
+  /* Fully transparent — sky shows clean through empty portion */
+  background: transparent;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border: 1px solid rgba(212,165,116,0.22);
+  border-radius: 20px;
   position: relative;
-  box-shadow: inset 0 2px 6px rgba(0,0,0,0.4);
+  overflow: hidden;
+  box-shadow:
+    0 0 8px rgba(var(--score-color-rgb, 255, 100, 0), 0.55),
+    0 0 18px rgba(var(--score-color-rgb, 255, 100, 0), 0.20),
+    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.07);
 }
+/* Top amber indicator pill */
+.week-bar-track::before {
+  content: '';
+  position: absolute;
+  top: 8px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 32%;
+  height: 2px;
+  background: rgba(255, 210, 120, 0.90);
+  border-radius: 2px;
+  box-shadow: 0 0 8px rgba(255, 185, 60, 0.95), 0 0 18px rgba(255, 140, 30, 0.55);
+  z-index: 10;
+  pointer-events: none;
+}
+/* ── Liquid fill — bottom-anchored, proportional height ── */
 .week-bar-fill {
-  width: 100%;
-  border-radius: 8px 8px 0 0;
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding-top: 4px;
-  min-height: 8%;
-  position: relative;
+  position: absolute;
+  bottom: 0; left: 0; right: 0;
+  min-height: 15%;
+  /* Liquid depth gradient: bright surface → peak color → dark abyss */
+  background: var(--bar-fill-gradient,
+    linear-gradient(to bottom, rgba(255,248,220,0.92) 0%, rgba(255,100,0,0.95) 20%, rgba(120,30,0,0.90) 60%, rgba(20,5,0,0.88) 100%)
+  );
+  box-shadow:
+    inset 0 -8px 18px rgba(0, 0, 0, 0.35),
+    0 0 18px rgba(var(--score-color-rgb, 255, 100, 0), 1.00),
+    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.70),
+    0 0 80px rgba(var(--score-color-rgb, 255, 100, 0), 0.38),
+    0 0 140px rgba(var(--score-color-rgb, 255, 100, 0), 0.18);
+  filter: saturate(1.45) brightness(1.18);
+  border-top: 1px solid rgba(255, 255, 255, 0.30);
+  border-radius: 0 0 20px 20px;
+  transition: height 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   overflow: hidden;
-  border: 1px solid transparent;
-  box-shadow: inset 0 1px 1px rgba(255,255,255,0.4);
-
-  will-change: height, background, box-shadow;
-  transition:
-    height       0.8s cubic-bezier(0.34, 1.56, 0.64, 1),
-    background   0.5s ease,
-    box-shadow   0.5s ease,
-    border-color 0.5s ease;
-  animation: barGrow 0.8s cubic-bezier(0.34, 1.56, 0.64, 1) both;
 }
-/* Gem-like highlight — wide ellipse flows down 60%, screen only brightens */
+/* Liquid surface glow — blazing radial at TOP + secondary orb in center */
 .week-bar-fill::before {
   content: '';
   position: absolute;
   inset: 0;
-  background: radial-gradient(
-    ellipse 100% 60% at 50% 0%,
-    rgba(255,255,255,0.30) 0%, transparent 100%);
+  border-radius: inherit;
+  background:
+    radial-gradient(
+      ellipse 75% 35% at 50% 5%,
+      rgba(255, 255, 255, 0.72) 0%,
+      rgba(255, 235, 160, 0.45) 22%,
+      rgba(255, 160, 50, 0.15) 55%,
+      transparent 100%
+    ),
+    radial-gradient(
+      ellipse 55% 45% at 50% 55%,
+      rgba(255, 200, 80, 0.18) 0%,
+      transparent 70%
+    );
   pointer-events: none;
   z-index: 1;
-  border-radius: inherit;
-  mix-blend-mode: screen;
 }
-/* Subtle top sheen for depth */
-.week-bar-fill::after {
+/* Canvas watercolor texture — organic brush texture */
+.week-bar-wc {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  mix-blend-mode: soft-light;
+  opacity: 0.38;
+  pointer-events: none;
+  z-index: 2;
+}
+/* Shimmer sweep for high scores */
+.week-bar-fill[data-shimmer]::after {
   content: '';
   position: absolute;
   inset: 0;
-  background: linear-gradient(180deg,
-    rgba(255,255,255,0.06) 0%, transparent 35%);
-  pointer-events: none;
-  z-index: 2;
   border-radius: inherit;
-}
-/* Cinematic shimmer sweep for high scores (≥7) */
-.week-bar-fill[data-shimmer]::after {
-  background: linear-gradient(105deg,
-              transparent 25%,
-              rgba(255,255,255,0.12) 40%,
-              rgba(255,255,255,0.25) 50%,
-              rgba(255,255,255,0.12) 60%,
-              transparent 75%);
-  background-size: 300% 100%;
-  animation: barSweep 3.8s ease-in-out infinite;
+  background: linear-gradient(
+    105deg,
+    transparent 20%,
+    rgba(255, 255, 255, 0.08) 36%,
+    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.08) 64%,
+    transparent 80%
+  );
+  background-size: 250% 100%;
+  animation: badgeSweep 3.5s ease-in-out infinite;
+  pointer-events: none;
   z-index: 3;
 }
-@keyframes barSweep {
-  0%   { background-position: -200% center; }
-  100% { background-position: 300% center; }
-}
+/* Score number — positioned in the upper glow zone of the liquid */
 .week-bar-score {
-  font-size: 10px;
+  position: absolute;
+  top: 28%; left: 0; right: 0;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 13px;
   font-weight: 800;
+  letter-spacing: 0.02em;
   line-height: 1;
+  color: rgba(255, 255, 255, 0.97);
+  text-shadow:
+    0 0 14px rgba(255, 210, 100, 0.95),
+    0 0 28px rgba(255, 150, 40, 0.60),
+    0 1px 3px rgba(0, 0, 0, 0.80);
+  z-index: 5;
+  pointer-events: none;
 }
-.week-bar-day { font-size: 10px; font-weight: 700; color: var(--cream-faint); }
-.week-bar-date { font-size: 9px; color: rgba(245,230,200,0.3); }
+.week-bar-day { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: var(--cream-faint); text-align: center; }
+.week-bar-date { font-size: 9px; letter-spacing: 0.05em; color: rgba(245,230,200,0.3); text-align: center; }
 
 /* Daily accordion */
 .daily-card {
@@ -1400,6 +1450,30 @@ body.has-install-banner .screen { padding-top: 56px; }
   transition: transform 0.2s ease, box-shadow 0.3s ease;
 }
 .score-badge:active { transform: scale(0.95); }
+/* Liquid surface glow — same as week-bar-fill::before */
+.score-badge::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  background:
+    radial-gradient(ellipse 75% 35% at 50% 5%, rgba(255,255,255,0.72) 0%, rgba(255,235,160,0.45) 22%, rgba(255,160,50,0.15) 55%, transparent 100%),
+    radial-gradient(ellipse 55% 45% at 50% 55%, rgba(255,200,80,0.18) 0%, transparent 70%);
+  pointer-events: none;
+  z-index: 1;
+}
+/* Watercolor texture layer */
+.score-badge-wc {
+  position: absolute;
+  inset: 0;
+  background-size: cover;
+  background-position: center;
+  mix-blend-mode: soft-light;
+  opacity: 0.38;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 2;
+}
 /* Location quality badge — static, muted blue-silver (not weather-dependent) */
 .score-badge-location {
   width: 38px; height: 38px;
@@ -2325,54 +2399,59 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 .spot-week-bar-track {
   width: 100%;
-  height: 48px;
-  background: rgba(245,224,190,0.05);
-  border-radius: 5px;
-  display: flex;
-  align-items: flex-end;
-  overflow: visible;  /* allow glow to escape */
+  height: 80px;
+  background: transparent;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  backdrop-filter: blur(25px) saturate(150%);
+  -webkit-backdrop-filter: blur(25px) saturate(150%);
 }
 .spot-week-bar-outer {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  top: 0;
   display: flex;
   flex-direction: column;
   align-items: center;
-  width: 100%;
-  height: 48px;
   justify-content: flex-end;
 }
 .spot-week-bar-score {
   font-size: 9px;
-  font-weight: 800;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   margin-bottom: 2px;
   line-height: 1;
+  color: rgba(255, 255, 255, 0.92);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.35);
+  z-index: 3;
 }
 .spot-week-bar-fill {
-  width: 100%;
-  border-radius: 6px 6px 0 0;
-  min-height: 10%;
-  position: relative;
-  overflow: hidden;
-  border: 1px solid transparent;
-  will-change: height;
-  transition:
-    height       0.5s cubic-bezier(0.34, 1.56, 0.64, 1),
-    background   0.5s ease,
-    box-shadow   0.4s ease,
-    border-color 0.4s ease;
-}
-.spot-week-bar-fill::before {
-  content: '';
   position: absolute;
-  inset: 0;
-  background: radial-gradient(ellipse 100% 60% at 50% 0%, rgba(255,255,255,0.28) 0%, transparent 100%);
-  pointer-events: none;
-  z-index: 1;
-  mix-blend-mode: screen;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  min-height: 15%;
+  background: rgba(255, 255, 255, 0.01);
+  box-shadow:
+    inset 0 0 25px rgba(var(--score-color-rgb, 255, 100, 0), 0.9),
+    inset 0 0 60px rgba(var(--score-color-rgb, 255, 100, 0), 0.4),
+    0 0 15px rgba(var(--score-color-rgb, 255, 100, 0), 0.6);
+  backdrop-filter: blur(20px) saturate(180%);
+  -webkit-backdrop-filter: blur(20px) saturate(180%);
+  mix-blend-mode: color-dodge;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
+  transition: height 0.6s cubic-bezier(0.33, 1, 0.68, 1);
 }
 .spot-week-bar-label {
   font-size: 9px;
   color: var(--cream-faint);
-  font-weight: 600;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-align: center;
 }
 
 /* Spot photo (embedded) */

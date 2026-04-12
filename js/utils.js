@@ -5,15 +5,15 @@
 
 import { WIND_DIRS } from './config.js';
 
-// 7-stop sunset ramp (sampled from reference painting — vivid, saturated)
+// 7-stop sunset ramp — physics-driven, mapped to sun altitude
 const SUNSET = [
-  { r: 55,  g: 115, b: 230 },  // t=0.00 — electric sky blue
-  { r: 100, g: 40,  b: 200 },  // t=0.17 — vivid indigo
-  { r: 205, g: 20,  b: 170 },  // t=0.33 — vivid magenta
-  { r: 235, g: 55,  b: 125 },  // t=0.50 — hot pink
-  { r: 235, g: 95,  b: 65 },   // t=0.67 — warm coral
-  { r: 235, g: 148, b: 28 },   // t=0.83 — rich orange
-  { r: 248, g: 202, b: 32 },   // t=1.00 — bright gold
+  { r: 62,  g: 40,  b: 120 },  // t=0.00 — deep purple (end of twilight)
+  { r: 95,  g: 45,  b: 145 },  // t=0.17 — rich violet
+  { r: 165, g: 50,  b: 120 },  // t=0.33 — warm magenta (sunset start)
+  { r: 210, g: 85,  b: 90  },  // t=0.50 — rose coral
+  { r: 240, g: 120, b: 70  },  // t=0.67 — sunset orange
+  { r: 240, g: 165, b: 55  },  // t=0.83 — warm amber
+  { r: 255, g: 185, b: 65  },  // t=1.00 — soft gold (peak moment)
 ];
 
 function sampleSunset(t) {
@@ -35,14 +35,15 @@ function generateWatercolorBar(score, width = 60, height = 120) {
   const ctx = canvas.getContext('2d');
 
   const t = (Math.max(1, Math.min(10, score)) - 1) / 9;
-  const top = sampleSunset(Math.max(0, t - 0.15));
-  const mid = sampleSunset(t);
-  const bot = sampleSunset(Math.min(1, t + 0.15));
+  const base = sampleSunset(t);
+  const bHsl = rgbToHsl(base.r, base.g, base.b);
+  const top = hslToRgb(bHsl.h, bHsl.s * 0.75, Math.min(0.90, bHsl.l + 0.22));
+  const bot = hslToRgb(bHsl.h, Math.min(1, bHsl.s * 1.15), Math.max(0.08, bHsl.l - 0.30));
 
-  // 1. Base gradient
+  // 1. Base gradient — semi-transparent so sky bleeds through
   const grad = ctx.createLinearGradient(0, 0, 0, height);
-  grad.addColorStop(0,   `rgba(${top.r},${top.g},${top.b},0.85)`);
-  grad.addColorStop(0.5, `rgba(${mid.r},${mid.g},${mid.b},0.95)`);
+  grad.addColorStop(0,   `rgba(${top.r},${top.g},${top.b},0.60)`);
+  grad.addColorStop(0.5, `rgba(${base.r},${base.g},${base.b},0.72)`);
   grad.addColorStop(1,   `rgba(${bot.r},${bot.g},${bot.b},0.80)`);
   ctx.fillStyle = grad;
   ctx.fillRect(0, 0, width, height);
@@ -60,16 +61,17 @@ function generateWatercolorBar(score, width = 60, height = 120) {
     const r = 12 + rand() * 35;
 
     const rg = ctx.createRadialGradient(x, y, 0, x, y, r);
-    rg.addColorStop(0,   `rgba(${c.r},${c.g},${c.b},0.28)`);
-    rg.addColorStop(0.5, `rgba(${c.r},${c.g},${c.b},0.10)`);
+    rg.addColorStop(0,   `rgba(${c.r},${c.g},${c.b},0.12)`);
+    rg.addColorStop(0.5, `rgba(${c.r},${c.g},${c.b},0.05)`);
     rg.addColorStop(1,   `rgba(${c.r},${c.g},${c.b},0)`);
     ctx.fillStyle = rg;
     ctx.fillRect(0, 0, width, height);
   }
 
-  // 3. Top gem highlight
+  // 3. Top gem highlight — intensity increases with score (sun glow)
+  const glowAlpha = 0.10 + t * 0.22; // low scores: subtle, high scores: strong
   const shine = ctx.createRadialGradient(width / 2, 0, 0, width / 2, 0, height * 0.6);
-  shine.addColorStop(0, 'rgba(255,255,255,0.22)');
+  shine.addColorStop(0, `rgba(255,255,255,${glowAlpha.toFixed(2)})`);
   shine.addColorStop(1, 'rgba(255,255,255,0)');
   ctx.fillStyle = shine;
   ctx.fillRect(0, 0, width, height);
@@ -106,8 +108,8 @@ export function scoreToSkyBg(score, skyColors) {
   } else {
     // Offline / pre-render fallback: score→hue ramp (blue→purple→red→orange→gold)
     const hue = 220 - t * 190;
-    const sat = 0.35 + t * 0.30;
-    const lit = 0.38 + t * 0.15;
+    const sat = 0.28 + t * 0.22;
+    const lit = 0.32 + t * 0.18;
     rgb = hslToRgb(hue, sat, lit);
   }
 
@@ -139,21 +141,17 @@ export function scoreToSkyBg(score, skyColors) {
 
   const hex = rgbToHex(loaded.r, loaded.g, loaded.b);
   const c  = (c) => rgbToHex(c.r, c.g, c.b);
+
+  // Glass gradient — same 7 stops but low-alpha rgba for glassmorphism
+  const alpha = 0.18 + t * 0.17;
+  const ga = (col, a) => `rgba(${col.r},${col.g},${col.b},${a.toFixed(2)})`;
+
   return {
     gradient: `linear-gradient(180deg,${c(wet)} 0%,${c(r1)} 10%,${c(r2)} 28%,${hex} 50%,${c(r4)} 68%,${c(r5)} 85%,${c(settled)} 100%)`,
+    glassGradient: `rgba(${loaded.r},${loaded.g},${loaded.b},0.20)`,
     glow: `${hex}88`,
     strip: hex,
   };
-}
-
-/**
- * Lerp between two hex colors
- */
-function lerpColor(c1, c2, t) {
-  const r1 = parseInt(c1.slice(1,3),16), g1 = parseInt(c1.slice(3,5),16), b1 = parseInt(c1.slice(5,7),16);
-  const r2 = parseInt(c2.slice(1,3),16), g2 = parseInt(c2.slice(3,5),16), b2 = parseInt(c2.slice(5,7),16);
-  const r = Math.round(r1+(r2-r1)*t), g = Math.round(g1+(g2-g1)*t), b = Math.round(b1+(b2-b1)*t);
-  return `#${r.toString(16).padStart(2,'0')}${g.toString(16).padStart(2,'0')}${b.toString(16).padStart(2,'0')}`;
 }
 
 /** Lerp between two {r,g,b} objects */
@@ -267,7 +265,7 @@ export function scoreToSkyColor(score, skyColors, cardBgLuma) {
   } else {
     // Offline fallback: score→hue ramp (blue→purple→red→orange→gold)
     const hue = 220 - t * 190;
-    rgb = hslToRgb(hue, 0.35 + t * 0.30, 0.50 + t * 0.15);
+    rgb = hslToRgb(hue, 0.28 + t * 0.22, 0.45 + t * 0.18);
   }
 
   // Boost saturation: physics sky colors tend to be desaturated (sat ~0.1-0.2)
@@ -319,8 +317,8 @@ export function addMinutes(timeStr, mins) {
   if (!timeStr || timeStr === '--:--') return '--:--';
   const [h, m] = timeStr.split(':').map(Number);
   const total = h * 60 + m + mins;
-  const nh = Math.floor(total / 60) % 24;
-  const nm = total % 60;
+  const nh = ((Math.floor(total / 60) % 24) + 24) % 24;
+  const nm = ((total % 60) + 60) % 60;
   return `${String(nh).padStart(2, '0')}:${String(nm).padStart(2, '0')}`;
 }
 
@@ -632,10 +630,10 @@ export function buildGaugeArc(score, color, size = 120) {
             stroke-linecap="round"
             stroke-dasharray="0 ${totalArc}"
             data-arc-target="${arcTarget}"
-            style="filter:drop-shadow(0 0 10px ${color}99) drop-shadow(0 0 4px ${color}55);transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
+            style="filter:drop-shadow(0 0 8px ${color}8C) drop-shadow(0 0 18px ${color}33) drop-shadow(0 0 40px ${color}12);transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
       <text class="gauge-score-text" x="${cx}" y="${cy - 8}" text-anchor="middle"
             font-family="var(--font-title)" font-size="32" font-weight="900"
-            fill="${color}" style="filter:drop-shadow(0 0 18px ${color}BB) drop-shadow(0 0 6px ${color}66) drop-shadow(0 2px 4px rgba(0,0,0,0.65))">
+            fill="${color}" style="filter:drop-shadow(0 0 8px ${color}8C) drop-shadow(0 0 18px ${color}33) drop-shadow(0 0 40px ${color}12) drop-shadow(0 2px 4px rgba(0,0,0,0.80))">
         ${displayScore}
       </text>
       <text x="${cx}" y="${cy + 10}" text-anchor="middle"
@@ -688,6 +686,32 @@ export function calcGoldenHourMin(lat, date) {
 // ─── Cinematic Bar Style ─────────────────────────────────────────────────────
 
 /**
+ * Maps score 3→10 to a highly-saturated neon palette:
+ * purple (3) → deep red (5) → scarlet-orange (7) → sun-gold (10)
+ */
+function scoreToNeonColor(score) {
+  const STOPS = [
+    { s: 3,  r: 140, g:  55, b: 190 }, // warm twilight purple
+    { s: 5,  r: 215, g:  35, b:  55 }, // deep sunset red
+    { s: 7,  r: 255, g: 105, b:   5 }, // vibrant sunset orange
+    { s: 10, r: 255, g: 195, b:  20 }, // bright gold
+  ];
+  const clamped = Math.max(3, Math.min(10, score));
+  let lo = STOPS[0], hi = STOPS[STOPS.length - 1];
+  for (let i = 0; i < STOPS.length - 1; i++) {
+    if (clamped >= STOPS[i].s && clamped <= STOPS[i + 1].s) {
+      lo = STOPS[i]; hi = STOPS[i + 1]; break;
+    }
+  }
+  const t = (clamped - lo.s) / (hi.s - lo.s);
+  return {
+    r: Math.round(lo.r + (hi.r - lo.r) * t),
+    g: Math.round(lo.g + (hi.g - lo.g) * t),
+    b: Math.round(lo.b + (hi.b - lo.b) * t),
+  };
+}
+
+/**
  * scoreToBarStyle(score, skyColors)
  * Returns { gradient, borderColor, glow, shimmer } for bar fills.
  * Luminous Sky Bar Style v2
@@ -695,11 +719,11 @@ export function calcGoldenHourMin(lat, date) {
  */
 export function scoreToLuminousBarStyle(score, skyColors) {
   const bg = scoreToSkyBg(score, skyColors);
-  const watercolor = getWatercolorBg(score);
-  const borderColor = bg.strip + 'dd';
-  const innerHighlight = 'rgba(255,255,255,0.18)';
-  const glow = `inset 0 1px 1px rgba(255,255,255,0.4), 0 0 6px ${bg.glow}, 0 0 20px ${bg.strip}55, 0 0 40px ${bg.strip}22, 0 6px 16px rgba(0,0,0,0.55)`;
-  const shimmer = score >= 6.5;
-  return { gradient: bg.gradient, watercolor, borderColor, glow, shimmer, innerHighlight };
+  const neon = scoreToNeonColor(score);
+  const shimmer = score >= 7;
+  const scoreColor = `rgb(${neon.r},${neon.g},${neon.b})`;
+  const scoreColorRgb = `${neon.r},${neon.g},${neon.b}`;
+  const scoreGlow = `rgba(${neon.r},${neon.g},${neon.b},0.9)`;
+  return { gradient: bg.gradient, glassGradient: scoreColor, scoreColor, scoreColorRgb, scoreGlow, shimmer };
 }
 export { scoreToLuminousBarStyle as scoreToBarStyle };
