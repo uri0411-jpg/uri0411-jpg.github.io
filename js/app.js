@@ -258,6 +258,11 @@ async function loadAppData() {
     _loc  = { lat: 32.0853, lon: 34.7818, isFallback: true };
     _city = 'מאתר מיקום...';
     getGPS().then(async pos => {
+      if (pos.permDenied) {
+        showToast('הגישה למיקום נחסמה — ניתן לחפש מיקום ידנית', 'info');
+        _city = 'תל אביב';
+        return;
+      }
       if (pos.isFallback) {
         showToast('לא ניתן לאתר מיקום — מציג תחזית לתל אביב', 'info');
         return;
@@ -396,8 +401,11 @@ async function handleRefresh(e) {
     // that would create a stale EMA pin at a slightly different lat/lon key.
     if (e?.detail?.gps) {
       const freshLoc = await getGPS();
-      _loc  = freshLoc;
-      if (!freshLoc.isFallback) {
+      if (freshLoc.permDenied) {
+        showToast('הגישה למיקום נחסמה — שנה בהגדרות הדפדפן', 'error');
+        // Continue refresh with existing _loc
+      } else if (!freshLoc.isFallback) {
+        _loc  = freshLoc;
         _city = await fetchCityName(freshLoc.lat, freshLoc.lon);
         saveLocation(freshLoc.lat, freshLoc.lon, _city);
       } else {

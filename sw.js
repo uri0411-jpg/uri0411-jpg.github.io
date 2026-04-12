@@ -8,7 +8,7 @@
 //   node -e "const f='sw.js',d=new Date().toISOString().slice(0,10).replace(/-/g,''); \
 //            require('fs').writeFileSync(f, require('fs').readFileSync(f,'utf8') \
 //            .replace(/BUILD_DATE = '\d+'/, \"BUILD_DATE = '\" + d + \"'\"))"
-const BUILD_DATE  = '20260412'; // YYYYMMDD — update per deploy
+const BUILD_DATE  = '20260413'; // YYYYMMDD — update per deploy
 const CACHE_NAME  = 'twl-v' + BUILD_DATE; // auto-namespaces cache per deploy
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
@@ -118,7 +118,7 @@ self.addEventListener('fetch', event => {
   if (url.protocol === 'chrome-extension:') return;
 
   // Map tiles — stale-while-revalidate with capped cache (MAX_TILES)
-  if (url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('basemaps.cartocdn.com') || url.hostname.includes('israelhiking.osm.org.il')) {
+  if (url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('basemaps.cartocdn.com')) {
     event.respondWith(staleWhileRevalidateTile(request));
     return;
   }

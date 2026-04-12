@@ -166,6 +166,7 @@ export function renderNightSky(container, nightFactor, date) {
   // Per-star opacity tiers are baked into the offscreen canvas; only the shared
   // scale factor changes per tick, so the blend path is a single composited blit.
   const starC = _buildStarCanvas(w, h);
+  if (!starC || starC.width <= 0 || starC.height <= 0) return; // guard: skip if star canvas has no area
   ctx.globalAlpha = nightFactor * (0.6 + 0.4 * nightFactor);
   ctx.drawImage(starC, 0, 0);
   ctx.globalAlpha = 1;

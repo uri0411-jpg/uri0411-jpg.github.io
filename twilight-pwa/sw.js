@@ -97,7 +97,7 @@ self.addEventListener('fetch', event => {
   if (url.protocol === 'chrome-extension:') return;
 
   // Map tiles — stale-while-revalidate with capped cache (MAX_TILES)
-  if (url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('basemaps.cartocdn.com') || url.hostname.includes('israelhiking.osm.org.il')) {
+  if (url.hostname.includes('tile.openstreetmap.org') || url.hostname.includes('basemaps.cartocdn.com')) {
     event.respondWith(staleWhileRevalidateTile(request));
     return;
   }

@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════
 
 import { fetchSpots, fetchCityName } from './api.js';
-import { loadLocation, getGPS, saveLocation } from './location.js';
+import { loadLocation, getGPS, saveLocation, checkLocationPermission } from './location.js';
 import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, addMinutes, calcSolarAzimuth, destPoint, getWatercolorBg } from './utils.js';
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
@@ -534,10 +534,11 @@ async function initLeafletMap() {
   if (!el) return;
   const lat = _loc?.lat || 32.0853, lon = _loc?.lon || 34.7818;
   _map = L.map('spots-map', { zoomControl: false }).setView([lat, lon], 11);
-  L.tileLayer('https://israelhiking.osm.org.il/Hebrew/Tiles/{z}/{x}/{y}.png', {
-    attribution: '© <a href="https://israelhiking.osm.org.il">Israel Hiking Map</a> | © OSM',
-    maxZoom: 19,
-    maxNativeZoom: 16
+  L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+    attribution: '&copy; <a href="https://carto.com">CARTO</a> | &copy; <a href="https://osm.org/copyright">OSM</a>',
+    subdomains: 'abcd',
+    maxZoom: 20,
+    maxNativeZoom: 19
   }).addTo(_map);
   const userIcon = L.divIcon({
     html: '<div style="width:14px;height:14px;background:#F0B84A;border:2px solid #fff;border-radius:50%;box-shadow:0 0 10px rgba(240,184,74,0.9);animation:pulse 1.5s ease-in-out infinite"></div>',
@@ -989,13 +990,15 @@ function renderSpotsList() {
     return;
   }
 
-  if (countEl) countEl.textContent = `${sorted.length} נקודות נמצאו`;
   const today = _weekData?.[0];
   const nextEvt = getNextEvent();
   const eventTime = today ? (nextEvt.type === 'sunrise' ? today.sunrise : today.sunset) : null;
 
   const visible = sorted.slice(0, _visibleCount);
   const remaining = sorted.length - visible.length;
+  if (countEl) countEl.textContent = remaining > 0
+    ? `מציג ${visible.length} מתוך ${sorted.length} נקודות`
+    : `${sorted.length} נקודות נמצאו`;
 
   listEl.innerHTML = visible.map((s, i) => {
     const scores = s._allScores || [{ ss: 5.0, sr: 5.0, tw: 5.0, combined: 5.0 }];
@@ -1172,9 +1175,10 @@ function renderSpotsList() {
   }).join('');
 
   if (remaining > 0) {
+    const nextBatch = Math.min(15, remaining);
     listEl.innerHTML += `
       <button class="search-filter-btn spot-load-more" id="spots-load-more" style="width:100%;margin-top:8px">
-        הצג עוד ${remaining} נקודות
+        הצג ${nextBatch} נוספים (${remaining} נותרו)
       </button>`;
     document.getElementById('spots-load-more')?.addEventListener('click', () => {
       haptic('light');
@@ -1283,9 +1287,19 @@ async function doSearch() {
 function attachSpotsEvents() {
   document.getElementById('gps-btn')?.addEventListener('click', async () => {
     haptic('medium');
+    const perm = await checkLocationPermission();
+    if (perm === 'denied') {
+      showToast('הגישה למיקום נחסמה — שנה בהגדרות הדפדפן', 'error');
+      return;
+    }
     showToast('מאתר מיקום...', 'info');
     try {
-      const pos = await getGPS(); _loc = pos;
+      const pos = await getGPS();
+      if (pos.isFallback || pos.permDenied) {
+        showToast('לא ניתן לאתר מיקום', 'error');
+        return;
+      }
+      _loc = pos;
       const city = await fetchCityName(pos.lat, pos.lon);
       saveLocation(pos.lat, pos.lon, city);
       showToast(`מעדכן תחזית ל: ${city}`, 'info');

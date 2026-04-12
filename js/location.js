@@ -7,41 +7,77 @@ const LOC_KEY      = 'twl_location';
 const MAX_AGE_MS   = 24 * 60 * 60 * 1000; // 24 hours
 
 /**
- * Get current GPS position
- * FIX: tries high-accuracy first (8s timeout), falls back to low-accuracy
- * Returns { lat, lon }
+ * Check geolocation permission state without triggering a prompt.
+ * Returns 'granted' | 'denied' | 'prompt' | 'unknown'
  */
-export function getGPS() {
-  return new Promise((resolve, reject) => {
-    if (!navigator.geolocation) {
-      reject(new Error('Geolocation not supported'));
-      return;
-    }
+export async function checkLocationPermission() {
+  try {
+    if (!navigator.permissions) return 'unknown';
+    const status = await navigator.permissions.query({ name: 'geolocation' });
+    return status.state;
+  } catch { return 'unknown'; }
+}
 
-    // First attempt: high accuracy (better for Spot Finder)
+/** Wrap getCurrentPosition in a clean Promise */
+function _geoPos(options) {
+  return new Promise((resolve, reject) => {
     navigator.geolocation.getCurrentPosition(
       pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-      _err => {
-        console.warn('[location] High-accuracy GPS failed, retrying with low accuracy:', _err.message);
-        // Second attempt: low accuracy, faster
-        navigator.geolocation.getCurrentPosition(
-          pos => resolve({ lat: pos.coords.latitude, lon: pos.coords.longitude }),
-          err => {
-            console.warn('[location] GPS failed entirely:', err.message, '— using Tel Aviv fallback');
-            const saved = loadLocation();
-            if (saved) {
-              resolve(saved);
-            } else {
-              console.warn('[location] No saved location available, defaulting to Tel Aviv (32.0853, 34.7818)');
-              resolve({ lat: 32.0853, lon: 34.7818, isFallback: true });
-            }
-          },
-          { timeout: 10000, enableHighAccuracy: false }
-        );
-      },
-      { timeout: 12000, enableHighAccuracy: true }
+      err => reject(err),
+      options
     );
   });
+}
+
+/**
+ * Get current GPS position with permission-aware timeouts.
+ *  - 'denied'  → instant fallback (no 22-second wait)
+ *  - 'granted' → short timeouts (6s high / 4s low)
+ *  - 'prompt'  → longer timeouts (15s high / 8s low — user needs time for dialog)
+ *
+ * Returns { lat, lon, isFallback?, permDenied? }
+ */
+export async function getGPS() {
+  if (!navigator.geolocation) {
+    console.warn('[location] Geolocation not supported');
+    return _fallbackLocation(false);
+  }
+
+  // Check permission state before calling getCurrentPosition
+  const perm = await checkLocationPermission();
+
+  if (perm === 'denied') {
+    console.warn('[location] Geolocation permission denied — skipping GPS');
+    return _fallbackLocation(true);
+  }
+
+  // Adaptive timeouts: granted = fast, prompt/unknown = patient
+  const fast = perm === 'granted';
+  const hiTimeout  = fast ? 6000  : 15000;
+  const loTimeout  = fast ? 4000  : 8000;
+
+  try {
+    return await _geoPos({ timeout: hiTimeout, enableHighAccuracy: true });
+  } catch (e) {
+    console.warn('[location] High-accuracy GPS failed:', e.message);
+  }
+
+  try {
+    return await _geoPos({ timeout: loTimeout, enableHighAccuracy: false });
+  } catch (e) {
+    console.warn('[location] Low-accuracy GPS failed:', e.message);
+  }
+
+  console.warn('[location] GPS failed entirely — using fallback');
+  return _fallbackLocation(false);
+}
+
+/** Return saved location or Tel Aviv default */
+function _fallbackLocation(permDenied) {
+  const saved = loadLocation();
+  if (saved) return { ...saved, permDenied };
+  console.warn('[location] No saved location, defaulting to Tel Aviv (32.0853, 34.7818)');
+  return { lat: 32.0853, lon: 34.7818, isFallback: true, permDenied };
 }
 
 /**
@@ -145,9 +181,9 @@ export function watchSunsetBearing(sunsetAzimuthDeg, onUpdate) {
   return () => window.removeEventListener('deviceorientation', handleOrientation, true);
 }
 
-// ✎ fixed: getGPS — high-accuracy first (8s), fallback to low-accuracy (10s)
+// ✎ rebuilt: getGPS — permission-aware (Permissions API), adaptive timeouts, instant denied fallback
+// ✎ added: checkLocationPermission — non-triggering permission state check
 // ✎ fixed: saveLocation — adds savedAt timestamp
 // ✎ fixed: loadLocation — rejects locations older than 24h
-// ✎ fixed: Tel Aviv fallback — explicit console.warn with coordinates
 // ✎ added: watchSunsetBearing — DeviceOrientation compass (Pulse 4)
 // ✓ location.js — complete

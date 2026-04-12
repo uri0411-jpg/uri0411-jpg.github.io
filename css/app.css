@@ -1706,7 +1706,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 #spots-map .leaflet-control-attribution a { color: rgba(255,255,255,0.4) !important; }
 #spots-map { background: var(--twl-color-surface-app) !important; }
 /* Darken the tile layer via CSS filter */
-#spots-map .leaflet-tile-pane { filter: brightness(0.55) contrast(1.1) saturate(0.4) sepia(0.15); }
+#spots-map .leaflet-tile-pane { filter: brightness(0.90) contrast(1.05) saturate(0.85) sepia(0.08); }
 #spots-map .leaflet-popup-content-wrapper {
   background: rgba(30,12,2,0.92) !important;
   border: 1px solid rgba(212,165,116,0.3) !important;
