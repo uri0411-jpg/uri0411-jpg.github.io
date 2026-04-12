@@ -10,6 +10,12 @@ import { getCache, setCache } from './cache.js';
 const CACHE_TTL_MIN = 60 * 24 * 7;   // 7 days
 const USER_AGENT = 'TwilightPWA/1.0 (sunset forecast; contact: github.com/twilight-pwa)';
 
+const LANDSCAPE_KEYWORDS = [
+  'sunset', 'sunrise', 'landscape', 'panorama', 'panoramic', 'view', 'viewpoint',
+  'scenery', 'scenic', 'skyline', 'horizon', 'golden hour', 'dusk', 'twilight', 'dawn',
+  'שקיעה', 'זריחה', 'נוף', 'פנורמה', 'תצפית', 'אופק',
+];
+
 /**
  * Resolve a photo for a spot. Returns { url, credit, sourceLabel, pageUrl }
  * or null if nothing found. Safe to call repeatedly — cached by coordinate.
@@ -58,6 +64,24 @@ async function tryDirectImageTag(spot) {
   };
 }
 
+// ─── Scoring helper: prefer landscape / sunset images ─────────
+function scoreCandidate(page) {
+  const info = page.imageinfo?.[0];
+  if (!info) return 0;
+  const ext = info.extmetadata || {};
+  const text = [
+    page.title || '',
+    ext.Categories?.value || '',
+    ext.ImageDescription?.value || '',
+    ext.ObjectName?.value || '',
+  ].join(' ').toLowerCase();
+  let score = 0;
+  for (const kw of LANDSCAPE_KEYWORDS) {
+    if (text.includes(kw.toLowerCase())) score += 1;
+  }
+  return score;
+}
+
 // ─── Source 2: Wikimedia Commons geosearch (geographic) ────────
 async function tryCommonsGeosearch(spot, radiusM) {
   const u = new URL('https://commons.wikimedia.org/w/api.php');
@@ -87,12 +111,14 @@ async function tryCommonsGeosearch(spot, radiusM) {
         url: info.thumburl || info.url,
         pageUrl: info.descriptionurl,
         credit: info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '').trim() || 'Wikimedia Commons',
+        score: scoreCandidate(p),
       } : null;
     })
-    .filter(Boolean);
-  const first = candidates[0];
-  if (!first) return null;
-  return { ...first, sourceLabel: 'ויקישיתוף' };
+    .filter(Boolean)
+    .sort((a, b) => b.score - a.score);
+  const best = candidates[0];
+  if (!best) return null;
+  return { url: best.url, credit: best.credit, pageUrl: best.pageUrl, sourceLabel: 'ויקישיתוף' };
 }
 
 // ─── Source 3: Wikidata P18 image claim ─────────────────────────
