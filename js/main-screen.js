@@ -209,8 +209,10 @@ function startLiveGradient(today, loc) {
 
   // Track score tier for haptic crossing detection
   let _prevScoreTier = displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low';
+  let isReady = false;
 
   function update() {
+    // ── State computation (pure, no try-catch) ─────────────────────────────
     let liveSkyColors  = today.skyColors ?? null;
     let liveElevDeg    = today._solarElevation ?? 0;
     let liveAirmass    = today.physicsContributions?.airMass ?? 10;
@@ -281,81 +283,100 @@ function startLiveGradient(today, loc) {
     const skyT = Math.max(0, Math.min(1, (liveElevDeg + 6) / 12));
     document.documentElement.style.setProperty('--twl-dynamic-ui-sky-t', skyT.toFixed(3));
 
-    // Score-driven photo mood: saturate + brightness of the background photo
-    // reflects the day's forecast quality so the scene matches the prediction.
-    //   score 8–10 → full vivid photo (sat 1.0, bright 1.0)
-    //   score 5–7  → muted pastel  (sat 0.45, bright 0.82)
-    //   score 0–4  → near-grey     (sat 0.08, bright 0.62)
-    // Smooth lerp between tiers so there are no hard jumps.
-    const bgEl = document.querySelector('.bg-sunset');
-    if (bgEl) {
-      const s = displayScore / 10; // 0..1
-      const sat   = s >= 0.8 ? 1.0
-                  : s >= 0.5 ? 0.45 + (s - 0.5) / 0.3 * 0.55
-                  :            0.08 + (s / 0.5) * 0.37;
-      const brite = s >= 0.8 ? 1.0
-                  : s >= 0.5 ? 0.82 + (s - 0.5) / 0.3 * 0.18
-                  :            0.62 + (s / 0.5) * 0.20;
-
-      // Night dimming: fade photo toward dark below civil twilight (−6°).
-      // min brightness: 0.18–0.25 keeps the hue-blend signal alive even at deep night.
-      const nf         = getNightFactor(liveElevDeg);
-      const nightBrite = 1 - nf * 0.65;
-      const minBrite   = 0.18 + 0.07 * (1 - nf);
-      const finalBrite = Math.max(minBrite, brite * nightBrite);
-      bgEl.style.filter = `saturate(${sat.toFixed(2)}) brightness(${finalBrite.toFixed(2)})`;
-    }
-
-    // Night sky: stars + moon when sun is below civil twilight.
-    // 0.02 hysteresis threshold prevents add/remove flicker at the boundary.
-    const skyLayersNight = document.getElementById('sky-layers');
     const nf = getNightFactor(liveElevDeg);
-    if (nf > 0.02) {
-      renderNightSky(skyLayersNight, nf, new Date());
-    } else {
-      removeNightSky(skyLayersNight);
-    }
 
-    // Night vision: auto-engage when sun is below -2° and screen open > 2 min
-    const nvActive = liveElevDeg < -2 && (Date.now() - _screenOpenTime) > 120_000;
-    document.body.classList.toggle('night-vision', nvActive);
-    const nvIndicator = document.getElementById('nv-indicator');
-    if (nvIndicator) nvIndicator.style.display = nvActive ? 'block' : 'none';
+    // ── Render side-effects (isolated try-catch) ───────────────────────────
+    if (!isReady) return; // canvas not laid out yet — skip render
 
-    // Canvas + sun disk + crepuscular rays — rendered into #sky-layers so the
-    // canvas's `mix-blend-mode: soft-light` and the sun's `mix-blend-mode:
-    // screen` both blend against the root backdrop (.bg-sunset + the canvas
-    // that just painted), not against a nested stacking context.
-    const skyLayers = document.getElementById('sky-layers');
-    if (skyLayers) {
-      renderSkyCanvas(
-        skyLayers,
-        liveElevDeg * (Math.PI / 180),
-        today.turbidity  ?? 0.3,
-        today.angstromExp ?? 0,
-        today.goldenWindow?.beltOfVenus || 0,
-        cloudFractionsFor(today),
-        today.mieGrowthFactor ?? 1,
-      );
+    try {
+      // Score-driven photo mood: saturate + brightness of the background photo
+      // reflects the day's forecast quality so the scene matches the prediction.
+      //   score 8–10 → full vivid photo (sat 1.0, bright 1.0)
+      //   score 5–7  → muted pastel  (sat 0.45, bright 0.82)
+      //   score 0–4  → near-grey     (sat 0.08, bright 0.62)
+      // Smooth lerp between tiers so there are no hard jumps.
+      const bgEl = document.querySelector('.bg-sunset');
+      if (bgEl) {
+        const s = displayScore / 10; // 0..1
+        const sat   = s >= 0.8 ? 1.0
+                    : s >= 0.5 ? 0.45 + (s - 0.5) / 0.3 * 0.55
+                    :            0.08 + (s / 0.5) * 0.37;
+        const brite = s >= 0.8 ? 1.0
+                    : s >= 0.5 ? 0.82 + (s - 0.5) / 0.3 * 0.18
+                    :            0.62 + (s / 0.5) * 0.20;
 
-      if (today._solarAzimuth != null) {
-        renderSunDisk(skyLayers, {
-          solarElevation: liveElevDeg,
-          solarAzimuth:   today._solarAzimuth,
-          turbidity:      today.turbidity    ?? 0.3,
-          mieIntensity:   today.mieIntensity ?? 0.5,
-          humidity:       today._humidityRaw ?? 50,
-          airMass:        liveAirmass,
-        });
-
-        const crepProb = today.scoreEngine?.crepuscularRays ?? 0;
-        renderCrepuscularRays(skyLayers, crepProb, today._solarAzimuth,
-          /* sunY approx from elevation */ 65 - liveElevDeg * 1.8);
+        // Night dimming: fade photo toward dark below civil twilight (−6°).
+        // min brightness: 0.18–0.25 keeps the hue-blend signal alive even at deep night.
+        const nightBrite = 1 - nf * 0.65;
+        const minBrite   = 0.18 + 0.07 * (1 - nf);
+        const finalBrite = Math.max(minBrite, brite * nightBrite);
+        bgEl.style.filter = `saturate(${sat.toFixed(2)}) brightness(${finalBrite.toFixed(2)})`;
       }
+
+      // Night sky: stars + moon when sun is below civil twilight.
+      // 0.02 hysteresis threshold prevents add/remove flicker at the boundary.
+      const skyLayersNight = document.getElementById('sky-layers');
+      if (nf > 0.02) {
+        renderNightSky(skyLayersNight, nf, new Date());
+      } else {
+        removeNightSky(skyLayersNight);
+      }
+
+      // Night vision: auto-engage when sun is below -2° and screen open > 2 min
+      const nvActive = liveElevDeg < -2 && (Date.now() - _screenOpenTime) > 120_000;
+      document.body.classList.toggle('night-vision', nvActive);
+      const nvIndicator = document.getElementById('nv-indicator');
+      if (nvIndicator) nvIndicator.style.display = nvActive ? 'block' : 'none';
+
+      // Canvas + sun disk + crepuscular rays — rendered into #sky-layers so the
+      // canvas's `mix-blend-mode: soft-light` and the sun's `mix-blend-mode:
+      // screen` both blend against the root backdrop (.bg-sunset + the canvas
+      // that just painted), not against a nested stacking context.
+      const skyLayers = document.getElementById('sky-layers');
+      if (skyLayers) {
+        renderSkyCanvas(
+          skyLayers,
+          liveElevDeg * (Math.PI / 180),
+          today.turbidity  ?? 0.3,
+          today.angstromExp ?? 0,
+          today.goldenWindow?.beltOfVenus || 0,
+          cloudFractionsFor(today),
+          today.mieGrowthFactor ?? 1,
+        );
+
+        if (today._solarAzimuth != null) {
+          renderSunDisk(skyLayers, {
+            solarElevation: liveElevDeg,
+            solarAzimuth:   today._solarAzimuth,
+            turbidity:      today.turbidity    ?? 0.3,
+            mieIntensity:   today.mieIntensity ?? 0.5,
+            humidity:       today._humidityRaw ?? 50,
+            airMass:        liveAirmass,
+          });
+
+          const crepProb = today.scoreEngine?.crepuscularRays ?? 0;
+          renderCrepuscularRays(skyLayers, crepProb, today._solarAzimuth,
+            /* sunY approx from elevation */ 65 - liveElevDeg * 1.8);
+        }
+      }
+    } catch (e) {
+      console.warn('[liveGradient] render error:', e);
     }
   }
 
-  update(); // immediate first paint
+  // State-based readiness gate: poll rAF until sky-layers has valid dimensions.
+  // A single rAF doesn't guarantee layout is final (fonts, CSS resize, mobile viewport).
+  const skyLayers = document.getElementById('sky-layers');
+  function tryInit() {
+    if (skyLayers && skyLayers.offsetWidth > 0 && skyLayers.offsetHeight > 0) {
+      isReady = true;
+      update();
+      return;
+    }
+    requestAnimationFrame(tryInit);
+  }
+  requestAnimationFrame(tryInit);
+
   const id = setInterval(update, 30_000);
   return () => {
     clearInterval(id);

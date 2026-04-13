@@ -26,7 +26,7 @@ const CANVAS_ID = 'night-canvas';
 // Stars are painted once to an offscreen canvas at nightFactor=1.
 // Each live tick composites the whole field via a single drawImage + globalAlpha.
 // Invalidated only when the viewport dimensions change.
-let _starCanvas = null, _starW = 0, _starH = 0;
+let _starCanvas = null, _starW = 0, _starH = 0, _starDPR = 1;
 
 // ── Pending render — mask race-condition guard ─────────────────────────────────
 // On the first renderNightSky call the sky mask may still be loading async.
@@ -81,11 +81,19 @@ function moonPhase(date) {
 // tiers baked in at nightFactor=1. The live render scales uniformly via
 // globalAlpha, making the per-tick cost a single drawImage instead of 180 arcs.
 function _buildStarCanvas(w, h) {
-  if (_starCanvas && _starW === w && _starH === h) return _starCanvas;
+  if (!w || !h) return null;
+  const dpr = window.devicePixelRatio || 1;
+  if (_starCanvas && _starW === w && _starH === h && _starDPR === dpr) return _starCanvas;
+
+  _starW = w; _starH = h; _starDPR = dpr;
+
   const c   = document.createElement('canvas');
-  c.width   = w;
-  c.height  = h;
+  c.width   = Math.floor(w * dpr);
+  c.height  = Math.floor(h * dpr);
+  if (!c.width || !c.height) return null;
+
   const ctx = c.getContext('2d');
+  ctx.scale(dpr, dpr);
   for (const star of STARS) {
     const opacity = star.mag > 0.7 ? 0.90 : star.mag > 0.35 ? 0.70 : 0.50;
     const px = star.px * w;
@@ -108,7 +116,7 @@ function _buildStarCanvas(w, h) {
     ctx.arc(px, py, star.r, 0, Math.PI * 2);
     ctx.fill();
   }
-  _starCanvas = c; _starW = w; _starH = h;
+  _starCanvas = c;
   return c;
 }
 
@@ -168,7 +176,11 @@ export function renderNightSky(container, nightFactor, date) {
   const starC = _buildStarCanvas(w, h);
   if (!starC || starC.width <= 0 || starC.height <= 0) return; // guard: skip if star canvas has no area
   ctx.globalAlpha = nightFactor * (0.6 + 0.4 * nightFactor);
-  ctx.drawImage(starC, 0, 0);
+  try {
+    ctx.drawImage(starC, 0, 0, w, h); // scale back from DPR
+  } catch (e) {
+    console.warn('[nightSky] drawImage failed:', e);
+  }
   ctx.globalAlpha = 1;
 
   // ── Moon ──────────────────────────────────────────────────────────────────

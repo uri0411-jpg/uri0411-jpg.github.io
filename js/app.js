@@ -451,6 +451,9 @@ async function handleRefresh(e) {
 
     // Render as soon as primary weather arrives
     const weather = await weatherPromise;
+    if (!weather?.daily?.time?.length || !weather?.hourly?.time?.length) {
+      throw new Error('EMPTY_WEATHER_DATA');
+    }
     _weekData = calcWeekData(weather, null, lat, lon, null);
     await initMainScreen(_loc, _city, _weekData, calcNearbyAvgScore(null, _weekData));
     showLoading(false);
@@ -484,7 +487,12 @@ async function handleRefresh(e) {
     _scheduleSpotPreload(_weekData, _loc);
   } catch (err) {
     console.error('[refresh]', err);
-    showToast('עדכון נכשל', 'error');
+    const msg = err?.message === 'EMPTY_WEATHER_DATA'
+      ? 'אין נתונים זמינים כרגע'
+      : err?.name === 'TypeError' || err?.message?.includes('fetch')
+        ? 'שגיאת רשת — נסה שוב'
+        : 'עדכון נכשל';
+    showToast(msg, 'error');
   } finally {
     showLoading(false);
     _isRefreshing = false;
@@ -537,6 +545,9 @@ async function handleSetLocation(e) {
 
     // Render as soon as primary weather arrives
     const weather = await weatherPromise;
+    if (!weather?.daily?.time?.length || !weather?.hourly?.time?.length) {
+      throw new Error('EMPTY_WEATHER_DATA');
+    }
     _weekData = calcWeekData(weather, null, lat, lon, null);
     await initMainScreen(_loc, _city, _weekData, calcNearbyAvgScore(null, _weekData));
     showLoading(false);
@@ -579,7 +590,12 @@ async function handleSetLocation(e) {
     }
   } catch (err) {
     console.error('[setLocation]', err);
-    showToast('עדכון מיקום נכשל', 'error');
+    const msg = err?.message === 'EMPTY_WEATHER_DATA'
+      ? 'אין נתונים זמינים כרגע'
+      : err?.name === 'TypeError' || err?.message?.includes('fetch')
+        ? 'שגיאת רשת — נסה שוב'
+        : 'עדכון מיקום נכשל';
+    showToast(msg, 'error');
   } finally {
     showLoading(false);
     _isRefreshing = false;
