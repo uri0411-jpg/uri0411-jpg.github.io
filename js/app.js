@@ -568,11 +568,10 @@ async function handleSetLocation(e) {
   }
   setState({ isRefreshing: true });
   showLoading(true);
+  const prevLoc = getState().loc, prevCity = getState().city;
   try {
-    const prevLoc = getState().loc, prevCity = getState().city;
-    setState({ loc: { lat, lon }, city: city || 'מיקום מותאם', locationResolved: true });
-
     const gen = bumpLocGen();
+    setState({ loc: { lat, lon }, city: city || 'מיקום מותאם', locationResolved: true });
 
     // Rewire SWR subscription to the new zone
     _rewireZoneSubscription(lat, lon, gen);
@@ -591,6 +590,7 @@ async function handleSetLocation(e) {
 
     // Render as soon as primary weather arrives
     const weather = await weatherPromise;
+    if (isStale(gen)) return; // location changed while waiting — discard
     if (!weather?.daily?.time?.length || !weather?.hourly?.time?.length) {
       throw new Error('EMPTY_WEATHER_DATA');
     }
