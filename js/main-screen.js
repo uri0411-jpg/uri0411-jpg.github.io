@@ -115,10 +115,13 @@ function _updateLiveScoreColors(skyColors, mainScore) {
       `drop-shadow(0 0 40px ${mainColor}12) ` +
       `drop-shadow(0 2px 4px rgba(0,0,0,0.80))`;
   }
-  // Update continuous score color on gauge wrap
+  // Update continuous score color + tier on gauge wrap
   const tier = mainScore >= 7 ? 'high' : mainScore >= 4 ? 'mid' : 'low';
   const gaugeWrap = document.querySelector('.score-gauge-wrap');
-  if (gaugeWrap) gaugeWrap.style.setProperty('--score-color-rgb', mainColorRgb);
+  if (gaugeWrap) {
+    gaugeWrap.style.setProperty('--score-color-rgb', mainColorRgb);
+    gaugeWrap.dataset.scoreTier = tier;
+  }
 
   // 2. Hourly scores, event scores, spot scores — ALL screens (text color)
   //    Week bar scores excluded — they use fixed cream-white for contrast
@@ -170,12 +173,6 @@ function _updateLiveScoreColors(skyColors, mainScore) {
       const track = el.closest('.spot-week-bar-track');
       if (track) track.style.setProperty('--score-color-rgb', barStyle.scoreColorRgb);
     }
-  }
-
-  // 7. data-score-tier refresh (score may drift across tier boundary at runtime)
-  const gaugeWrap = document.querySelector('.score-gauge-wrap');
-  if (gaugeWrap) {
-    gaugeWrap.dataset.scoreTier = tier;
   }
 }
 
