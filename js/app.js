@@ -8,7 +8,7 @@ import { getGPS, saveLocation, loadLocation }  from './location.js';
 import { fetchWeek, fetchWeekFast, fetchWeekEnsemble, fetchCityName, fetchAirQuality, fetchWesternHorizon } from './api.js';
 import { calcWeekData }                        from './score.js';
 import { initMainScreen, showMainSkeleton, repaintScoreColors, refreshMainScores } from './main-screen.js';
-import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots } from './spots-screen.js';
+import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots, prefetchAreaTiles } from './spots-screen.js';
 import { initSettingsScreen }                  from './settings-screen.js';
 import { initLearningScreen }                  from './learning-screen.js';
 import { showToast, showLoading }              from './ui.js';
@@ -77,7 +77,11 @@ function _applyScoreEMA(weekData, loc) {
 //  on browsers that don't support requestIdleCallback (e.g. Safari < 16).
 // ─────────────────────────────────────────
 function _scheduleSpotPreload(weekData, loc) {
-  const run = () => preloadSpotsData(weekData, loc).catch(e => console.warn('[spots] preload failed:', e.message));
+  const run = () => {
+    preloadSpotsData(weekData, loc).catch(e => console.warn('[spots] preload failed:', e.message));
+    // Also prefetch map tiles for the user's area so the Spot Finder map loads instantly
+    prefetchAreaTiles(loc.lat, loc.lon);
+  };
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(run, { timeout: 8000 });
   } else {
@@ -100,14 +104,13 @@ let _locGen              = 0;    // monotonic counter — guards stale async cal
 //  Boot
 // ─────────────────────────────────────────
 async function boot() {
-  // SWR handles data freshness — no need for session-based forced refresh.
-  // Zone-aware cache with dynamic TTL ensures data is revalidated at the
-  // right frequency (2-4h, shorter near sunrise/sunset).
+  const _bootTime = Date.now();
 
   registerSW();
   window.addEventListener('twilight:updateReady', () => {
-    // Auto-reload when a new SW takes control. A brief banner shows
-    // what's happening so users aren't surprised by the refresh.
+    // During the first few seconds of boot, data fetches are still in-flight.
+    // A reload now would interrupt them and show an error.  Show a manual
+    // reload banner instead; auto-reload only after boot has settled.
     const banner = document.createElement('div');
     banner.id = 'update-banner';
     banner.style.cssText = [
@@ -116,9 +119,17 @@ async function boot() {
       'padding:10px 16px;font-size:14px;font-weight:600',
       'box-shadow:0 2px 8px rgba(0,0,0,0.3);direction:rtl',
     ].join(';');
-    banner.textContent = 'גרסה חדשה — מעדכן…';
-    document.body.appendChild(banner);
-    setTimeout(() => location.reload(), 800);
+
+    if (Date.now() - _bootTime < 5000) {
+      banner.textContent = 'גרסה חדשה זמינה — לחץ לעדכן';
+      banner.style.cursor = 'pointer';
+      banner.addEventListener('click', () => location.reload());
+      document.body.appendChild(banner);
+    } else {
+      banner.textContent = 'גרסה חדשה — מעדכן…';
+      document.body.appendChild(banner);
+      setTimeout(() => location.reload(), 800);
+    }
   });
   clearExpired();
   rearmSavedAlerts();
@@ -551,11 +562,14 @@ async function handleSetLocation(e) {
     invalidatePreloadedSpots();
     _scheduleSpotPreload(_weekData, _loc);
 
-    // If spots screen is currently active, re-init it with fresh forecast
-    if (_spotsInitialized) {
+    // If spots screen is currently active, re-init it with fresh forecast.
+    // Reset flag first to prevent double-init on next tab switch.
+    const wasActive = _spotsInitialized;
+    _spotsInitialized = false;
+    if (wasActive) {
+      _spotsInitialized = true;
       await initSpotsScreen(_weekData);
     }
-    _spotsInitialized = false;
   } catch (err) {
     console.error('[setLocation]', err);
     showToast('עדכון מיקום נכשל', 'error');

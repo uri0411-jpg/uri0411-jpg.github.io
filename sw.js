@@ -8,10 +8,10 @@
 //   node -e "const f='sw.js',d=new Date().toISOString().slice(0,10).replace(/-/g,''); \
 //            require('fs').writeFileSync(f, require('fs').readFileSync(f,'utf8') \
 //            .replace(/BUILD_DATE = '\d+'/, \"BUILD_DATE = '\" + d + \"'\"))"
-const BUILD_DATE  = '20260413'; // YYYYMMDD — update per deploy
+const BUILD_DATE  = '20260414'; // YYYYMMDD — update per deploy
 const CACHE_NAME  = 'twl-v' + BUILD_DATE; // auto-namespaces cache per deploy
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
-const MAX_TILES   = 250;         // ~6MB at ~25KB/tile — enough for region + new spot
+const MAX_TILES   = 500;         // ~12MB at ~25KB/tile — better cache hit rate for region
 
 // Paths are relative — resolved against SW scope at install time
 const STATIC_ASSETS = [
@@ -45,6 +45,7 @@ const STATIC_ASSETS = [
   './js/install-prompt.js',
   './js/notifications.js',
   './js/zones.js',
+  './js/locationSearch.js',
   // Pulse 1-4 additions
   './js/debugPanel.js',
   './js/engine/physicsLayer.js',
@@ -63,7 +64,15 @@ const STATIC_ASSETS = [
   './js/render/nightSky.js',
   './js/data/environment.js',
   './js/data/ozone_climatology.js',
-  './learning-seed.json'
+  './learning-seed.json',
+  // Vendor — bundled locally for instant cache-first loading
+  './js/vendor/leaflet.js',
+  './css/leaflet.css',
+  './css/images/layers.png',
+  './css/images/layers-2x.png',
+  './css/images/marker-icon.png',
+  './css/images/marker-icon-2x.png',
+  './css/images/marker-shadow.png'
 ];
 
 const API_PATTERNS = [
@@ -73,7 +82,6 @@ const API_PATTERNS = [
   'nominatim.openstreetmap.org',
   'overpass-api.de',
   'overpass.kumi.systems',
-  'unpkg.com/leaflet',
   'fonts.googleapis.com',
   'fonts.gstatic.com'
 ];
@@ -132,9 +140,15 @@ self.addEventListener('fetch', event => {
     return;
   }
 
+  // Vendor files (Leaflet) — cache-first, they are versioned and rarely change.
+  const path = url.pathname;
+  if (path.includes('/vendor/') || path.includes('/css/images/')) {
+    event.respondWith(cacheFirst(request));
+    return;
+  }
+
   // App code (JS/CSS/HTML) — always try network first so updates are instant.
   // Large stable assets (images, fonts, seed data) stay cache-first.
-  const path = url.pathname;
   const isAppCode = path.endsWith('.js') || path.endsWith('.css') || path.endsWith('.html') || path === '/';
   if (isAppCode) {
     event.respondWith(networkFirst(request));

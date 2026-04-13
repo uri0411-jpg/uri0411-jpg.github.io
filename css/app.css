@@ -661,7 +661,7 @@ body.has-install-banner .screen { padding-top: 56px; }
               padding    0.28s ease;
 }
 .location-search-bar.open {
-  max-height: 200px;
+  max-height: 420px;
   opacity: 1;
   pointer-events: auto;
   padding: 12px 14px;
@@ -684,6 +684,59 @@ body.has-install-banner .screen { padding-top: 56px; }
   to   { opacity: 1; transform: translateY(0); }
 }
 /* slideDown kept for other uses; search-bar now uses max-height transition */
+
+/* ─── LOCATION DROPDOWN ─── */
+.location-dropdown {
+  display: none;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 220px;
+  overflow-y: auto;
+  border-radius: 12px;
+  background: rgba(30, 18, 8, 0.92);
+  border: 1px solid var(--glass-border);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  padding: 4px;
+  animation: dropdownFadeIn 0.18s ease;
+}
+.location-dropdown.open { display: flex; }
+@keyframes dropdownFadeIn {
+  from { opacity: 0; transform: translateY(-4px); }
+  to   { opacity: 1; transform: translateY(0); }
+}
+.location-dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 12px;
+  border: none;
+  background: transparent;
+  color: var(--cream);
+  font-size: 13px;
+  font-family: Rubik, sans-serif;
+  font-weight: 500;
+  direction: rtl;
+  text-align: right;
+  border-radius: 8px;
+  cursor: pointer;
+  transition: background 0.15s ease;
+  -webkit-tap-highlight-color: transparent;
+}
+.location-dropdown-item:hover,
+.location-dropdown-item:focus {
+  background: rgba(240, 184, 74, 0.12);
+  outline: none;
+}
+.location-dropdown-item:active {
+  background: rgba(240, 184, 74, 0.22);
+}
+.location-dropdown-item span {
+  flex: 1;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
 
 /* ─── SCORE CARD ─── */
 .score-card {
@@ -1881,25 +1934,6 @@ body.has-install-banner .screen { padding-top: 56px; }
   display: flex;
   gap: 8px;
 }
-.spot-recent-row {
-  display: flex;
-  gap: 6px;
-  flex-wrap: wrap;
-  padding-top: 6px;
-}
-.spot-recent-chip {
-  background: rgba(212,165,116,0.10);
-  border: 1px solid rgba(212,165,116,0.22);
-  border-radius: 14px;
-  color: var(--cream-faint);
-  font-size: 11px;
-  padding: 3px 10px;
-  cursor: pointer;
-  font-family: inherit;
-  transition: background 0.2s;
-}
-.spot-recent-chip:active { background: rgba(212,165,116,0.25); }
-
 /* Type filter pills row */
 .spot-filter-row {
   display: flex;

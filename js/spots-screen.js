@@ -10,6 +10,7 @@ import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
 import { fetchSpotImage } from './spotImages.js';
+import { initLocationSearch } from './locationSearch.js';
 
 let _spots        = [];
 let _sortMode     = 'score';
@@ -22,6 +23,8 @@ let _preloadedForLon      = null;
 let _preloadedForRadius   = null;
 let _preloadedForWeekData = null;
 let _map          = null;
+let _mapEl        = null; // detachable map container element
+let _userMarker   = null;
 let _markers      = [];
 let _sunsetLines  = [];
 let _markerSpotMap = {};
@@ -33,30 +36,36 @@ let _visited      = loadVisited();
 let _leafletReady = false;
 let _visibleCount = 15;
 let _loadingSpots = false; // guard against parallel loadSpots() calls
+let _searchCleanup = null;
 
 // ─────────────────────────────────────────
-//  Lazy-load Leaflet CSS + JS on demand (5)
+//  Lazy-load Leaflet CSS + JS on demand
+//  Bundled locally → served cache-first by SW (no CDN latency)
 // ─────────────────────────────────────────
+let _leafletLoadPromise = null; // dedup guard — only one load in-flight
 function loadLeaflet() {
   if (_leafletReady || typeof L !== 'undefined') { _leafletReady = true; return Promise.resolve(); }
-  return new Promise((resolve, reject) => {
-    // CSS first
-    const link = document.createElement('link');
-    link.rel = 'stylesheet';
-    link.href = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.css';
-    link.integrity = 'sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=';
-    link.crossOrigin = 'anonymous';
-    document.head.appendChild(link);
+  if (_leafletLoadPromise) return _leafletLoadPromise;
+  _leafletLoadPromise = new Promise((resolve, reject) => {
+    // CSS — only add if not already in DOM
+    if (!document.querySelector('link[href*="leaflet.css"]')) {
+      const link = document.createElement('link');
+      link.rel = 'stylesheet';
+      link.href = './css/leaflet.css';
+      document.head.appendChild(link);
+    }
 
-    // JS
+    // JS — only add if not already in DOM
+    if (document.querySelector('script[src*="vendor/leaflet"]')) {
+      _leafletReady = true; resolve(); return;
+    }
     const script = document.createElement('script');
-    script.src = 'https://unpkg.com/leaflet@1.9.4/dist/leaflet.js';
-    script.integrity = 'sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=';
-    script.crossOrigin = 'anonymous';
+    script.src = './js/vendor/leaflet.js';
     script.onload  = () => { _leafletReady = true; resolve(); };
-    script.onerror = () => reject(new Error('Leaflet load failed'));
+    script.onerror = () => { _leafletLoadPromise = null; reject(new Error('Leaflet load failed')); };
     document.head.appendChild(script);
   });
+  return _leafletLoadPromise;
 }
 
 // ─── Favorites ───────────────────────────
@@ -321,6 +330,50 @@ export async function preloadSpotsData(weekData, loc) {
   }
 }
 
+// ─── Tile prefetch: preload map tiles for user's area on idle ───
+export function prefetchAreaTiles(lat, lon) {
+  const TILE_URL = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
+  const SUBDOMAINS = ['a', 'b', 'c', 'd'];
+  const ZOOMS = [10, 11, 12, 13];
+  const RADIUS = 2; // tiles around center in each direction
+
+  function lat2tile(lat, z) { return Math.floor((1 - Math.log(Math.tan(lat * Math.PI / 180) + 1 / Math.cos(lat * Math.PI / 180)) / Math.PI) / 2 * (1 << z)); }
+  function lon2tile(lon, z) { return Math.floor((lon + 180) / 360 * (1 << z)); }
+
+  const urls = [];
+  for (const z of ZOOMS) {
+    const cx = lon2tile(lon, z), cy = lat2tile(lat, z);
+    for (let dx = -RADIUS; dx <= RADIUS; dx++) {
+      for (let dy = -RADIUS; dy <= RADIUS; dy++) {
+        const x = cx + dx, y = cy + dy;
+        const s = SUBDOMAINS[(x + y) % SUBDOMAINS.length];
+        urls.push(TILE_URL.replace('{s}', s).replace('{z}', z).replace('{x}', x).replace('{y}', y).replace('{r}', ''));
+      }
+    }
+  }
+
+  // Fetch in small batches to avoid flooding the network
+  let i = 0;
+  function fetchBatch() {
+    const batch = urls.slice(i, i + 4);
+    if (!batch.length) return;
+    i += 4;
+    Promise.allSettled(batch.map(u => fetch(u, { mode: 'no-cors' }))).then(() => {
+      if (typeof requestIdleCallback === 'function') {
+        requestIdleCallback(fetchBatch, { timeout: 5000 });
+      } else {
+        setTimeout(fetchBatch, 200);
+      }
+    });
+  }
+
+  if (typeof requestIdleCallback === 'function') {
+    requestIdleCallback(fetchBatch, { timeout: 10000 });
+  } else {
+    setTimeout(fetchBatch, 6000);
+  }
+}
+
 export function invalidatePreloadedSpots() {
   _preloadedSpots       = null;
   _preloadedForLat      = null;
@@ -411,13 +464,34 @@ export async function initSpotsScreen(weekData) {
   _visibleCount = 15;
   const container = document.getElementById('screen-spots');
   if (!container) return;
-  if (_map) { _map.remove(); _map = null; _markers = []; _popupHandlerRegistered = false; }
+
+  // Detach existing map element before rebuilding the shell so Leaflet
+  // instance survives. We'll reattach it into the new #spot-map-wrap.
+  const reuseMap = !!(_map && _mapEl);
+  if (reuseMap) _mapEl.remove(); // detach from old DOM, not destroyed
+
   container.innerHTML = buildSpotsShell();
   attachSpotsEvents();
-  // Fire-and-forget: the map loads in parallel with loadSpots. initLeafletMap
-  // self-recovers — if spots finish first, updateMapMarkers early-returns and
-  // initLeafletMap calls updateMapMarkers itself when ready.
-  initLeafletMap();
+
+  if (reuseMap) {
+    // Reattach the preserved map element
+    const wrap = document.getElementById('spot-map-wrap');
+    const placeholder = document.getElementById('spots-map');
+    if (wrap && placeholder) {
+      wrap.replaceChild(_mapEl, placeholder);
+      _map.invalidateSize();
+      // Update user marker position if location changed
+      const lat = _loc?.lat || 32.0853, lon = _loc?.lon || 34.7818;
+      if (_userMarker) _userMarker.setLatLng([lat, lon]);
+      _map.setView([lat, lon], _map.getZoom());
+      drawEventArc();
+      if (_spots.length) updateMapMarkers(getFilteredSpots());
+    }
+  } else {
+    if (_map) { _map.remove(); _map = null; _mapEl = null; _userMarker = null; _markers = []; _popupHandlerRegistered = false; }
+    initLeafletMap();
+  }
+
   if (!_loc) { showToast('לא נמצא מיקום — לחץ GPS', 'error'); return; }
   await loadSpots();
 }
@@ -433,26 +507,8 @@ function buildSpotsShell() {
       <div class="spot-main-sub">נקודות תצפית לדמדומים · ${_radiusKm} ק"מ סביבך</div>
     </div>
 
-    <!-- Search bar — 2 rows -->
-    <div class="glass spot-search-wrap">
-      <div class="spot-search-row1">
-        <div class="search-input-wrap" style="flex:1">
-          <svg width="14" height="14" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input id="spots-search-input" class="search-input" type="text" placeholder="${_loc?.city || 'עיר, אזור או סוג (חוף, פסגה...)'}" dir="rtl" />
-        </div>
-      </div>
-      <div class="spot-search-row2">
-        <button class="search-filter-btn" id="search-btn" style="flex:1">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          חפש מיקום
-        </button>
-        <button class="search-filter-btn" id="gps-btn" style="flex:1">
-          <svg width="14" height="14" fill="var(--gold-light)" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-          מיקום נוכחי
-        </button>
-      </div>
-      <div id="recent-searches" class="spot-recent-row" style="display:none"></div>
-    </div>
+    <!-- Search bar — autocomplete module -->
+    <div class="glass spot-search-wrap" id="spots-search-container"></div>
 
     <!-- Radius pills -->
     <div class="spot-sort-row">
@@ -534,6 +590,7 @@ async function initLeafletMap() {
   if (!el) return;
   const lat = _loc?.lat || 32.0853, lon = _loc?.lon || 34.7818;
   _map = L.map('spots-map', { zoomControl: false }).setView([lat, lon], 11);
+  _mapEl = _map.getContainer();
   L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
     attribution: '&copy; <a href="https://carto.com">CARTO</a> | &copy; <a href="https://osm.org/copyright">OSM</a>',
     subdomains: 'abcd',
@@ -544,7 +601,7 @@ async function initLeafletMap() {
     html: '<div style="width:14px;height:14px;background:#F0B84A;border:2px solid #fff;border-radius:50%;box-shadow:0 0 10px rgba(240,184,74,0.9);animation:pulse 1.5s ease-in-out infinite"></div>',
     iconSize: [14, 14], iconAnchor: [7, 7], className: ''
   });
-  L.marker([lat, lon], { icon: userIcon }).addTo(_map).bindPopup('המיקום שלך');
+  _userMarker = L.marker([lat, lon], { icon: userIcon }).addTo(_map).bindPopup('המיקום שלך');
 
   // Delegated click handler — attach ONCE as soon as the map container exists,
   // independent of whether spot markers have been drawn yet. This fires reliably
@@ -1205,115 +1262,64 @@ function extractTypeFromQuery(q) {
   return { type: null, cleaned: q.trim() };
 }
 
-// ─── Recent searches ─────────────────────
-const RECENT_KEY = 'twl_recent_searches';
-function loadRecent() { try { return JSON.parse(localStorage.getItem(RECENT_KEY)) || []; } catch { return []; } }
-function saveRecent(q) {
-  let arr = loadRecent().filter(r => r !== q);
-  arr.unshift(q);
-  if (arr.length > 5) arr = arr.slice(0, 5);
-  try { localStorage.setItem(RECENT_KEY, JSON.stringify(arr)); } catch {}
-}
-function renderRecentSearches() {
-  const el = document.getElementById('recent-searches');
-  if (!el) return;
-  const arr = loadRecent();
-  if (!arr.length) { el.style.display = 'none'; return; }
-  el.style.display = 'flex';
-  el.innerHTML = arr.map(q => `<button class="spot-recent-chip">${esc(q)}</button>`).join('');
-  el.querySelectorAll('.spot-recent-chip').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const input = document.getElementById('spots-search-input');
-      if (input) input.value = btn.textContent;
-      doSearch();
-    });
-  });
-}
-
-async function doSearch() {
-  const input = document.getElementById('spots-search-input');
-  const q = input?.value.trim();
-  if (!q) return;
-  const { type: detectedType, cleaned } = extractTypeFromQuery(q);
-
-  if (detectedType && !cleaned) {
-    _filterType = detectedType;
-    document.querySelectorAll('.spot-filter-pill').forEach(b => b.classList.toggle('active', b.dataset.filter === detectedType));
-    if (_spots.length) { renderSpotsList(); updateMapMarkers(getFilteredSpots()); showToast(`מסנן: ${detectedType}`, 'info'); return; }
-    if (_loc) { showToast(`מחפש ${detectedType}...`, 'info'); await loadSpots(); return; }
-  }
-
-  const locationQuery = cleaned || q;
-  showToast('מחפש מיקום...', 'info');
-  try {
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), 10000);
-    let res;
-    try {
-      res = await fetch(`https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(locationQuery)}&format=json&limit=1&countrycodes=il&accept-language=he`, {
-        headers: { 'User-Agent': 'TWILIGHT-PWA/1.0' },
-        signal: controller.signal
-      });
-    } finally {
-      clearTimeout(timer);
-    }
-    const data = await res.json();
-    if (data[0]) {
-      const lat = parseFloat(data[0].lat), lon = parseFloat(data[0].lon);
-      const name = data[0].display_name?.split(',')[0] || locationQuery;
-      _loc = { lat, lon, city: name };
-      saveLocation(lat, lon, name);
-      if (detectedType) {
-        _filterType = detectedType;
-        document.querySelectorAll('.spot-filter-pill').forEach(b => b.classList.toggle('active', b.dataset.filter === detectedType));
-      }
-      if (_map) {
-        _map.setView([lat, lon], 11);
-        L.marker([lat, lon], { icon: L.divIcon({ html: '<div style="width:14px;height:14px;background:#F0B84A;border:2px solid #fff;border-radius:50%;box-shadow:0 0 8px rgba(240,184,74,0.8)"></div>', iconSize: [14,14], iconAnchor: [7,7], className: '' }) }).addTo(_map).bindPopup(esc(name));
-      }
-      saveRecent(q);
-      showToast(`מעדכן תחזית ל: ${name}`, 'info');
-      window.dispatchEvent(new CustomEvent('twilight:setLocation', {
-        detail: { lat, lon, city: name }
-      }));
-      renderRecentSearches();
-    } else { showToast('לא נמצא מיקום', 'error'); }
-  } catch { showToast('שגיאה בחיפוש', 'error'); }
-}
+// (Old search/recent functions removed — now handled by locationSearch.js module)
 
 // ═════════════════════════════════════════
 //  EVENTS
 // ═════════════════════════════════════════
 function attachSpotsEvents() {
-  document.getElementById('gps-btn')?.addEventListener('click', async () => {
-    haptic('medium');
-    const perm = await checkLocationPermission();
-    if (perm === 'denied') {
-      showToast('הגישה למיקום נחסמה — שנה בהגדרות הדפדפן', 'error');
-      return;
-    }
-    showToast('מאתר מיקום...', 'info');
-    try {
-      const pos = await getGPS();
-      if (pos.isFallback || pos.permDenied) {
-        showToast('לא ניתן לאתר מיקום', 'error');
-        return;
+  // ─── Location search (autocomplete module) ───
+  if (_searchCleanup) { _searchCleanup(); _searchCleanup = null; }
+  const searchContainer = document.getElementById('spots-search-container');
+  if (searchContainer) {
+    _searchCleanup = initLocationSearch(searchContainer, {
+      placeholder: _loc?.city || 'עיר, אזור או סוג (חוף, פסגה...)',
+      showGpsButton: true,
+      showCloseButton: false,
+      extractType: extractTypeFromQuery,
+      onSelect: (result) => {
+        _loc = { lat: result.lat, lon: result.lon, city: result.city };
+        saveLocation(result.lat, result.lon, result.city);
+        if (_map) _map.setView([result.lat, result.lon], 11);
+        if (_userMarker) _userMarker.setLatLng([result.lat, result.lon]);
+        // Apply type filter if detected from original query
+        if (result._detectedType) {
+          _filterType = result._detectedType;
+          document.querySelectorAll('.spot-filter-pill').forEach(b =>
+            b.classList.toggle('active', b.dataset.filter === result._detectedType));
+        }
+        showToast(`מעדכן תחזית ל: ${result.city}`, 'info');
+        window.dispatchEvent(new CustomEvent('twilight:setLocation', {
+          detail: { lat: result.lat, lon: result.lon, city: result.city }
+        }));
+      },
+      onGps: async () => {
+        haptic('medium');
+        const perm = await checkLocationPermission();
+        if (perm === 'denied') {
+          showToast('הגישה למיקום נחסמה — שנה בהגדרות הדפדפן', 'error');
+          return;
+        }
+        showToast('מאתר מיקום...', 'info');
+        try {
+          const pos = await getGPS();
+          if (pos.isFallback || pos.permDenied) {
+            showToast('לא ניתן לאתר מיקום', 'error');
+            return;
+          }
+          _loc = pos;
+          const city = await fetchCityName(pos.lat, pos.lon);
+          saveLocation(pos.lat, pos.lon, city);
+          showToast(`מעדכן תחזית ל: ${city}`, 'info');
+          if (_map) _map.setView([pos.lat, pos.lon], 11);
+          if (_userMarker) _userMarker.setLatLng([pos.lat, pos.lon]);
+          window.dispatchEvent(new CustomEvent('twilight:setLocation', {
+            detail: { lat: pos.lat, lon: pos.lon, city }
+          }));
+        } catch { showToast('לא ניתן לאתר מיקום', 'error'); }
       }
-      _loc = pos;
-      const city = await fetchCityName(pos.lat, pos.lon);
-      saveLocation(pos.lat, pos.lon, city);
-      showToast(`מעדכן תחזית ל: ${city}`, 'info');
-      if (_map) _map.setView([pos.lat, pos.lon], 11);
-      window.dispatchEvent(new CustomEvent('twilight:setLocation', {
-        detail: { lat: pos.lat, lon: pos.lon, city }
-      }));
-    } catch { showToast('לא ניתן לאתר מיקום', 'error'); }
-  });
-
-  document.getElementById('search-btn')?.addEventListener('click', doSearch);
-  document.getElementById('spots-search-input')?.addEventListener('keydown', async (e) => { if (e.key === 'Enter') await doSearch(); });
-  document.getElementById('spots-search-input')?.addEventListener('focus', renderRecentSearches);
-  renderRecentSearches();
+    });
+  }
 
   document.getElementById('map-expand-btn')?.addEventListener('click', () => {
     haptic('light');

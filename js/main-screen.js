@@ -18,6 +18,7 @@ import { renderCrepuscularRays, removeCrepuscularRays } from './render/crepuscul
 import { renderSkyCanvas, removeSkyCanvas } from './render/skyCanvas.js';
 import { renderNightSky, removeNightSky } from './render/nightSky.js';
 import { loadSkyMask } from './render/skyMask.js';
+import { initLocationSearch } from './locationSearch.js';
 
 // ─────────────────────────────────────────
 //  Background decode gate — ensures background.jpg is decoded in GPU
@@ -1018,25 +1019,7 @@ function buildMainHTML(loc, city, weekData) {
     </div>
 
     <!-- Location search bar (hidden by default, animated via .open class) -->
-    <div id="location-search-bar" class="location-search-bar">
-      <div class="loc-search-row1">
-        <div class="search-input-wrap" style="flex:1">
-          <svg width="14" height="14" fill="none" stroke="var(--cream-faint)" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          <input id="location-search-input" class="search-input" type="text" placeholder="הקלד שם עיר..." dir="rtl" autocomplete="off" />
-        </div>
-        <button class="search-filter-btn" id="location-search-close" title="סגור">✕</button>
-      </div>
-      <div class="loc-search-row2">
-        <button class="search-filter-btn loc-search-btn-wide" id="location-search-go">
-          <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-          חפש מיקום
-        </button>
-        <button class="search-filter-btn loc-search-btn-wide" id="location-search-gps" title="מיקום GPS">
-          <svg width="14" height="14" fill="var(--gold-light)" viewBox="0 0 24 24"><path d="M12 2C8.13 2 5 5.13 5 9c0 5.25 7 13 7 13s7-7.75 7-13c0-3.87-3.13-7-7-7z"/></svg>
-          מיקום נוכחי
-        </button>
-      </div>
-    </div>
+    <div id="location-search-bar" class="location-search-bar"></div>
 
     <!-- Title -->
     <div class="home-title-block">
@@ -1445,73 +1428,38 @@ function attachMainEvents() {
     });
   }
 
-  // ─── Location search toggle ───
+  // ─── Location search (autocomplete module) ───
   const cityDisplay = document.getElementById('city-display');
   const searchBar   = document.getElementById('location-search-bar');
-  const searchInput = document.getElementById('location-search-input');
-  const searchGo    = document.getElementById('location-search-go');
-  const searchGps   = document.getElementById('location-search-gps');
-  const searchClose = document.getElementById('location-search-close');
 
   if (cityDisplay && searchBar) {
+    // Initialize the autocomplete search module
+    initLocationSearch(searchBar, {
+      onSelect: (result) => {
+        searchBar.classList.remove('open');
+        cityDisplay.style.visibility = '';
+        window.dispatchEvent(new CustomEvent('twilight:setLocation', {
+          detail: { lat: result.lat, lon: result.lon, city: result.city }
+        }));
+      },
+      showGpsButton: true,
+      onGps: () => {
+        searchBar.classList.remove('open');
+        cityDisplay.style.visibility = '';
+        window.dispatchEvent(new CustomEvent('twilight:refresh', { detail: { gps: true } }));
+      },
+      onClose: () => {
+        searchBar.classList.remove('open');
+        cityDisplay.style.visibility = '';
+      }
+    });
+
     cityDisplay.addEventListener('click', () => {
-      // CSS now uses max-height:200px — no JS measurement needed
       searchBar.classList.add('open');
       cityDisplay.style.visibility = 'hidden';
-      searchInput?.focus();
+      searchBar.querySelector('.loc-search-input')?.focus();
     });
   }
-
-  if (searchClose) {
-    searchClose.addEventListener('click', () => {
-      searchBar.classList.remove('open');
-      cityDisplay.style.visibility = '';
-    });
-  }
-
-  // Search by city name
-  async function doLocationSearch() {
-    const q = searchInput?.value.trim();
-    if (!q) return;
-    searchInput.disabled = true;
-    const ctrl = new AbortController();
-    const timer = setTimeout(() => ctrl.abort(), 10000);
-    try {
-      const res = await fetch(
-        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=1&countrycodes=il&accept-language=he`,
-        { headers: { 'User-Agent': 'TWILIGHT-PWA/1.0' }, signal: ctrl.signal }
-      );
-      clearTimeout(timer);
-      const data = await res.json();
-      if (data[0]) {
-        const lat = parseFloat(data[0].lat);
-        const lon = parseFloat(data[0].lon);
-        const name = data[0].display_name?.split(',')[0] || q;
-        // Dispatch custom event with new location — app.js handles the rest
-        window.dispatchEvent(new CustomEvent('twilight:setLocation', {
-          detail: { lat, lon, city: name }
-        }));
-      } else {
-        window.dispatchEvent(new CustomEvent('twilight:toast', { detail: { msg: 'מיקום לא נמצא', type: 'error' } }));
-      }
-    } catch {
-      window.dispatchEvent(new CustomEvent('twilight:toast', { detail: { msg: 'שגיאה בחיפוש', type: 'error' } }));
-    } finally {
-      searchInput.disabled = false;
-    }
-  }
-
-  searchGo?.addEventListener('click', doLocationSearch);
-  searchInput?.addEventListener('keydown', (e) => {
-    if (e.key === 'Enter') doLocationSearch();
-  });
-
-  // GPS button — re-detect location then refresh
-  searchGps?.addEventListener('click', () => {
-    searchBar.classList.remove('open');
-    cityDisplay.style.visibility = '';
-    window.dispatchEvent(new CustomEvent('twilight:refresh', { detail: { gps: true } }));
-  });
 
   // ─── Score gauge tap → Tier-2 explainer tray ───
   const gaugeWrap    = document.querySelector('.score-gauge-wrap');

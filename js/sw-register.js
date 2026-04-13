@@ -6,10 +6,16 @@
 export function registerSW() {
   if (!('serviceWorker' in navigator)) return;
 
-  // When a new SW takes control, notify the user via banner instead of force-reloading.
-  // networkFirst strategy ensures fresh code on next load — no need to disrupt the session.
+  // On first install there is no existing controller — skip the reload so we
+  // don't interrupt the initial boot.  Only notify on genuine *updates*.
+  const hadController = !!navigator.serviceWorker.controller;
   let _reloaded = false;
+
   navigator.serviceWorker.addEventListener('controllerchange', () => {
+    if (!hadController) {
+      console.log('[SW] First install complete — no reload needed');
+      return;
+    }
     if (_reloaded) return;
     _reloaded = true;
     console.log('[SW] New controller — notifying user');
@@ -18,21 +24,10 @@ export function registerSW() {
 
   window.addEventListener('load', async () => {
     try {
-      // Use relative path so it works on any subpath (e.g. /twilight-pwa/)
       const swPath = new URL('sw.js', window.location.href).href;
       const scopePath = new URL('./', window.location.href).href;
       const reg = await navigator.serviceWorker.register(swPath, { scope: scopePath });
       console.log('[SW] Registered, scope:', reg.scope);
-
-      reg.addEventListener('updatefound', () => {
-        const newWorker = reg.installing;
-        if (!newWorker) return;
-        newWorker.addEventListener('statechange', () => {
-          if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            console.log('[SW] New version available');
-          }
-        });
-      });
     } catch (e) {
       console.warn('[SW] Registration failed:', e);
     }
