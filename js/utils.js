@@ -691,10 +691,10 @@ export function calcGoldenHourMin(lat, date) {
  */
 function scoreToNeonColor(score) {
   const STOPS = [
-    { s: 3,  r: 140, g:  55, b: 190 }, // warm twilight purple
-    { s: 5,  r: 215, g:  35, b:  55 }, // deep sunset red
-    { s: 7,  r: 255, g: 105, b:   5 }, // vibrant sunset orange
-    { s: 10, r: 255, g: 195, b:  20 }, // bright gold
+    { s: 3,  r: 120, g:  40, b: 100 }, // warm purple-maroon
+    { s: 5,  r: 180, g:  55, b:  45 }, // deep maroon-amber
+    { s: 7,  r: 230, g: 120, b:  25 }, // warm sunset orange
+    { s: 10, r: 255, g: 190, b:  40 }, // rich gold
   ];
   const clamped = Math.max(3, Math.min(10, score));
   let lo = STOPS[0], hi = STOPS[STOPS.length - 1];

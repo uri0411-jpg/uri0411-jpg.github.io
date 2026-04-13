@@ -115,22 +115,19 @@ function _updateLiveScoreColors(skyColors, mainScore) {
       `drop-shadow(0 0 40px ${mainColor}12) ` +
       `drop-shadow(0 2px 4px rgba(0,0,0,0.80))`;
   }
-  // Update score tier CSS variables for glow layers + animations
+  // Update continuous score color on gauge wrap
   const tier = mainScore >= 7 ? 'high' : mainScore >= 4 ? 'mid' : 'low';
-  const root = document.documentElement;
-  root.style.setProperty(`--score-${tier}-color`, mainColor);
-  root.style.setProperty(`--score-${tier}-glow`, mainColor + '55');
-  // Also update --glow-color (used by default ::before ring)
-  root.style.setProperty('--glow-color', mainColor + '30');
+  const gaugeWrap = document.querySelector('.score-gauge-wrap');
+  if (gaugeWrap) gaugeWrap.style.setProperty('--score-color-rgb', mainColorRgb);
 
   // 2. Hourly scores, event scores, spot scores — ALL screens (text color)
   //    Week bar scores excluded — they use fixed cream-white for contrast
   for (const el of document.querySelectorAll('.hourly-score, .event-score-num, .spot-score-cell-main .spot-score-num')) {
     const s = parseFloat(el.textContent);
-    if (!isNaN(s)) el.style.color = scoreToSkyColor(s, skyColors, bgLuma);
+    if (!isNaN(s)) el.style.color = scoreToBarStyle(s, skyColors).scoreColor;
   }
 
-  // 3. Week bar fills — update score color + liquid gradient on live sky tick
+  // 3. Week bar fills — update score color on live sky tick
   for (const el of document.querySelectorAll('.week-bar-fill')) {
     const scoreEl = el.querySelector('.week-bar-score');
     const s = scoreEl ? parseFloat(scoreEl.dataset.score ?? scoreEl.textContent) : NaN;
@@ -138,7 +135,6 @@ function _updateLiveScoreColors(skyColors, mainScore) {
       const barStyle = scoreToBarStyle(s, skyColors);
       const track = el.closest('.week-bar-track');
       if (track) track.style.setProperty('--score-color-rgb', barStyle.scoreColorRgb);
-      el.style.setProperty('--bar-fill-gradient', _buildLiquidGradient(barStyle.scoreColorRgb, s));
     }
   }
 
@@ -162,7 +158,7 @@ function _updateLiveScoreColors(skyColors, mainScore) {
     const card = el.closest('.spot-card, .spot-hero');
     const scoreEl = card?.querySelector('.score-badge:not(.score-badge-location) span');
     const s = scoreEl ? parseFloat(scoreEl.textContent) : NaN;
-    if (!isNaN(s)) el.style.background = scoreToSkyBg(s, skyColors).strip;
+    if (!isNaN(s)) el.style.background = scoreToBarStyle(s, skyColors).scoreColor;
   }
 
   // 6. Spot mini week bar fills — set --score-color-rgb on parent track
@@ -797,7 +793,7 @@ function buildScoreSparkline(hourlyFull, sunsetStr, skyColors) {
   const pkX = (PAD + peakIdx * xStep).toFixed(1);
   const pkY = (H - PAD - peakVal * yScale).toFixed(1);
   // Physics-driven peak color — matches week bar / score badge colors exactly.
-  const pkColor = scoreToSkyColor(peakVal, skyColors, 0.08);
+  const pkColor = scoreToBarStyle(peakVal, skyColors).scoreColor;
 
   // Sunset marker vertical line
   const relSsIdx = ssIdx - start;
@@ -1252,28 +1248,6 @@ function buildMainHTML(loc, city, weekData) {
 
 // ─────────────────────────────────────────
 //  Liquid depth gradient for week bars
-//  Bright warm surface → score color → dark abyss
-// ─────────────────────────────────────────
-function _buildLiquidGradient(scoreColorRgb, score) {
-  const [r, g, b] = scoreColorRgb.split(',').map(Number);
-  // Use exponential curve so low scores stay dark, high scores blaze — more spread
-  const t = Math.max(0, Math.min(1, ((score || 5) - 3) / 7));
-  const t2 = t * t; // exponential: compresses low end, expands high end
-  // Warm-shift: suppress blue fully, green grows aggressively only for high scores
-  const wr = Math.min(255, Math.round(r + (255 - r) * (0.02 + t2 * 0.38)));
-  const wg = Math.max(Math.round(g * (0.6 + t * 1.2)), Math.round(wr * (0.10 + t2 * 0.38)));
-  const wb = Math.round(b * 0.08);
-  // Top surface: near-black crimson for low → blazing gold-white for high
-  const topR = Math.min(255, Math.round(wr + (255 - wr) * (0.10 + t2 * 0.72)));
-  const topG = Math.min(255, Math.round(wg + (255 - wg) * (0.05 + t2 * 0.80)));
-  const topB = Math.round(wb * 0.1 + t2 * 45);
-  // Mid: dark maroon for low, vivid amber for high
-  const r1 = Math.round(wr * (0.55 - t * 0.18)), g1 = Math.round(wg * (0.20 + t2 * 0.18)), b1 = 0;
-  // Bottom abyss: near-black always, slight warm tint at high scores
-  const r2 = Math.round(wr * (0.07 + t2 * 0.08)), g2 = Math.round(wg * 0.02), b2 = 0;
-  return `linear-gradient(to bottom,rgba(${topR},${topG},${topB},0.50) 0%,rgba(${wr},${wg},${wb},0.42) 22%,rgba(${r1},${g1},${b1},0.32) 60%,rgba(${r2},${g2},${b2},0.20) 100%)`;
-}
-
 // ─────────────────────────────────────────
 //  Week bar chart
 // ─────────────────────────────────────────
@@ -1292,16 +1266,13 @@ function renderWeekBars(weekData) {
     const ds = (_spotAvgScores != null && _spotAvgScores[i] != null) ? _spotAvgScores[i] : d.score;
     const barStyle   = scoreToBarStyle(ds, d.skyColors);
     const heightCalc = `calc(max(15%, (${ds.toFixed(2)} / 10) * 100%))`;
-    const wcBg       = getWatercolorBg(ds);
-    const fillGrad   = _buildLiquidGradient(barStyle.scoreColorRgb, ds);
 
     return `
     <div class="week-bar-item" onclick="toggleDaily(${i})">
       <div class="week-bar-track" style="--score-color-rgb:${barStyle.scoreColorRgb}">
         <div class="week-bar-fill" data-score="${ds.toFixed(1)}" ${ds >= 7 ? 'data-shimmer' : ''}
-             style="height:${heightCalc};--bar-fill-gradient:${fillGrad}">
+             style="height:${heightCalc}">
           <span class="week-bar-score" data-score="${ds.toFixed(1)}">${ds.toFixed(1)}</span>
-          <div class="week-bar-wc" style="background-image:url(${wcBg})"></div>
         </div>
       </div>
       <div class="week-bar-day">${label}</div>
@@ -1344,7 +1315,7 @@ function renderHourlyStrip(hourlyFull, skyColors) {
         <div class="${rainClass}">${h.rain}%</div>
         <div class="hourly-wind">${h.wind}</div>
         ${h.score != null
-          ? `<div class="hourly-score" style="color:${scoreToSkyColor(h.score, skyColors, getCardBgLuma())}">${h.score.toFixed(1)}</div>`
+          ? `<div class="hourly-score" style="color:${scoreToBarStyle(h.score, skyColors).scoreColor}">${h.score.toFixed(1)}</div>`
           : '<div class="hourly-score-spacer"></div>'
         }
       </div>`;
@@ -1417,21 +1388,21 @@ function renderDailyCards(weekData) {
 
         <!-- ① SCORES -->
         <div class="event-score-row">
-          <div class="event-score-panel event-score-panel--sunrise">
+          <div class="event-score-panel event-score-panel--sunrise" style="--score-color-rgb:${scoreToBarStyle(d.srScore, d.skyColors).scoreColorRgb}">
             <div class="logo-circle">${logoImg('sunrise', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToSkyColor(d.srScore, d.skyColors, getCardBgLuma())}">${d.srScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToBarStyle(d.srScore, d.skyColors).scoreColor}">${d.srScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">זריחה</div>
             <div class="event-score-time">${d.sunrise}</div>
           </div>
-          <div class="event-score-panel event-score-panel--sunset">
+          <div class="event-score-panel event-score-panel--sunset" style="--score-color-rgb:${scoreToBarStyle(d.ssScore, d.skyColors).scoreColorRgb}">
             <div class="logo-circle">${logoImg('sunset', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToSkyColor(d.ssScore, d.skyColors, getCardBgLuma())}">${d.ssScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToBarStyle(d.ssScore, d.skyColors).scoreColor}">${d.ssScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">שקיעה</div>
             <div class="event-score-time">${d.sunset}</div>
           </div>
-          <div class="event-score-panel event-score-panel--twilight">
+          <div class="event-score-panel event-score-panel--twilight" style="--score-color-rgb:${scoreToBarStyle(d.twScore, d.skyColors).scoreColorRgb}">
             <div class="logo-circle">${logoImg('twilight', 20)}</div>
-            <div class="event-score-num" style="color:${scoreToSkyColor(d.twScore, d.skyColors, getCardBgLuma())}">${d.twScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
+            <div class="event-score-num" style="color:${scoreToBarStyle(d.twScore, d.skyColors).scoreColor}">${d.twScore.toFixed(1)}<span class="event-score-denom">/10</span></div>
             <div class="event-score-lbl">דמדומים</div>
             <div class="event-score-time event-score-time--gold">${d.twilight}</div>
           </div>
@@ -1751,7 +1722,7 @@ function _showCompareOverlay(iA, iB) {
   const col = (d) => `
     <div style="flex:1;min-width:0">
       <div style="font-size:13px;font-weight:800;color:var(--cream);margin-bottom:8px">${d.day} ${d.shortDate}</div>
-      <div style="font-size:28px;font-weight:900;color:${scoreToSkyColor(d.score, d.skyColors, getCardBgLuma())};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)">/10</span></div>
+      <div style="font-size:28px;font-weight:900;color:${scoreToBarStyle(d.score, d.skyColors).scoreColor};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)">/10</span></div>
       <div style="font-size:10px;color:var(--cream-faint);margin-bottom:10px">${d.scoreLabel}</div>
       ${[
         ['שקיעה', d.ssScore.toFixed(1), d.sunset],

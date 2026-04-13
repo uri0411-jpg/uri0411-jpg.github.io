@@ -30,13 +30,8 @@
   --glass-blur:     var(--twl-dynamic-glass-blur,     8px);
   --glass-alpha:    var(--twl-dynamic-glass-alpha,    0.57);
   --glass-saturate: var(--twl-dynamic-glass-saturate, 120%);
-  /* Score tier palette — updated dynamically by startLiveGradient() */
-  --score-high-color: var(--twl-color-score-high,      #FFB347);
-  --score-high-glow:  var(--twl-color-score-high-glow, rgba(255,179,71,0.40));
-  --score-mid-color:  var(--twl-color-score-mid,       #C84B4A);
-  --score-mid-glow:   var(--twl-color-score-mid-glow,  rgba(200,75,74,0.30));
-  --score-low-color:  var(--twl-color-score-low,       #3B2C6D);
-  --score-low-glow:   var(--twl-color-score-low-glow,  rgba(59,44,109,0.20));
+  /* Score color — continuous neon ramp, set by JS */
+  --score-color-rgb: 212, 130, 10;
 }
 
 /* ── Accessibility: Reduced Motion ── */
@@ -381,7 +376,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 @keyframes badgeBorderPulse {
   0%, 100% { box-shadow: 0 0 0px transparent; }
-  50%       { box-shadow: 0 0 10px var(--score-high-glow); }
+  50%       { box-shadow: 0 0 10px rgba(var(--score-color-rgb), 0.35); }
 }
 @keyframes heroEntrance {
   from { opacity: 0; transform: translateY(16px) scale(0.97); }
@@ -789,7 +784,7 @@ body.has-install-banner .screen { padding-top: 56px; }
 .gauge-arc-fill {
   animation: arcDraw 0.9s ease 0.15s both;
 }
-/* Primary glow ring — default (no tier) */
+/* Primary glow ring — continuous score color */
 .score-gauge-wrap::before {
   content: '';
   position: absolute;
@@ -799,7 +794,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   width: 110px;
   height: 110px;
   border-radius: 50%;
-  background: radial-gradient(circle, var(--glow-color, rgba(212,130,10,0.15)) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(var(--score-color-rgb), 0.35) 0%, transparent 70%);
   opacity: 0.6;
   animation: breathe 3s ease-in-out infinite;
   pointer-events: none;
@@ -815,7 +810,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   top: 38%;
   left: 50%;
   transform: translateX(-50%) rotate(-12deg);
-  background: radial-gradient(ellipse at center, var(--glow-color, rgba(212,130,10,0.10)) 0%, transparent 70%);
+  background: radial-gradient(ellipse at center, rgba(var(--score-color-rgb), 0.25) 0%, transparent 70%);
   filter: blur(22px);
   animation: gaugeGlowPulse 5s ease-in-out infinite 1.8s;
   pointer-events: none;
@@ -824,36 +819,30 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 /* High score = strong warm glow */
 .score-gauge-wrap[data-score-tier="high"]::before {
-  background: radial-gradient(circle, var(--score-high-glow) 0%, transparent 70%);
   width: 150px; height: 150px;
   opacity: 0.95;
   animation: gaugeGlowPulse 2.2s ease-in-out infinite;
 }
 .score-gauge-wrap[data-score-tier="high"]::after {
-  background: radial-gradient(ellipse at center, var(--score-high-glow) 0%, transparent 70%);
   animation: gaugeGlowPulse 5.5s ease-in-out infinite 2s;
   opacity: 0.7;
 }
-/* Mid score = warm amber ambient */
+/* Mid score = moderate glow */
 .score-gauge-wrap[data-score-tier="mid"]::before {
-  background: radial-gradient(circle, var(--score-mid-glow) 0%, transparent 70%);
   width: 130px; height: 130px;
   opacity: 0.75;
   animation: gaugeGlowPulse 3.2s ease-in-out infinite;
 }
 .score-gauge-wrap[data-score-tier="mid"]::after {
-  background: radial-gradient(ellipse at center, var(--score-mid-glow) 0%, transparent 70%);
   opacity: 0.45;
 }
-/* Low score = dim cool blue */
+/* Low score = dim glow */
 .score-gauge-wrap[data-score-tier="low"]::before {
-  background: radial-gradient(circle, var(--score-low-glow) 0%, transparent 70%);
   width: 110px; height: 110px;
   opacity: 0.55;
   animation: gaugeGlowPulse 4.5s ease-in-out infinite;
 }
 .score-gauge-wrap[data-score-tier="low"]::after {
-  background: radial-gradient(ellipse at center, var(--score-low-glow) 0%, transparent 70%);
   opacity: 0.30;
 }
 .score-desc {
@@ -1350,6 +1339,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   align-items: flex-end;
   justify-content: space-between;
   padding: 0 2px;
+  position: relative;
 }
 .week-bar-item {
   flex: 1;
@@ -1366,124 +1356,106 @@ body.has-install-banner .screen { padding-top: 56px; }
 .week-bar-track {
   width: 100%;
   height: 165px;
-  /* Fully transparent — sky shows clean through empty portion */
   background: transparent;
-  backdrop-filter: none;
-  -webkit-backdrop-filter: none;
-  border: 1px solid rgba(212,165,116,0.22);
-  border-radius: 20px;
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  border-radius: 26px;
   position: relative;
   overflow: hidden;
-  box-shadow:
-    0 0 8px rgba(var(--score-color-rgb, 255, 100, 0), 0.55),
-    0 0 18px rgba(var(--score-color-rgb, 255, 100, 0), 0.20),
-    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.07);
 }
-/* Top amber indicator pill */
-.week-bar-track::before {
-  content: '';
-  position: absolute;
-  top: 8px;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 32%;
-  height: 2px;
-  background: rgba(255, 210, 120, 0.90);
-  border-radius: 2px;
-  box-shadow: 0 0 8px rgba(255, 185, 60, 0.95), 0 0 18px rgba(255, 140, 30, 0.55);
-  z-index: 10;
-  pointer-events: none;
-}
-/* ── Liquid fill — bottom-anchored, proportional height ── */
+/* ── Transparent color wash — sky visible through bar ── */
 .week-bar-fill {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   min-height: 15%;
-  /* Liquid depth gradient: bright surface → peak color → dark abyss */
-  background: var(--bar-fill-gradient,
-    linear-gradient(to bottom, rgba(255,248,220,0.92) 0%, rgba(255,100,0,0.95) 20%, rgba(120,30,0,0.90) 60%, rgba(20,5,0,0.88) 100%)
+  background: linear-gradient(
+    to bottom,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.28) 0%,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.13) 40%,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.03) 100%
   );
   box-shadow:
-    inset 0 -8px 18px rgba(0, 0, 0, 0.35),
-    0 0 18px rgba(var(--score-color-rgb, 255, 100, 0), 1.00),
-    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.70),
-    0 0 80px rgba(var(--score-color-rgb, 255, 100, 0), 0.38),
-    0 0 140px rgba(var(--score-color-rgb, 255, 100, 0), 0.18);
-  filter: saturate(1.45) brightness(1.18);
-  border-top: 1px solid rgba(255, 255, 255, 0.30);
-  border-radius: 0 0 20px 20px;
+    inset 10px 0 20px -6px rgba(var(--score-color-rgb, 255, 100, 0), 0.26),
+    inset -10px 0 20px -6px rgba(var(--score-color-rgb, 255, 100, 0), 0.26);
+  border-radius: 0 0 26px 26px;
   transition: height 0.6s cubic-bezier(0.33, 1, 0.68, 1);
   overflow: hidden;
 }
-/* Liquid surface glow — blazing radial at TOP + secondary orb in center */
+/* Ember glow line — bright accent at fill top */
 .week-bar-fill::before {
   content: '';
   position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background:
-    radial-gradient(
-      ellipse 75% 35% at 50% 5%,
-      rgba(255, 255, 255, 0.72) 0%,
-      rgba(255, 235, 160, 0.45) 22%,
-      rgba(255, 160, 50, 0.15) 55%,
-      transparent 100%
-    ),
-    radial-gradient(
-      ellipse 55% 45% at 50% 55%,
-      rgba(255, 200, 80, 0.18) 0%,
-      transparent 70%
-    );
-  pointer-events: none;
-  z-index: 1;
-}
-/* Canvas watercolor texture — organic brush texture */
-.week-bar-wc {
-  position: absolute;
-  inset: 0;
-  background-size: cover;
-  background-position: center;
-  mix-blend-mode: soft-light;
-  opacity: 0.38;
-  pointer-events: none;
+  top: 0;
+  left: 8%;
+  width: 84%;
+  height: 2px;
+  border-radius: 2px;
+  background: linear-gradient(
+    to right,
+    transparent 0%,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.9) 20%,
+    rgba(255, 230, 180, 0.95) 50%,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.9) 80%,
+    transparent 100%
+  );
+  box-shadow:
+    0 0 8px rgba(var(--score-color-rgb, 255, 100, 0), 0.7),
+    0 0 20px rgba(var(--score-color-rgb, 255, 100, 0), 0.3),
+    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.1);
   z-index: 2;
+  pointer-events: none;
 }
-/* Shimmer sweep for high scores */
-.week-bar-fill[data-shimmer]::after {
+/* Watercolor bloom — disabled */
+.week-bar-wc { display: none; }
+/* Ember pulse for high scores */
+.week-bar-fill[data-shimmer]::before {
+  animation: ember-pulse 3s ease-in-out infinite;
+}
+@keyframes ember-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; filter: blur(1px); }
+}
+/* Score number — positioned in the upper glow zone of the liquid */
+.week-bar-score {
+  position: absolute;
+  top: 50%; left: 0; right: 0;
+  transform: translateY(-50%);
+  text-align: center;
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  line-height: 1;
+  color: #fff;
+  text-shadow:
+    0 0 6px rgba(0, 0, 0, 0.8),
+    0 0 12px rgba(0, 0, 0, 0.4),
+    0 1px 2px rgba(0, 0, 0, 0.9);
+  z-index: 5;
+  pointer-events: none;
+}
+/* Glint — light reflection sweep */
+.week-bar-fill::after {
   content: '';
   position: absolute;
   inset: 0;
   border-radius: inherit;
   background: linear-gradient(
-    105deg,
-    transparent 20%,
-    rgba(255, 255, 255, 0.08) 36%,
-    rgba(255, 255, 255, 0.22) 50%,
-    rgba(255, 255, 255, 0.08) 64%,
-    transparent 80%
+    115deg,
+    transparent 30%,
+    rgba(255, 255, 255, 0.07) 48%,
+    rgba(255, 255, 255, 0.11) 50%,
+    rgba(255, 255, 255, 0.07) 52%,
+    transparent 70%
   );
   background-size: 250% 100%;
-  animation: badgeSweep 3.5s ease-in-out infinite;
+  animation: bar-glint 6s ease-in-out infinite;
   pointer-events: none;
   z-index: 3;
 }
-/* Score number — positioned in the upper glow zone of the liquid */
-.week-bar-score {
-  position: absolute;
-  top: 28%; left: 0; right: 0;
-  transform: translateY(-50%);
-  text-align: center;
-  font-size: 13px;
-  font-weight: 800;
-  letter-spacing: 0.02em;
-  line-height: 1;
-  color: rgba(255, 255, 255, 0.97);
-  text-shadow:
-    0 0 14px rgba(255, 210, 100, 0.95),
-    0 0 28px rgba(255, 150, 40, 0.60),
-    0 1px 3px rgba(0, 0, 0, 0.80);
-  z-index: 5;
-  pointer-events: none;
+@keyframes bar-glint {
+  0%   { background-position: 200% center; opacity: 0; }
+  15%  { opacity: 1; }
+  85%  { opacity: 1; }
+  100% { background-position: -100% center; opacity: 0; }
 }
 .week-bar-day { font-size: 10px; font-weight: 700; letter-spacing: 0.05em; color: var(--cream-faint); text-align: center; }
 .week-bar-date { font-size: 9px; letter-spacing: 0.05em; color: rgba(245,230,200,0.3); text-align: center; }
@@ -2977,9 +2949,12 @@ a:focus-visible,
   border-radius: 12px;
   border: 1px solid;
 }
-.event-score-panel--sunrise  { background: rgba(240,184,74,0.07);   border-color: rgba(240,184,74,0.20);  }
-.event-score-panel--sunset   { background: rgba(212,130,10,0.12);   border-color: rgba(212,130,10,0.28);  }
-.event-score-panel--twilight { background: rgba(160,120,200,0.08);  border-color: rgba(160,120,200,0.25); }
+.event-score-panel--sunrise,
+.event-score-panel--sunset,
+.event-score-panel--twilight {
+  background: rgba(var(--score-color-rgb, 212, 130, 10), 0.08);
+  border-color: rgba(var(--score-color-rgb, 212, 130, 10), 0.22);
+}
 .event-score-num    { font-size: 20px; font-weight: 900; font-family: var(--font-title); line-height: 1; }
 .event-score-denom  { font-size: 11px; font-weight: 400; color: var(--cream-faint); }
 .event-score-lbl    { font-size: 10px; color: var(--cream-faint); font-weight: 600; }

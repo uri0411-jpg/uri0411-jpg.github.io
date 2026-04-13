@@ -653,7 +653,7 @@ function updateMapMarkers(spots) {
     const eventScore = nextEvt.type === 'sunrise'
       ? (s._allScores?.[0]?.sr || 5)
       : (s._allScores?.[0]?.ss || 5);
-    const markerColor = scoreToSkyColor(sc, _weekData?.[0]?.skyColors, getCardBgLuma());
+    const markerColor = scoreToBarStyle(sc, _weekData?.[0]?.skyColors).scoreColor;
     const isFav = isFavorite(s.name, s.lat, s.lon);
     const isVis = isVisited(s.name, s.lat, s.lon);
     const size = isFav ? 18 : 14;
@@ -664,7 +664,7 @@ function updateMapMarkers(spots) {
       iconSize: [size, size], iconAnchor: [size/2, size/2], className: ''
     });
     const eventLabel = nextEvt.type === 'sunrise' ? 'זריחה' : 'שקיעה';
-    const popupContent = `<div dir="rtl" style="font-family:Rubik,sans-serif;font-size:13px"><b>${esc(s.name)}</b><br>${esc(s.type)} · ${fmtScore(sc)} · ${s.dist} ק"מ<br><span style="color:${scoreToSkyColor(eventScore, _weekData?.[0]?.skyColors, getCardBgLuma())}">${eventLabel}: ${fmtScore(eventScore)}</span><br><a href="#" class="spot-popup-link" data-spot-idx="${idx}" style="color:#F0B84A;font-size:11px;text-decoration:underline">הצג פרטים ↓</a></div>`;
+    const popupContent = `<div dir="rtl" style="font-family:Rubik,sans-serif;font-size:13px"><b>${esc(s.name)}</b><br>${esc(s.type)} · ${fmtScore(sc)} · ${s.dist} ק"מ<br><span style="color:${scoreToBarStyle(eventScore, _weekData?.[0]?.skyColors).scoreColor}">${eventLabel}: ${fmtScore(eventScore)}</span><br><a href="#" class="spot-popup-link" data-spot-idx="${idx}" style="color:#F0B84A;font-size:11px;text-decoration:underline">הצג פרטים ↓</a></div>`;
     const m = L.marker([s.lat, s.lon], { icon: spotIcon })
       .addTo(_map)
       .bindPopup(popupContent);
@@ -884,7 +884,7 @@ function renderBestSpotHero() {
 
   heroEl.innerHTML = `
   <div class="glass-strong spot-hero" style="--spot-color:${heroColor}">
-    <div class="spot-hero-strip" style="background:${scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors).strip}"></div>
+    <div class="spot-hero-strip" style="background:${scoreToBarStyle(sc.combined, _weekData?.[0]?.skyColors).scoreColor}"></div>
     <div class="spot-hero-inner">
       <div class="spot-hero-top">
         <div style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">${heroTitle}</div>
@@ -1095,7 +1095,7 @@ function renderSpotsList() {
 
     return `
     <div class="glass spot-card spot-card-anim" style="--spot-color:${cardColor};--anim-delay:${i * 60}ms">
-      <div class="spot-color-strip" style="background:${scoreToSkyBg(sc.combined, _weekData?.[0]?.skyColors).strip}"></div>
+      <div class="spot-color-strip" style="background:${scoreToBarStyle(sc.combined, _weekData?.[0]?.skyColors).scoreColor}"></div>
       <div class="spot-card-inner">
         <div class="spot-header" onclick="toggleSpot(${i})">
           <div class="spot-header-right">
@@ -1163,7 +1163,7 @@ function renderSpotsList() {
               </div>
               <div class="spot-score-cell spot-score-cell-main">
                 <svg width="18" height="18" fill="none" stroke="var(--gold-light)" stroke-width="1.5" viewBox="0 0 24 24"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
-                <div class="spot-score-num" style="color:${scoreToSkyColor(sc.combined, _weekData?.[0]?.skyColors, getCardBgLuma())}">${fmtScore(sc.combined)}<span>/10</span></div>
+                <div class="spot-score-num" style="color:${scoreToBarStyle(sc.combined, _weekData?.[0]?.skyColors).scoreColor}">${fmtScore(sc.combined)}<span>/10</span></div>
                 <div class="spot-score-lbl">שמיים</div>
               </div>
               <div class="spot-score-cell">
