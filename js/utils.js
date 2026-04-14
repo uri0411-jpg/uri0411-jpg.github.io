@@ -734,29 +734,19 @@ export function calcGoldenHourMin(lat, date) {
 // ─── Cinematic Bar Style ─────────────────────────────────────────────────────
 
 /**
- * Maps score 3→10 to a highly-saturated neon palette:
- * purple (3) → deep red (5) → scarlet-orange (7) → sun-gold (10)
+ * Maps score to 5 discrete perceptual zones — semantic, not interpolated.
+ * ≥8.5 sunsetGold    — vivid, peak golden hour
+ * ≥7   warmOrange    — good sunset, warm cast
+ * ≥5   neutralAmber  — decent, moderate interest
+ * ≥3   coolGray      — weak, muted
+ * <3   coolBlue      — poor, twilight blue
  */
 function scoreToNeonColor(score) {
-  const STOPS = [
-    { s: 3,  r: 120, g:  40, b: 100 }, // warm purple-maroon
-    { s: 5,  r: 180, g:  55, b:  45 }, // deep maroon-amber
-    { s: 7,  r: 230, g: 120, b:  25 }, // warm sunset orange
-    { s: 10, r: 255, g: 190, b:  40 }, // rich gold
-  ];
-  const clamped = Math.max(3, Math.min(10, score));
-  let lo = STOPS[0], hi = STOPS[STOPS.length - 1];
-  for (let i = 0; i < STOPS.length - 1; i++) {
-    if (clamped >= STOPS[i].s && clamped <= STOPS[i + 1].s) {
-      lo = STOPS[i]; hi = STOPS[i + 1]; break;
-    }
-  }
-  const t = (clamped - lo.s) / (hi.s - lo.s);
-  return {
-    r: Math.round(lo.r + (hi.r - lo.r) * t),
-    g: Math.round(lo.g + (hi.g - lo.g) * t),
-    b: Math.round(lo.b + (hi.b - lo.b) * t),
-  };
+  if (score >= 8.5) return { r: 255, g: 179, b:  71 }; // sunsetGold
+  if (score >= 7)   return { r: 232, g: 115, b:  42 }; // warmOrange
+  if (score >= 5)   return { r: 200, g: 146, b:  42 }; // neutralAmber
+  if (score >= 3)   return { r: 138, g: 122, b: 106 }; // coolGray
+  return               { r:  74, g: 106, b: 154 }; // coolBlue
 }
 
 /**

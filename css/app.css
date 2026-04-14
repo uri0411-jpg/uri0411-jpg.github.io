@@ -1304,110 +1304,95 @@ body.has-install-banner .screen { padding-top: 56px; }
   transition: transform 0.15s ease;
 }
 .week-bar-item:active { transform: scale(0.95); }
-/* ── Optical Engine: Dark Glass Tube ── */
+/* ── Optical Engine: Dark Glass Tube ──────────────────────────────────────────
+   overflow:hidden removed so the glow-cap (::after) can extend above fill top.
+   Visual containment comes from transparent background + border-radius alone.
+────────────────────────────────────────────────────────────────────────────── */
 .week-bar-track {
   width: 100%;
   height: 165px;
   background: transparent;
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 26px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: var(--twl-radius-bar);
   position: relative;
-  overflow: hidden;
 }
-/* ── Transparent color wash — sky visible through bar ── */
+/* ── Score fill — meniscus + tinted body + inner/outer glow ── */
 .week-bar-fill {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   min-height: 15%;
-  background: linear-gradient(
-    to bottom,
-    rgba(var(--score-color-rgb, 255, 100, 0), 0.28) 0%,
-    rgba(var(--score-color-rgb, 255, 100, 0), 0.13) 40%,
-    rgba(var(--score-color-rgb, 255, 100, 0), 0.03) 100%
-  );
+  background:
+    /* Meniscus — bright rim at fill top, fades over 8% */
+    linear-gradient(to bottom, rgba(255,255,255,0.20), transparent 8%),
+    /* Score-tinted body — stronger at top, fades to near-transparent */
+    linear-gradient(to bottom,
+      rgba(var(--score-color-rgb, 255, 100, 0), 0.32) 0%,
+      rgba(var(--score-color-rgb, 255, 100, 0), 0.14) 50%,
+      rgba(var(--score-color-rgb, 255, 100, 0), 0.03) 100%);
   box-shadow:
-    inset 10px 0 20px -6px rgba(var(--score-color-rgb, 255, 100, 0), 0.26),
-    inset -10px 0 20px -6px rgba(var(--score-color-rgb, 255, 100, 0), 0.26);
-  border-radius: 0 0 26px 26px;
-  transition: height 0.6s cubic-bezier(0.33, 1, 0.68, 1);
-  overflow: hidden;
+    inset 0 1px 0 rgba(255,255,255,0.28),                      /* inner top highlight */
+    0 0 28px rgba(var(--score-color-rgb, 255, 100, 0), 0.28),  /* outer glow halo */
+    0 4px 16px rgba(0,0,0,0.18);                               /* lift shadow */
+  border-radius: 0 0 var(--twl-radius-bar) var(--twl-radius-bar);
+  transition: height var(--twl-motion-duration-slow) var(--twl-motion-ease-out);
+  overflow: visible;
 }
-/* Ember glow line — bright accent at fill top */
+/* Hard highlight — 2px bright edge, blur 1px — "wet / glassy" feel */
 .week-bar-fill::before {
   content: '';
   position: absolute;
-  top: 0;
-  left: 8%;
-  width: 84%;
+  top: 0; left: 10%; right: 10%;
   height: 2px;
+  background: rgba(255, 255, 255, 0.82);
+  filter: blur(1px);
+  opacity: 0.65;
   border-radius: 2px;
-  background: linear-gradient(
-    to right,
-    transparent 0%,
-    rgba(var(--score-color-rgb, 255, 100, 0), 0.9) 20%,
-    rgba(255, 230, 180, 0.95) 50%,
-    rgba(var(--score-color-rgb, 255, 100, 0), 0.9) 80%,
-    transparent 100%
-  );
-  box-shadow:
-    0 0 8px rgba(var(--score-color-rgb, 255, 100, 0), 0.7),
-    0 0 20px rgba(var(--score-color-rgb, 255, 100, 0), 0.3),
-    0 0 40px rgba(var(--score-color-rgb, 255, 100, 0), 0.1);
   z-index: 2;
+  pointer-events: none;
+}
+/* Glow-cap — radial halo floating just above the fill's top edge.
+   Extends outside the fill (overflow:visible on fill, no clip on track) */
+.week-bar-fill::after {
+  content: '';
+  position: absolute;
+  top: -8px; left: 0; right: 0;
+  height: 16px;
+  border-radius: 50%;
+  background: radial-gradient(ellipse at center,
+    rgba(var(--score-color-rgb, 255, 100, 0), 0.80),
+    transparent 72%);
+  filter: blur(3px);
+  z-index: 1;
   pointer-events: none;
 }
 /* Watercolor bloom — disabled */
 .week-bar-wc { display: none; }
-/* Ember pulse for high scores */
+/* Ember pulse — high-score bars pulse the hard highlight */
 .week-bar-fill[data-shimmer]::before {
   animation: ember-pulse 3s ease-in-out infinite;
 }
 @keyframes ember-pulse {
-  0%, 100% { opacity: 1; }
-  50% { opacity: 0.6; filter: blur(1px); }
+  0%, 100% { opacity: 0.65; }
+  50%       { opacity: 0.28; filter: blur(2px); }
 }
-/* Score number — positioned in the upper glow zone of the liquid */
+/* Score number — light weight, tnum, tight tracking — "luxury watch face" */
 .week-bar-score {
   position: absolute;
   top: 50%; left: 0; right: 0;
   transform: translateY(-50%);
   text-align: center;
-  font-size: 14px;
-  font-weight: 600;
-  letter-spacing: 0.02em;
+  font-size: var(--twl-font-size-lg);
+  font-weight: var(--twl-font-weight-hero);
+  letter-spacing: var(--twl-letter-spacing-tight);
+  font-feature-settings: "tnum";
   line-height: 1;
-  color: #fff;
+  color: var(--twl-dynamic-text-glow);
   text-shadow:
-    0 0 6px rgba(0, 0, 0, 0.8),
-    0 0 12px rgba(0, 0, 0, 0.4),
-    0 1px 2px rgba(0, 0, 0, 0.9);
+    0 0 8px rgba(0, 0, 0, 0.85),
+    0 0 16px rgba(0, 0, 0, 0.45),
+    0 1px 2px rgba(0, 0, 0, 0.95);
   z-index: 5;
   pointer-events: none;
-}
-/* Glint — light reflection sweep */
-.week-bar-fill::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  border-radius: inherit;
-  background: linear-gradient(
-    115deg,
-    transparent 30%,
-    rgba(255, 255, 255, 0.07) 48%,
-    rgba(255, 255, 255, 0.11) 50%,
-    rgba(255, 255, 255, 0.07) 52%,
-    transparent 70%
-  );
-  background-size: 250% 100%;
-  animation: bar-glint 6s ease-in-out infinite;
-  pointer-events: none;
-  z-index: 3;
-}
-@keyframes bar-glint {
-  0%   { background-position: 200% center; opacity: 0; }
-  15%  { opacity: 1; }
-  85%  { opacity: 1; }
-  100% { background-position: -100% center; opacity: 0; }
 }
 /* Gauge glint — CSS controls opacity, SMIL controls position */
 .gauge-glint-path {
