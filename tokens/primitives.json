@@ -45,18 +45,58 @@
     "lg":   { "$type": "dimension", "$value": "18px" },
     "pill": { "$type": "dimension", "$value": "50px" }
   },
+  "blur": {
+    "sm":  { "$type": "dimension", "$value": "8px" },
+    "md":  { "$type": "dimension", "$value": "12px" },
+    "lg":  { "$type": "dimension", "$value": "20px" },
+    "xl":  { "$type": "dimension", "$value": "32px" }
+  },
+  "luminance": {
+    "sky":   { "$type": "number", "$value": 0.95 },
+    "atmos": { "$type": "number", "$value": 1 },
+    "glass": { "$type": "number", "$value": 1.05 },
+    "ui":    { "$type": "number", "$value": 1.1 }
+  },
+  "motion": {
+    "duration": {
+      "fast":   { "$type": "string", "$value": "120ms" },
+      "medium": { "$type": "string", "$value": "240ms" },
+      "slow":   { "$type": "string", "$value": "600ms" }
+    },
+    "ease": {
+      "standard": { "$type": "string", "$value": "cubic-bezier(0.4,0,0.2,1)" },
+      "spring":   { "$type": "string", "$value": "cubic-bezier(0.34,1.56,0.64,1)" },
+      "out":      { "$type": "string", "$value": "cubic-bezier(0.22,1,0.36,1)" }
+    }
+  },
+  "shadow": {
+    "inset": {
+      "highlight-top":    { "$type": "string", "$value": "inset 0 1px 0 rgba(255,255,255,0.20)" },
+      "highlight-bottom": { "$type": "string", "$value": "inset 0 -1px 0 rgba(0,0,0,0.15)" },
+      "glow-rim":         { "$type": "string", "$value": "inset 0 0 0 1px rgba(255,255,255,0.10)" }
+    }
+  },
+  "letter-spacing": {
+    "tight":  { "$type": "string", "$value": "-0.02em" },
+    "hero":   { "$type": "string", "$value": "-0.04em" },
+    "normal": { "$type": "string", "$value": "0" },
+    "wide":   { "$type": "string", "$value": "0.05em" }
+  },
   "font": {
     "family": {
-      "title":   { "$type": "fontFamily", "$value": "'Secular One', 'Rubik', sans-serif" },
-      "body":    { "$type": "fontFamily", "$value": "'Rubik', 'Heebo', sans-serif" },
+      "title":   { "$type": "fontFamily", "$value": "'Assistant', 'Rubik', 'Heebo', sans-serif" },
+      "body":    { "$type": "fontFamily", "$value": "'Assistant', 'Rubik', 'Heebo', sans-serif" },
       "spot":    { "$type": "fontFamily", "$value": "'Playfair Display', serif" }
     },
     "size": {
-      "xs":  { "$type": "dimension", "$value": "9px" },
-      "sm":  { "$type": "dimension", "$value": "10px" },
-      "md":  { "$type": "dimension", "$value": "12px" },
-      "lg":  { "$type": "dimension", "$value": "14px" },
-      "xl":  { "$type": "dimension", "$value": "16px" }
+      "xs":      { "$type": "dimension", "$value": "9px" },
+      "sm":      { "$type": "dimension", "$value": "10px" },
+      "md":      { "$type": "dimension", "$value": "12px" },
+      "lg":      { "$type": "dimension", "$value": "14px" },
+      "xl":      { "$type": "dimension", "$value": "16px" },
+      "heading": { "$type": "dimension", "$value": "18px" },
+      "display": { "$type": "dimension", "$value": "24px" },
+      "hero":    { "$type": "dimension", "$value": "64px" }
     },
     "weight": {
       "light":     { "$type": "number", "$value": 300 },
@@ -65,7 +105,10 @@
       "semibold":  { "$type": "number", "$value": 600 },
       "bold":      { "$type": "number", "$value": 700 },
       "extrabold": { "$type": "number", "$value": 800 },
-      "black":     { "$type": "number", "$value": 900 }
+      "black":     { "$type": "number", "$value": 900 },
+      "hero":      { "$type": "number", "$value": 300 },
+      "ui":        { "$type": "number", "$value": 500 },
+      "emphasis":  { "$type": "number", "$value": 700 }
     },
     "leading": {
       "tight":   { "$type": "number", "$value": 1.0 },

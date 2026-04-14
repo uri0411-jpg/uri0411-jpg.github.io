@@ -8,13 +8,18 @@
     "text": {
       "primary":   { "$type": "color", "$value": "#F5E6C8" },
       "secondary": { "$type": "color", "$value": "rgba(245, 230, 200, 0.75)" },
-      "tertiary":  { "$type": "color", "$value": "rgba(245, 230, 200, 0.45)" }
+      "tertiary":  { "$type": "color", "$value": "rgba(245, 230, 200, 0.45)" },
+      "glow": {
+        "warm": { "$type": "color", "$value": "rgba(255, 200, 150, 0.95)" },
+        "cool": { "$type": "color", "$value": "rgba(200, 220, 255, 0.95)" }
+      }
     },
     "accent": {
       "primary":       { "$type": "color", "$value": "#D4820A" },
       "primary-light": { "$type": "color", "$value": "#F0B84A" },
       "gradient-top":  { "$type": "color", "$value": "#2D1B69" },
-      "gradient-bot":  { "$type": "color", "$value": "#F97316" }
+      "gradient-bot":  { "$type": "color", "$value": "#F97316" },
+      "sunset":        { "$type": "color", "$value": "#FF7A2F" }
     },
     "interactive": {
       "button-bg":     { "$type": "color", "$value": "#5A2D0C" },
@@ -26,23 +31,57 @@
       "mid":       { "$type": "color", "$value": "#C84B4A" },
       "mid-glow":  { "$type": "color", "$value": "rgba(200, 75, 74, 0.30)" },
       "low":       { "$type": "color", "$value": "#3B2C6D" },
-      "low-glow":  { "$type": "color", "$value": "rgba(59, 44, 109, 0.20)" }
+      "low-glow":  { "$type": "color", "$value": "rgba(59, 44, 109, 0.20)" },
+      "zones": {
+        "gold":    { "$type": "color", "$value": "#FFB347" },
+        "orange":  { "$type": "color", "$value": "#E8732A" },
+        "amber":   { "$type": "color", "$value": "#C8922A" },
+        "gray":    { "$type": "color", "$value": "#8A7A6A" },
+        "blue":    { "$type": "color", "$value": "#4A6A9A" }
+      }
     },
     "status": {
       "optimal": { "$type": "color", "$value": "#3CA03C" },
       "neutral": { "$type": "color", "$value": "#F59E0B" },
       "poor":    { "$type": "color", "$value": "#DC2828" }
+    },
+    "sky": {
+      "base":    { "$type": "color", "$value": "rgba(120, 160, 220, 0.8)" },
+      "horizon": { "$type": "color", "$value": "rgba(255, 140, 60, 0.9)" },
+      "zenith":  { "$type": "color", "$value": "rgba(30, 60, 140, 1.0)" }
+    },
+    "glass": {
+      "bg":             { "$type": "color", "$value": "rgba(20, 10, 4, 0.55)" },
+      "border-top":     { "$type": "color", "$value": "rgba(255, 255, 255, 0.18)" },
+      "border-bottom":  { "$type": "color", "$value": "rgba(0, 0, 0, 0.25)" },
+      "inner-glow":     { "$type": "color", "$value": "rgba(255, 200, 100, 0.06)" },
+      "edge-highlight": { "$type": "color", "$value": "rgba(255, 255, 255, 0.80)" }
     }
+  },
+  "layer": {
+    "sky":     { "$type": "number", "$value": 0 },
+    "atmos":   { "$type": "number", "$value": 1 },
+    "glass":   { "$type": "number", "$value": 2 },
+    "ui":      { "$type": "number", "$value": 3 },
+    "nav":     { "$type": "number", "$value": 200 },
+    "toast":   { "$type": "number", "$value": 999 },
+    "overlay": { "$type": "number", "$value": 9999 }
+  },
+  "motion": {
+    "score-up":   { "$type": "string", "$value": "height 240ms cubic-bezier(0.34,1.56,0.64,1)" },
+    "score-down": { "$type": "string", "$value": "height 600ms cubic-bezier(0.22,1,0.36,1)" },
+    "hover":      { "$type": "string", "$value": "transform 120ms cubic-bezier(0.4,0,0.2,1), opacity 120ms cubic-bezier(0.4,0,0.2,1)" },
+    "screen":     { "$type": "string", "$value": "opacity 600ms cubic-bezier(0.4,0,0.2,1)" }
   },
   "radius": {
     "card":  { "$type": "dimension", "$value": "18px" },
     "pill":  { "$type": "dimension", "$value": "50px" },
     "badge": { "$type": "dimension", "$value": "10px" },
-    "bar":   { "$type": "dimension", "$value": "14px" }
+    "bar":   { "$type": "dimension", "$value": "26px" }
   },
   "font": {
-    "title": { "$type": "fontFamily", "$value": "'Secular One', 'Rubik', sans-serif" },
-    "body":  { "$type": "fontFamily", "$value": "'Rubik', 'Heebo', sans-serif" },
+    "title": { "$type": "fontFamily", "$value": "'Assistant', 'Rubik', 'Heebo', sans-serif" },
+    "body":  { "$type": "fontFamily", "$value": "'Assistant', 'Rubik', 'Heebo', sans-serif" },
     "spot":  { "$type": "fontFamily", "$value": "'Playfair Display', serif" }
   }
 }

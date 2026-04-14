@@ -122,6 +122,7 @@ lines.push('  --twl-dynamic-glass-alpha: 0.57;');
 lines.push('  --twl-dynamic-glass-saturate: 120%;');
 lines.push('  --twl-dynamic-sky-luma: 0.5;');
 lines.push('  --twl-dynamic-ui-sky-t: 0.5;');
+lines.push('  --twl-dynamic-text-glow: rgba(255, 255, 255, 0.9);');
 lines.push('}');
 lines.push('');
 
