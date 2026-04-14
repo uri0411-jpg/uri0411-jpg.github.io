@@ -641,7 +641,7 @@ async function handleSetLocation(e) {
       await initSpotsScreen(weekData);
     }
   } catch (err) {
-    console.error('[setLocation]', err);
+    console.error('[setLocation]', err?.message || err);
     // Restore previous state so the app isn't stuck pointing at a failed location
     setState({ loc: prevLoc, city: prevCity });
     if (typeof window !== 'undefined' && window.__twl_debug) window.__twl_debug.locChangeFails++;

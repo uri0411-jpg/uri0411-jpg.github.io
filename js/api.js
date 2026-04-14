@@ -25,6 +25,34 @@ async function fetchWithTimeout(url, options = {}, timeoutMs = FETCH_TIMEOUT_MS)
   }
 }
 
+async function fetchWithRetry(url, options = {}, { maxAttempts = 3, baseMs = 1500, timeoutMs = FETCH_TIMEOUT_MS } = {}) {
+  let lastErr;
+  for (let attempt = 0; attempt < maxAttempts; attempt++) {
+    try {
+      const res = await fetchWithTimeout(url, options, timeoutMs);
+      if (res.ok) return res;
+      if ((res.status === 429 || res.status === 503) && attempt < maxAttempts - 1) {
+        const ra = parseInt(res.headers.get('Retry-After'), 10);
+        const wait = (isNaN(ra) ? baseMs * Math.pow(2, attempt) : ra * 1000) + Math.random() * 500;
+        console.warn(`[api] ${res.status} on ${url} — retry ${attempt + 1}/${maxAttempts - 1} in ${Math.round(wait)}ms`);
+        await new Promise(r => setTimeout(r, wait));
+        continue;
+      }
+      lastErr = new Error(`HTTP ${res.status}`);
+      lastErr.status = res.status;
+      throw lastErr;
+    } catch (err) {
+      lastErr = err;
+      if (attempt < maxAttempts - 1 && !err.status) {
+        await new Promise(r => setTimeout(r, baseMs * Math.pow(2, attempt) + Math.random() * 500));
+        continue;
+      }
+      throw err;
+    }
+  }
+  throw lastErr;
+}
+
 // ─────────────────────────────────────────
 //  HOURLY PARAMS shared across models
 // ─────────────────────────────────────────
@@ -57,7 +85,7 @@ async function fetchModel(lat, lon, model = null) {
   if (model) params.set('models', model);
 
   const url = `${OPEN_METEO_URL}?${params}`;
-  const res = await fetchWithTimeout(url);
+  const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`Open-Meteo ${model || 'best_match'} error ${res.status}`);
   return res.json();
 }
@@ -258,7 +286,7 @@ async function _fetchAirQualityRaw(lat, lon) {
   });
 
   try {
-    const res = await fetchWithTimeout(`${OPEN_METEO_AQ_URL}?${params}`, {}, FETCH_TIMEOUT_SECONDARY_MS);
+    const res = await fetchWithRetry(`${OPEN_METEO_AQ_URL}?${params}`, {}, { maxAttempts: 2, timeoutMs: FETCH_TIMEOUT_SECONDARY_MS });
     if (!res.ok) throw new Error(`AQ API error ${res.status}`);
     return await res.json();
   } catch (e) {
@@ -416,7 +444,7 @@ export async function fetchWesternHorizon(lat, lon, force = false) {
       hourly: 'cloudcover_low,cloudcover'
     });
     try {
-      const res = await fetchWithTimeout(`${OPEN_METEO_URL}?${params}`, {}, FETCH_TIMEOUT_SECONDARY_MS);
+      const res = await fetchWithRetry(`${OPEN_METEO_URL}?${params}`, {}, { maxAttempts: 2, timeoutMs: FETCH_TIMEOUT_SECONDARY_MS });
       if (!res.ok) throw new Error(`Western horizon API error ${res.status}`);
       return await res.json();
     } catch (e) {
