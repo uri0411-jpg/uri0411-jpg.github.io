@@ -631,28 +631,42 @@ export function buildGaugeArc(score, color, size = 120) {
   const arcTarget = `${filled} ${gap}`;
   return `
     <svg width="${size}" height="${size / 2 + 18}" viewBox="0 0 ${size} ${size / 2 + 18}" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <defs>
+        <!-- Linear gradient: bright near arc (top) → dim at baseline (bottom) -->
+        <linearGradient id="gauge-fill-grad" x1="${cx}" y1="${cy - r}" x2="${cx}" y2="${cy}" gradientUnits="userSpaceOnUse">
+          <stop class="gauge-grad-stop" offset="0%"   stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.28"/>
+          <stop class="gauge-grad-stop" offset="55%"  stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.10"/>
+          <stop class="gauge-grad-stop" offset="100%" stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.02"/>
+        </linearGradient>
+      </defs>
       <!-- D-shape vessel background -->
       <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy} L ${startX} ${cy} Z"
-            fill="rgba(12,6,2,0.42)" />
-      <!-- Track border (outer arc edge, 1px) -->
+            fill="rgba(10,5,2,0.45)" />
+      <!-- Track border (outer arc, 1px) -->
       <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
-            stroke="rgba(245,224,190,0.08)" stroke-width="1" fill="none" />
-      <!-- Sector fill (scored area, transparent wash) -->
-      <path class="gauge-sector-fill" d="${sectorD}"
-            fill="rgba(${cr},${cg},${cb},0.13)" />
-      <!-- Baseline ember line (completes the D-shape visually) -->
+            stroke="rgba(245,224,190,0.07)" stroke-width="1" fill="none" />
+      <!-- Sector fill with gradient (bright at arc boundary, fades to baseline) -->
+      <path class="gauge-sector-fill" d="${sectorD}" fill="url(#gauge-fill-grad)" />
+      <!-- Inner halo arc (thick soft glow just below the ember line) -->
+      <path class="gauge-halo" d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
+            stroke="rgba(${cr},${cg},${cb},0.14)" stroke-width="16" fill="none"
+            stroke-linecap="butt"
+            stroke-dasharray="0 ${totalArc}"
+            data-arc-target="${arcTarget}"
+            style="transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
+      <!-- Baseline ember line (floor of the vessel) -->
       <line class="gauge-baseline"
             x1="${startX}" y1="${cy}" x2="${endX}" y2="${cy}"
-            stroke="rgba(${cr},${cg},${cb},0.55)" stroke-width="1.5"
-            style="filter:drop-shadow(0 0 5px rgba(${cr},${cg},${cb},0.4))" />
-      <!-- Ember arc at score boundary (animates in via dasharray) -->
+            stroke="rgba(${cr},${cg},${cb},0.65)" stroke-width="1.5"
+            style="filter:drop-shadow(0 0 8px rgba(${cr},${cg},${cb},0.5)) drop-shadow(0 0 18px rgba(${cr},${cg},${cb},0.2))" />
+      <!-- Ember arc at score boundary (animates in) -->
       <path class="gauge-arc-fill" d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
             stroke="${color}" stroke-width="3" fill="none"
             stroke-linecap="round"
             stroke-dasharray="0 ${totalArc}"
             data-arc-target="${arcTarget}"
-            style="filter:drop-shadow(0 0 5px ${color}88) drop-shadow(0 0 12px ${color}33);transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
-      <!-- Score number (inside the vessel) -->
+            style="filter:drop-shadow(0 0 5px ${color}88) drop-shadow(0 0 14px ${color}44) drop-shadow(0 0 28px ${color}22);transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
+      <!-- Score number -->
       <text class="gauge-score-text" x="${cx}" y="${cy - 14}" text-anchor="middle"
             font-family="var(--font-title)" font-size="30" font-weight="900"
             fill="${color}" style="filter:drop-shadow(0 0 6px ${color}66) drop-shadow(0 2px 4px rgba(0,0,0,0.80))">

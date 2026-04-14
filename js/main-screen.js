@@ -113,12 +113,15 @@ function _updateLiveScoreColors(skyColors, mainScore) {
       `drop-shadow(0 0 6px ${mainColor}66) ` +
       `drop-shadow(0 2px 4px rgba(0,0,0,0.80))`;
   }
-  const gaugeSector = document.querySelector('.gauge-sector-fill');
-  if (gaugeSector) gaugeSector.setAttribute('fill', `rgba(${cr},${cg},${cb},0.13)`);
+  for (const stop of document.querySelectorAll('.gauge-grad-stop')) {
+    stop.setAttribute('stop-color', `rgb(${cr},${cg},${cb})`);
+  }
+  const gaugeHalo = document.querySelector('.gauge-halo');
+  if (gaugeHalo) gaugeHalo.setAttribute('stroke', `rgba(${cr},${cg},${cb},0.14)`);
   const gaugeBaseline = document.querySelector('.gauge-baseline');
   if (gaugeBaseline) {
-    gaugeBaseline.setAttribute('stroke', `rgba(${cr},${cg},${cb},0.55)`);
-    gaugeBaseline.style.filter = `drop-shadow(0 0 5px rgba(${cr},${cg},${cb},0.4))`;
+    gaugeBaseline.setAttribute('stroke', `rgba(${cr},${cg},${cb},0.65)`);
+    gaugeBaseline.style.filter = `drop-shadow(0 0 8px rgba(${cr},${cg},${cb},0.5)) drop-shadow(0 0 18px rgba(${cr},${cg},${cb},0.2))`;
   }
   // Update continuous score color + tier on gauge wrap
   const tier = mainScore >= 7 ? 'high' : mainScore >= 4 ? 'mid' : 'low';
@@ -544,7 +547,7 @@ export async function initMainScreen(loc, city, weekData, spotAvgScores = null) 
   // Trigger gauge arc draw: two rAF frames ensure the browser has painted
   // the initial stroke-dasharray:0 before we set the target (activating transition).
   requestAnimationFrame(() => requestAnimationFrame(() => {
-    for (const arc of container.querySelectorAll('.gauge-arc-fill[data-arc-target]')) {
+    for (const arc of container.querySelectorAll('.gauge-arc-fill[data-arc-target], .gauge-halo[data-arc-target]')) {
       arc.style.strokeDasharray = arc.dataset.arcTarget;
     }
   }));
@@ -648,8 +651,9 @@ export function refreshMainScores(weekData, spotAvgScores = null) {
       svgEl.replaceWith(tmp.firstElementChild);
       // Kick the arc animation (same two-rAF trick as initMainScreen)
       requestAnimationFrame(() => requestAnimationFrame(() => {
-        const arc = gaugeWrap.querySelector('.gauge-arc-fill[data-arc-target]');
-        if (arc) arc.style.strokeDasharray = arc.dataset.arcTarget;
+        for (const el of gaugeWrap.querySelectorAll('[data-arc-target]')) {
+          el.style.strokeDasharray = el.dataset.arcTarget;
+        }
       }));
     }
     gaugeWrap.setAttribute('aria-label', `ציון שקיעה: ${displayScore.toFixed(1)} מתוך 10`);
