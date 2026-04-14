@@ -784,50 +784,28 @@ body.has-install-banner .screen { padding-top: 56px; }
 .gauge-arc-fill {
   animation: arcDraw 0.9s ease 0.15s both;
 }
-/* Semicircular wash under arc — transparent color aura */
+/* Ambient aura behind the vessel */
 .score-gauge-wrap::before {
   content: '';
   position: absolute;
   top: 50%;
   left: 50%;
-  transform: translate(-50%, -55%);
-  width: 120px;
-  height: 60px;
-  border-radius: 60px 60px 0 0;
+  transform: translate(-50%, -60%);
+  width: 80px;
+  height: 40px;
+  border-radius: 40px 40px 0 0;
   background: radial-gradient(
     ellipse 100% 80% at 50% 100%,
-    rgba(var(--score-color-rgb), 0.20) 0%,
-    rgba(var(--score-color-rgb), 0.08) 50%,
+    rgba(var(--score-color-rgb), 0.12) 0%,
     transparent 100%
   );
   pointer-events: none;
   z-index: -1;
 }
-/* Ember accent line under arc */
-.score-gauge-wrap::after {
-  content: '';
-  position: absolute;
-  top: 55%;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 80%;
-  height: 2px;
-  border-radius: 2px;
-  background: linear-gradient(to right,
-    transparent, rgba(var(--score-color-rgb), 0.6), transparent);
-  box-shadow:
-    0 0 10px rgba(var(--score-color-rgb), 0.4),
-    0 0 25px rgba(var(--score-color-rgb), 0.15);
-  pointer-events: none;
-  z-index: -1;
-}
-/* Tier intensity — only opacity changes */
+/* Tier: only ambient aura intensity */
 .score-gauge-wrap[data-score-tier="high"]::before { opacity: 1; }
-.score-gauge-wrap[data-score-tier="high"]::after  { opacity: 1; }
 .score-gauge-wrap[data-score-tier="mid"]::before  { opacity: 0.65; }
-.score-gauge-wrap[data-score-tier="mid"]::after   { opacity: 0.65; }
 .score-gauge-wrap[data-score-tier="low"]::before  { opacity: 0.35; }
-.score-gauge-wrap[data-score-tier="low"]::after   { opacity: 0.35; }
 .score-desc {
   font-size: 12px;
   color: var(--gold-light);
@@ -1701,51 +1679,46 @@ body.has-install-banner .screen { padding-top: 56px; }
 }
 .slider-label span:first-child { font-size: 12px; color: var(--cream-dim); }
 
-/* Leaflet map override — DARK MODE */
-#spots-map .leaflet-control-zoom {
+/* MapLibre GL map override — DARK MODE */
+#spots-map .maplibregl-ctrl-group {
   border: 1px solid rgba(212,165,116,0.28) !important;
   border-radius: 10px !important;
   box-shadow: 0 4px 16px rgba(0,0,0,0.45) !important;
   overflow: hidden;
 }
-#spots-map .leaflet-control-zoom a {
+#spots-map .maplibregl-ctrl-group button {
   background-color: rgba(20,8,2,0.90) !important;
   color: var(--cream) !important;
   border-color: rgba(212,165,116,0.20) !important;
-  font-size: 18px !important;
-  line-height: 26px !important;
   width: 28px !important;
   height: 28px !important;
-  display: flex !important;
-  align-items: center;
-  justify-content: center;
 }
-#spots-map .leaflet-control-zoom a:hover {
+#spots-map .maplibregl-ctrl-group button:hover {
   background-color: rgba(90,45,12,0.95) !important;
   color: var(--gold-light) !important;
 }
-#spots-map .leaflet-control-attribution {
+#spots-map .maplibregl-ctrl-attrib {
   font-size: 8px;
   background: rgba(0,0,0,0.5) !important;
   color: rgba(255,255,255,0.4) !important;
 }
-#spots-map .leaflet-control-attribution a { color: rgba(255,255,255,0.4) !important; }
+#spots-map .maplibregl-ctrl-attrib a { color: rgba(255,255,255,0.4) !important; }
 #spots-map { background: var(--twl-color-surface-app) !important; }
-/* Darken the tile layer via CSS filter */
-#spots-map .leaflet-tile-pane { filter: brightness(0.90) contrast(1.05) saturate(0.85) sepia(0.08); }
-#spots-map .leaflet-popup-content-wrapper {
+#spots-map .maplibregl-popup-content {
   background: rgba(30,12,2,0.92) !important;
   border: 1px solid rgba(212,165,116,0.3) !important;
   border-radius: 12px !important;
   box-shadow: 0 4px 20px rgba(0,0,0,0.5) !important;
   color: var(--cream) !important;
+  padding: 10px 14px !important;
 }
-#spots-map .leaflet-popup-tip {
-  background: rgba(30,12,2,0.92) !important;
-  border: 1px solid rgba(212,165,116,0.3) !important;
+#spots-map .maplibregl-popup-tip {
+  border-top-color: rgba(30,12,2,0.92) !important;
 }
-#spots-map .leaflet-popup-close-button {
+#spots-map .maplibregl-popup-close-button {
   color: var(--cream-faint) !important;
+  font-size: 18px;
+  padding: 2px 6px;
 }
 
 /* ─── Fullscreen map ──────────────────── */

@@ -98,22 +98,27 @@ function _updateLiveScoreColors(skyColors, mainScore) {
   const barStyle = scoreToBarStyle(mainScore, skyColors);
   const mainColor = barStyle.scoreColor;
   const mainColorRgb = barStyle.scoreColorRgb;
+  const [cr, cg, cb] = mainColorRgb.split(',').map(Number);
   const gaugeArc = document.querySelector('.gauge-arc-fill');
   if (gaugeArc) {
     gaugeArc.setAttribute('stroke', mainColor);
     gaugeArc.style.filter =
-      `drop-shadow(0 0 8px ${mainColor}8C) ` +
-      `drop-shadow(0 0 18px ${mainColor}33) ` +
-      `drop-shadow(0 0 40px ${mainColor}12)`;
+      `drop-shadow(0 0 5px ${mainColor}88) ` +
+      `drop-shadow(0 0 12px ${mainColor}33)`;
   }
   const gaugeText = document.querySelector('.gauge-score-text');
   if (gaugeText) {
     gaugeText.setAttribute('fill', mainColor);
     gaugeText.style.filter =
-      `drop-shadow(0 0 8px ${mainColor}8C) ` +
-      `drop-shadow(0 0 18px ${mainColor}33) ` +
-      `drop-shadow(0 0 40px ${mainColor}12) ` +
+      `drop-shadow(0 0 6px ${mainColor}66) ` +
       `drop-shadow(0 2px 4px rgba(0,0,0,0.80))`;
+  }
+  const gaugeSector = document.querySelector('.gauge-sector-fill');
+  if (gaugeSector) gaugeSector.setAttribute('fill', `rgba(${cr},${cg},${cb},0.13)`);
+  const gaugeBaseline = document.querySelector('.gauge-baseline');
+  if (gaugeBaseline) {
+    gaugeBaseline.setAttribute('stroke', `rgba(${cr},${cg},${cb},0.55)`);
+    gaugeBaseline.style.filter = `drop-shadow(0 0 5px rgba(${cr},${cg},${cb},0.4))`;
   }
   // Update continuous score color + tier on gauge wrap
   const tier = mainScore >= 7 ? 'high' : mainScore >= 4 ? 'mid' : 'low';
