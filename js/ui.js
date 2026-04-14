@@ -100,6 +100,15 @@ export function updateDynamicGradient(_score = 5, _turbidity = 0.3, _palette = '
   root.setProperty('--twl-dynamic-glass-saturate', `${Math.round(110 + skyBrightness * 40)}%`);
   root.setProperty('--twl-dynamic-sky-luma',       skyBrightness.toFixed(3));
 
+  // Text glow: warm cream when sky is bright/warm (sunset), cool white when dark (night/overcast)
+  const warmth = skyColors
+    ? (skyColors.skyTop.r - skyColors.skyTop.b) / 255
+    : 0;
+  const textGlowR = Math.round(245 + warmth * 10);
+  const textGlowG = Math.round(225 + warmth * 5);
+  const textGlowB = Math.round(200 - warmth * 20);
+  root.setProperty('--twl-dynamic-text-glow', `rgba(${textGlowR},${textGlowG},${textGlowB},0.95)`);
+
   // Estimated glass card background luminance for score contrast checks.
   // Card base: rgb(22, 11, 4) composited at glassAlpha over ~#1a0e06 dark backdrop.
   const bgR = Math.round(22 * glassAlpha + 26 * (1 - glassAlpha));

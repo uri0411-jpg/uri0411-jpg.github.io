@@ -727,7 +727,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   padding: 12px 14px;
   color: var(--cream-faint);
   font-size: 13px;
-  font-family: Rubik, sans-serif;
+  font-family: var(--font-body);
   direction: rtl;
   text-align: right;
 }
@@ -774,7 +774,7 @@ body.has-install-banner .screen { padding-top: 56px; }
   background: transparent;
   color: var(--cream);
   font-size: 13px;
-  font-family: Rubik, sans-serif;
+  font-family: var(--font-body);
   font-weight: 500;
   direction: rtl;
   text-align: right;

@@ -678,14 +678,15 @@ export function buildGaugeArc(score, color, size = 120) {
             stroke-dasharray="0 ${totalArc}"
             data-arc-target="${arcTarget}"
             style="filter:drop-shadow(0 0 5px ${color}88) drop-shadow(0 0 14px ${color}44) drop-shadow(0 0 28px ${color}22);transition:stroke-dasharray 1.1s cubic-bezier(0.22,1,0.36,1)" />
-      <!-- Score number -->
-      <text class="gauge-score-text" x="${cx}" y="${cy - 14}" text-anchor="middle"
-            font-family="var(--font-title)" font-size="30" font-weight="900"
-            fill="${color}" style="filter:drop-shadow(0 0 6px ${color}66) drop-shadow(0 2px 4px rgba(0,0,0,0.80))">
+      <!-- Score number — hero weight, tnum, tight tracking ("luxury watch face") -->
+      <text class="gauge-score-text" x="${cx}" y="${cy - 12}" text-anchor="middle"
+            fill="${color}"
+            style="font-family:var(--font-title);font-size:36px;font-weight:300;letter-spacing:-0.04em;font-feature-settings:'tnum';filter:drop-shadow(0 0 8px ${color}77) drop-shadow(0 2px 5px rgba(0,0,0,0.85))">
         ${displayScore}
       </text>
       <text x="${cx}" y="${cy - 1}" text-anchor="middle"
-            font-family="var(--font-body)" font-size="11" fill="rgba(245,230,200,0.5)">
+            style="font-family:var(--font-body);font-size:11px;font-weight:400;"
+            fill="rgba(245,230,200,0.45)">
         /10
       </text>
     </svg>`;
