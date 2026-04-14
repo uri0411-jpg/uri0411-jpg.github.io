@@ -11,14 +11,20 @@
  *   intensities[3]  →  600 nm  →  orange
  *   intensities[4]  →  650 nm  →  red
  *
- * Conversion: weighted integration via CIE 1931 2° CMFs → XYZ → linear sRGB
- * (D65 reference, IEC 61966-2-1 matrix) → Reinhard tone map → sRGB gamma.
+ * Pipeline (Phase 2 — Cinematic):
+ *   Spectral → CIE XYZ → Linear sRGB → ★ ACES tone map ★ → ★ Perceptual Shaping ★ → sRGB gamma
+ *
+ * Feature flags (top of file):
+ *   USE_ACES_TONEMAP     — swap Reinhard → ACES Narkowicz (default true)
+ *   USE_PERCEPTUAL_SHAPE — saturation boost + hue separation pass (default true)
  *
  * Legacy 3-element mode (backward compat for tests and external callers):
  *   intensities[0]  →  450 nm  →  blue  channel
  *   intensities[1]  →  550 nm  →  green channel
  *   intensities[2]  →  650 nm  →  red   channel
  */
+
+import { perceptualShape, USE_PERCEPTUAL_SHAPE } from './perceptualShape.js';
 
 // ── CIE 1931 2° standard observer CMFs at the 5 engine wavelengths ───────────
 
@@ -47,31 +53,67 @@ const CMF_W = [10, 60, 75, 50, 25];
 // Equal-energy white normalisation: Σ w_i × ȳ(λ_i) — used to keep Y_white=1
 const _Y_WHITE = CMF_W.reduce((s, w, i) => s + w * CIE_CMF[i][1], 0);
 
+// ── Feature flags ─────────────────────────────────────────────────────────────
+
+/**
+ * Toggle ACES Narkowicz tone mapping (vs legacy Reinhard).
+ * true  → ACES (cinematic shoulder, richer highlights) — CURRENT default
+ * false → Reinhard (physics-correct, flat shoulder) — rollback path
+ */
+export const USE_ACES_TONEMAP = true;
+
 // ── Constants ─────────────────────────────────────────────────────────────────
 
 /**
- * Pre-exposure scale applied before tone mapping.
+ * Pre-exposure scale for Reinhard tone mapping.
  *
- * Raw intensities from atmosphere.js are dimensionless values typically in
- * [0.05, 0.95].  Multiplying by EXPOSURE maps them into the region where
- * Reinhard tone mapping (x / (1+x)) produces perceptually meaningful colour
- * differences.  Without this pre-scale the tonemapped values would cluster
- * near zero and the sky would appear very dark.
- *
- * EXPOSURE = 4.0 means that an intensity of 0.8 (bright horizon in clear air)
- * maps to 3.2 before tonemapping → 3.2/4.2 ≈ 0.76 → after gamma ≈ 0.88 → 224.
- * An intensity of 0.2 (dark upper sky) → 0.8 → 0.44 → gamma ≈ 0.67 → 170.
- * This keeps colour distinctions visible across the full sky range.
+ * With Reinhard (x/(1+x)), EXPOSURE=4.0 maps a typical bright horizon pixel
+ * (intensity 0.8) to 3.2/4.2 ≈ 0.76 → after gamma ≈ 0.88 → 224.
  */
 const EXPOSURE = 4.0;
 
 /**
- * Reinhard tone operator: compresses [0, ∞) → [0, 1).
- * Preserves hue ratios — channels are scaled equally at each intensity level.
+ * Pre-exposure scale for ACES tone mapping.
+ *
+ * ACES has a steeper shoulder than Reinhard — the same EXPOSURE=4.0 would
+ * crush highlights to white. ACES_EXPOSURE=2.4 keeps a typical bright horizon
+ * pixel (0.8) at → v=1.92 → ACES≈0.910 → gamma≈0.951 → 242, while preserving
+ * meaningful luminance contrast between mid-sky and zenith.
  */
-function tonemap(v) {
+const ACES_EXPOSURE = 2.4;
+
+/**
+ * Reinhard tone operator: compresses [0, ∞) → [0, 1).
+ * Preserves hue ratios. Kept for rollback (USE_ACES_TONEMAP = false).
+ */
+function _reinhardTonemap(v) {
   return v / (1.0 + v);
 }
+
+/**
+ * ACES Narkowicz approximation: cinematic S-curve with a stronger shoulder
+ * than Reinhard. Maps [0, ∞) → [0, ~1.033], capped at 1.
+ *
+ * f(v) = (v(av+b)) / (v(cv+d)+e),  a=2.51, b=0.03, c=2.43, d=0.59, e=0.14
+ *
+ * Properties vs Reinhard:
+ *   - Richer mid-tone saturation
+ *   - Elegant highlight roll-off ("shoulder") — highlights compress to white
+ *     gracefully instead of linearly clipping
+ *   - Slightly deeper shadows (lower toe)
+ */
+function _acesTonemap(v) {
+  const a = 2.51, b = 0.03, c = 2.43, d = 0.59, e = 0.14;
+  return Math.min(1, (v * (a * v + b)) / (v * (c * v + d) + e));
+}
+
+/** Active tone mapping function — switches on USE_ACES_TONEMAP flag. */
+function tonemap(v) {
+  return USE_ACES_TONEMAP ? _acesTonemap(v) : _reinhardTonemap(v);
+}
+
+/** Active pre-exposure constant — paired with the active tonemap. */
+const _EXPOSURE = USE_ACES_TONEMAP ? ACES_EXPOSURE : EXPOSURE;
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -104,10 +146,15 @@ export function spectrumToRGB(intensities) {
   // ── Legacy 3-element path (backward compat) ───────────────────────────────
   if (intensities.length !== 5) {
     const [iBlue, iGreen, iRed] = intensities;
+    const [rS, gS, bS] = perceptualShape([
+      tonemap(iRed   * _EXPOSURE),
+      tonemap(iGreen * _EXPOSURE),
+      tonemap(iBlue  * _EXPOSURE),
+    ]);
     return {
-      r: clamp8(gamma(tonemap(iRed   * EXPOSURE)) * 255),
-      g: clamp8(gamma(tonemap(iGreen * EXPOSURE)) * 255),
-      b: clamp8(gamma(tonemap(iBlue  * EXPOSURE)) * 255),
+      r: clamp8(gamma(rS) * 255),
+      g: clamp8(gamma(gS) * 255),
+      b: clamp8(gamma(bS) * 255),
     };
   }
 
@@ -129,11 +176,19 @@ export function spectrumToRGB(intensities) {
   const Gl = -0.9689 * X + 1.8758 * Y + 0.0415 * Z;
   const Bl =  0.0557 * X - 0.2040 * Y + 1.0570 * Z;
 
-  // Step 4: pre-exposure + Reinhard + sRGB gamma + clamp
+  // Step 4: ACES tone map (per-channel, pre-exposure applied)
+  const rTm = tonemap(Rl * _EXPOSURE);
+  const gTm = tonemap(Gl * _EXPOSURE);
+  const bTm = tonemap(Bl * _EXPOSURE);
+
+  // Step 5: Perceptual shaping (luminance-gated sat boost + hue separation)
+  const [rS, gS, bS] = perceptualShape([rTm, gTm, bTm]);
+
+  // Step 6: sRGB gamma + clamp to 8-bit
   return {
-    r: clamp8(gamma(tonemap(Rl * EXPOSURE)) * 255),
-    g: clamp8(gamma(tonemap(Gl * EXPOSURE)) * 255),
-    b: clamp8(gamma(tonemap(Bl * EXPOSURE)) * 255),
+    r: clamp8(gamma(rS) * 255),
+    g: clamp8(gamma(gS) * 255),
+    b: clamp8(gamma(bS) * 255),
   };
 }
 
