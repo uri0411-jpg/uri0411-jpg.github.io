@@ -415,6 +415,7 @@ export async function fetchSpots(lat, lon, radiusKm = 25) {
         _osmType:   el.type ?? null,
         _wikidata:  el.tags?.wikidata || null,
         _wikipedia: el.tags?.wikipedia || null,
+        _nameEn:    el.tags?.['name:en'] || null,
         _commons:   el.tags?.wikimedia_commons || null,
         _imageUrl:  el.tags?.image || null,
       };

@@ -1,0 +1,20 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 640 360">
+  <defs>
+    <linearGradient id="sky" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#1a0533"/>
+      <stop offset="30%" stop-color="#ad1457"/>
+      <stop offset="55%" stop-color="#e65100"/>
+      <stop offset="75%" stop-color="#ff8f00"/>
+      <stop offset="100%" stop-color="#ffe082"/>
+    </linearGradient>
+    <linearGradient id="sea" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#ff6f00" stop-opacity=".5"/>
+      <stop offset="100%" stop-color="#1a3a5c" stop-opacity=".8"/>
+    </linearGradient>
+  </defs>
+  <rect width="640" height="360" fill="url(#sky)"/>
+  <rect x="0" y="240" width="640" height="60" fill="url(#sea)"/>
+  <rect x="0" y="300" width="640" height="60" fill="#c8a96e" opacity=".7"/>
+  <circle cx="320" cy="200" r="32" fill="#ffcc02" opacity=".55"/>
+  <ellipse cx="320" cy="240" rx="120" ry="4" fill="#ffab40" opacity=".35"/>
+</svg>

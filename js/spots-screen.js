@@ -9,7 +9,7 @@ import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, a
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
-import { fetchSpotImage } from './spotImages.js';
+import { fetchSpotImage, invalidateSpotImage } from './spotImages.js';
 import { initLocationSearch } from './locationSearch.js';
 
 let _spots        = [];
@@ -1290,6 +1290,11 @@ function renderSpotsList() {
       renderSpotsList();
     });
   }
+
+  // Preload image metadata for top 5 visible spots (URL cached, no img download)
+  for (let k = 0; k < Math.min(5, sorted.length); k++) {
+    fetchSpotImage(sorted[k]).catch(() => {});
+  }
 }
 
 // ═════════════════════════════════════════
@@ -1463,11 +1468,14 @@ function _loadSpotPhoto(i) {
     const page   = result.pageUrl || result.url;
     const label  = result.sourceLabel || '';
     container.dataset.loaded = 'ok';
+    const isFallback = result._isFallback;
     container.innerHTML = `
-      <a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">
-        <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async">
-        <div class="spot-photo-credit">צילום: ${label}${credit ? ' — ' + credit : ''}</div>
-      </a>`;
+      ${isFallback ? '<div class="spot-photo-link spot-photo-fallback">' :
+        `<a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">`}
+        <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async"
+          onerror="this.onerror=null;this.parentNode.parentNode.classList.add('spot-photo-empty');this.parentNode.remove();">
+        <div class="spot-photo-credit">${isFallback ? '' : `צילום: ${label}${credit ? ' — ' + credit : ''}`}</div>
+      ${isFallback ? '</div>' : '</a>'}`;
   }).catch(() => {
     container.dataset.loaded = 'fail';
     container.classList.add('spot-photo-empty');
