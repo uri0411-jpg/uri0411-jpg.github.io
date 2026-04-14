@@ -232,6 +232,12 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
   const h = container.offsetHeight || window.innerHeight;
   if (!w || !h) return; // skip frame if container has no layout yet
 
+  // DPR: render at device-pixel resolution for sharp output on retina displays.
+  // All drawing uses logical (CSS) coordinates; the DPR transform handles scaling.
+  const dpr = window.devicePixelRatio || 1;
+  const pw = Math.round(w * dpr);  // physical width
+  const ph = Math.round(h * dpr);  // physical height
+
   // ── Find or create canvas ─────────────────────────────────────────────────
   let canvas = container.querySelector(`#${CANVAS_ID}`);
   if (!canvas) {
@@ -250,19 +256,20 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
     container.insertBefore(canvas, container.firstChild);
   }
 
-  // Resize if needed
-  if (canvas.width !== w || canvas.height !== h) {
-    canvas.width  = w;
-    canvas.height = h;
+  // Resize if needed (backing store = physical pixels)
+  if (canvas.width !== pw || canvas.height !== ph) {
+    canvas.width  = pw;
+    canvas.height = ph;
   }
 
   // ── Contract 3: Offscreen commit — draw to buffer, then atomic blit ─────
-  if (!_offscreen || _offscreen.width !== w || _offscreen.height !== h) {
+  if (!_offscreen || _offscreen.width !== pw || _offscreen.height !== ph) {
     _offscreen = document.createElement('canvas');
-    _offscreen.width = w;
-    _offscreen.height = h;
+    _offscreen.width = pw;
+    _offscreen.height = ph;
   }
   const off = _offscreen.getContext('2d');
+  off.setTransform(dpr, 0, 0, dpr, 0, 0); // draw in logical coords
   off.clearRect(0, 0, w, h);
 
   // ── Sample atmosphere at 8 elevation offsets ──────────────────────────────
@@ -327,8 +334,9 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
 
   // ── COMMIT: atomic blit to visible canvas ─────────────────────────────────
   const ctx = canvas.getContext('2d');
-  ctx.clearRect(0, 0, w, h);
-  ctx.drawImage(_offscreen, 0, 0, w, h);
+  ctx.setTransform(1, 0, 0, 1, 0, 0); // reset to physical coords for blit
+  ctx.clearRect(0, 0, pw, ph);
+  ctx.drawImage(_offscreen, 0, 0, pw, ph);
 }
 
 /**

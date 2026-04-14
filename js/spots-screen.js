@@ -37,6 +37,78 @@ let _mlReady      = false;
 let _visibleCount = 15;
 let _loadingSpots = false; // guard against parallel loadSpots() calls
 let _searchCleanup = null;
+let _spotsWorker   = null; // lazy-init Web Worker for location quality
+
+// ─────────────────────────────────────────
+//  Spots quality Worker — offloads calcLocationQuality × N to a background thread.
+//  Falls back to batched setTimeout if Workers are unavailable.
+// ─────────────────────────────────────────
+function _getSpotsWorker() {
+  if (_spotsWorker) return _spotsWorker;
+  try {
+    _spotsWorker = new Worker('./js/workers/spotsWorker.js');
+  } catch {
+    _spotsWorker = null;
+  }
+  return _spotsWorker;
+}
+
+/**
+ * Score spots' location quality using the Worker (or sync fallback).
+ * Mutates each spot with _locationQualitySunset, _locationQualitySunrise, _driveMin.
+ * @param {Array} spots       — array of spot objects (must have _bearing, _horizonWarning set)
+ * @param {number} sunsetAz   — sunset azimuth in degrees
+ * @returns {Promise<void>}
+ */
+function computeLocationQualityBatch(spots, sunsetAz) {
+  const worker = _getSpotsWorker();
+  if (worker) {
+    return new Promise((resolve) => {
+      // Prepare minimal transferable data (only fields the worker needs)
+      const payload = spots.map(s => ({
+        elevation: s.elevation,
+        type:      s.type,
+        lon:       s.lon,
+        dist:      s.dist,
+        _bearing:  s._bearing,
+        _horizonWarning: s._horizonWarning,
+      }));
+      const handler = (e) => {
+        worker.removeEventListener('message', handler);
+        const { results } = e.data;
+        for (const r of results) {
+          spots[r.idx]._locationQualitySunset  = r.sunset;
+          spots[r.idx]._locationQualitySunrise = r.sunrise;
+          spots[r.idx]._driveMin               = r.driveMin;
+        }
+        resolve();
+      };
+      worker.addEventListener('message', handler);
+      worker.postMessage({ spots: payload, sunsetAzimuth: sunsetAz });
+    });
+  }
+
+  // Fallback: batched setTimeout (avoids blocking main thread for large arrays)
+  return new Promise((resolve) => {
+    const BATCH = 50;
+    let i = 0;
+    function processBatch() {
+      const end = Math.min(i + BATCH, spots.length);
+      for (; i < end; i++) {
+        const s = spots[i];
+        s._locationQualitySunset  = calcLocationQuality(s, s._bearing, 'sunset');
+        s._locationQualitySunrise = calcLocationQuality(s, s._bearing, 'sunrise');
+        s._driveMin               = estimateDriveMin(s.dist || 0);
+      }
+      if (i < spots.length) {
+        setTimeout(processBatch, 0);
+      } else {
+        resolve();
+      }
+    }
+    processBatch();
+  });
+}
 
 // ─────────────────────────────────────────
 //  Lazy-load MapLibre GL JS CSS + JS on demand
@@ -284,8 +356,12 @@ function calcSpotScores(spot, weekData, userLat, userLon) {
 
   const days = (weekData || []).slice(0, 5).map(day => {
     if (!day) return { ss: 5.0, sr: 5.0, tw: 5.0, combined: 5.0 };
-    const s = Math.round((day.score ?? 5.0) * 10) / 10;
-    return { ss: s, sr: s, tw: s, combined: s };
+    return {
+      ss:       Math.round((day.ssScore ?? day.score ?? 5.0) * 10) / 10,
+      sr:       Math.round((day.srScore ?? day.score ?? 5.0) * 10) / 10,
+      tw:       Math.round((day.twScore ?? day.score ?? 5.0) * 10) / 10,
+      combined: Math.round((day.score   ?? 5.0)              * 10) / 10,
+    };
   });
 
   return days.length ? days : [{ ss: 5.0, sr: 5.0, tw: 5.0, combined: 5.0 }];
@@ -307,7 +383,6 @@ export async function preloadSpotsData(weekData, loc) {
     const spots = await fetchSpots(loc.lat, loc.lon, radius);
     spots.forEach(s => {
       s._allScores = calcSpotScores(s, weekData, loc.lat, loc.lon);
-      s._driveMin  = estimateDriveMin(s.dist);
       const inland      = s.lon > 34.92;
       const lowElev     = s.elevation !== null && s.elevation < 60;
       const unknownElev = s.elevation === null && s.lon > 35.0;
@@ -316,9 +391,9 @@ export async function preloadSpotsData(weekData, loc) {
           ? 'גובה נמוך — בדוק ראות מערבית'
           : 'גובה לא ידוע — בדוק ראות מערבית';
       }
-      s._locationQualitySunset  = calcLocationQuality(s, s._bearing, 'sunset');
-      s._locationQualitySunrise = calcLocationQuality(s, s._bearing, 'sunrise');
     });
+    // Offload location quality computation to Worker
+    await computeLocationQualityBatch(spots, getSunsetAzimuth());
     _preloadedSpots       = spots;
     _preloadedForLat      = loc.lat;
     _preloadedForLon      = loc.lon;
@@ -796,10 +871,9 @@ async function loadSpots() {
   try {
     _spots = await fetchSpots(_loc.lat, _loc.lon, _radiusKm);
 
-    // ── Score first page immediately for fast first paint ──────────────
-    function _scoreSpot(s) {
+    // ── Prepare spots: scores + horizon warnings (sync, lightweight) ──
+    function _prepSpot(s) {
       s._allScores = calcSpotScores(s, _weekData, _loc.lat, _loc.lon);
-      s._driveMin  = estimateDriveMin(s.dist);
       const inland      = s.lon > 34.92;
       const lowElev     = s.elevation !== null && s.elevation < 60;
       const unknownElev = s.elevation === null && s.lon > 35.0;
@@ -808,33 +882,31 @@ async function loadSpots() {
           ? 'גובה נמוך — בדוק ראות מערבית'
           : 'גובה לא ידוע — בדוק ראות מערבית';
       }
-      // Must be computed after _horizonWarning (warning affects horizPts)
-      s._locationQualitySunset  = calcLocationQuality(s, s._bearing, 'sunset');
-      s._locationQualitySunrise = calcLocationQuality(s, s._bearing, 'sunrise');
     }
 
     const FIRST_PAGE = 15;
-    _spots.slice(0, FIRST_PAGE).forEach(_scoreSpot);
+    const firstPage = _spots.slice(0, FIRST_PAGE);
+    firstPage.forEach(_prepSpot);
+
+    // Location quality for first page — Worker or batched fallback
+    const ssAz = getSunsetAzimuth();
+    await computeLocationQualityBatch(firstPage, ssAz);
+
     renderBestSpotHero();
     renderSpotsList();
     updateMapMarkers(getFilteredSpots());
     drawEventArc();
 
-    // ── Score remaining spots during idle time ──────────────────────────
+    // ── Score remaining spots off main thread ──────────────────────────
     const tail = _spots.slice(FIRST_PAGE);
     if (tail.length) {
-      const scoreRest = () => {
-        tail.forEach(_scoreSpot);
+      tail.forEach(_prepSpot);
+      computeLocationQualityBatch(tail, ssAz).then(() => {
         renderBestSpotHero(); // hero may change once all spots are scored
         renderSpotsList();
         updateMapMarkers(getFilteredSpots());
         checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
-      };
-      if (typeof requestIdleCallback === 'function') {
-        requestIdleCallback(scoreRest, { timeout: 3000 });
-      } else {
-        setTimeout(scoreRest, 100);
-      }
+      });
     } else {
       checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
     }

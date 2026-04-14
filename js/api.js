@@ -87,7 +87,8 @@ async function fetchModel(lat, lon, model = null) {
   const url = `${OPEN_METEO_URL}?${params}`;
   const res = await fetchWithRetry(url);
   if (!res.ok) throw new Error(`Open-Meteo ${model || 'best_match'} error ${res.status}`);
-  return res.json();
+  try { return await res.json(); }
+  catch (e) { throw new Error(`[api] JSON parse failed for ${model || 'best_match'}: ${e.message}`); }
 }
 
 // ─────────────────────────────────────────
@@ -288,7 +289,8 @@ async function _fetchAirQualityRaw(lat, lon) {
   try {
     const res = await fetchWithRetry(`${OPEN_METEO_AQ_URL}?${params}`, {}, { maxAttempts: 2, timeoutMs: FETCH_TIMEOUT_SECONDARY_MS });
     if (!res.ok) throw new Error(`AQ API error ${res.status}`);
-    return await res.json();
+    try { return await res.json(); }
+    catch (e) { throw new Error(`[api] AQ JSON parse failed: ${e.message}`); }
   } catch (e) {
     console.warn('[api] Air quality fetch failed:', e.message);
     return null;
@@ -390,7 +392,9 @@ export async function fetchSpots(lat, lon, radiusKm = 25) {
   `;
 
   const res  = await fetchOverpassWithFallback(query);
-  const data = await res.json();
+  let data;
+  try { data = await res.json(); }
+  catch (e) { console.warn('[api] Overpass JSON parse failed:', e.message); return []; }
 
   const typeMap = {
     peak: 'פסגה', viewpoint: 'נקודת תצפית', cliff: 'מצוק', beach: 'חוף'
@@ -447,7 +451,8 @@ export async function fetchWesternHorizon(lat, lon, force = false) {
     try {
       const res = await fetchWithRetry(`${OPEN_METEO_URL}?${params}`, {}, { maxAttempts: 2, timeoutMs: FETCH_TIMEOUT_SECONDARY_MS });
       if (!res.ok) throw new Error(`Western horizon API error ${res.status}`);
-      return await res.json();
+      try { return await res.json(); }
+      catch (je) { throw new Error(`[api] Western horizon JSON parse failed: ${je.message}`); }
     } catch (e) {
       console.warn('[api] Western horizon fetch failed:', e.message);
       return null;

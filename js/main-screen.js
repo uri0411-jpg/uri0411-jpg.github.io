@@ -20,6 +20,7 @@ import { renderNightSky, removeNightSky } from './render/nightSky.js';
 import { loadSkyMask, getSkyMaskSync, getSkyMaskDimensions } from './render/skyMask.js';
 import { initLocationSearch } from './locationSearch.js';
 import { getState, isStale } from './store.js';
+import { registerCleanup, runCleanup } from './lifecycle.js';
 
 // ─────────────────────────────────────────
 //  Module-level sky mask preload — starts loading as soon as this
@@ -49,7 +50,6 @@ function ensureBackgroundReady() {
   return _bgReady;
 }
 
-let _locationSearchCleanup = null;
 
 // ─────────────────────────────────────────
 //  Score → poetic Hebrew story label
@@ -66,11 +66,19 @@ function scoreToStory(s) {
   return 'שמיים אפורים';
 }
 let _spotAvgScores = null;
-let _stopCompass = null;       // cleanup for DeviceOrientation listener
-let _stopLiveGradient = null;  // cleanup for real-time gradient interval
+/** @param {number[]|null} scores */
+export function setSpotAvgScores(scores) {
+  if (scores != null && !Array.isArray(scores)) {
+    console.warn('[main-screen] setSpotAvgScores: expected array or null, got', typeof scores);
+    return;
+  }
+  _spotAvgScores = scores ? Object.freeze([...scores]) : null;
+}
+let _stopLiveGradient = null;  // also registered with lifecycle, but kept for refreshMainScores restart
 let _countdownInterval = null;
 let _compareIdx = -1; // index of first day selected for comparison
 let _mainEventsAC = null; // AbortController for #screen-main delegated listeners
+let _nightSkyVisible = false; // hysteresis flag to prevent flicker near threshold
 
 // ─────────────────────────────────────────
 //  Cloud fractions for physics (Phase 1)
@@ -216,7 +224,8 @@ function getNightFactor(elevDeg) {
 
 function startLiveGradient(today, loc, locGen) {
   const displayScore = _spotAvgScores?.[0] ?? today.score;
-  _screenOpenTime = Date.now();
+  // Only set screen open time on first call (not on refresh/re-render)
+  if (!_screenOpenTime) _screenOpenTime = Date.now();
 
   // Track score tier for haptic crossing detection
   let _prevScoreTier = displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low';
@@ -365,7 +374,9 @@ function startLiveGradient(today, loc, locGen) {
     // Stage 2: Night sky (stars + moon)
     try {
       const skyLayersNight = document.getElementById('sky-layers');
-      if (nf > 0.02) {
+      if (nf > 0.03) _nightSkyVisible = true;
+      else if (nf < 0.01) _nightSkyVisible = false;
+      if (_nightSkyVisible) {
         renderNightSky(skyLayersNight, nf, new Date());
       } else {
         removeNightSky(skyLayersNight);
@@ -393,8 +404,9 @@ function startLiveGradient(today, loc, locGen) {
         const sunAngle_rad = liveElevDeg * (Math.PI / 180);
         if (skyW) {
           // Off-thread: send params to worker (delta-gated inside worker)
-          const w = skyLayers.offsetWidth || window.innerWidth;
-          const h = skyLayers.offsetHeight || window.innerHeight;
+          const _lw = skyLayers.offsetWidth || window.innerWidth;
+          const _lh = skyLayers.offsetHeight || window.innerHeight;
+          const _dpr = window.devicePixelRatio || 1;
           skyW.postMessage({
             type: 'render',
             sunAngle_rad,
@@ -403,7 +415,8 @@ function startLiveGradient(today, loc, locGen) {
             beltOfVenus:  today.goldenWindow?.beltOfVenus || 0,
             clouds:       cloudFractionsFor(today),
             mieGrowth:    today.mieGrowthFactor ?? 1,
-            w, h,
+            w: Math.round(_lw * _dpr),
+            h: Math.round(_lh * _dpr),
           });
         } else {
           // Fallback: inline rendering (Safari, worker creation failure)
@@ -527,16 +540,18 @@ export async function initMainScreen(loc, city, weekData, spotAvgScores = null) 
     return;
   }
 
-  _spotAvgScores = spotAvgScores;
+  setSpotAvgScores(spotAvgScores);
 
   // Render layer: compute sky colours for every day in the week.
   // (score.js only outputs numerical scores + physics params now)
   for (const day of weekData) computeDaySkyColors(day);
 
+  // Reset screen-open timer for night vision auto-trigger
+  _screenOpenTime = Date.now();
+
   // Clear any previous countdown, compass, live gradient, and night vision state
-  if (_countdownInterval)   { clearInterval(_countdownInterval); _countdownInterval = null; }
-  if (_stopCompass)         { _stopCompass(); _stopCompass = null; }
-  if (_stopLiveGradient)    { _stopLiveGradient(); _stopLiveGradient = null; }
+  runCleanup('main');
+  if (_countdownInterval) { clearInterval(_countdownInterval); _countdownInterval = null; }
   document.body.classList.remove('night-vision');
 
   const container = document.getElementById('screen-main');
@@ -573,6 +588,7 @@ export async function initMainScreen(loc, city, weekData, spotAvgScores = null) 
     // Pulse 3: dynamic background gradient — live update every 30 s
     // Pass locGen so the render loop can self-cancel on location change.
     _stopLiveGradient = startLiveGradient(today, loc, locGen);
+    registerCleanup('main', () => { if (_stopLiveGradient) { _stopLiveGradient(); _stopLiveGradient = null; } });
 
     // Pulse 1: debug panel — long-press on title to reveal
     initDebugPanel('.home-title', today, loc);
@@ -583,10 +599,11 @@ export async function initMainScreen(loc, city, weekData, spotAvgScores = null) 
       const startCompass = () => {
         const wrap = document.getElementById('compass-wrap');
         if (wrap) wrap.style.display = 'flex';
-        _stopCompass = watchSunsetBearing(ssAz, ({ delta }) => {
+        const stopCompass = watchSunsetBearing(ssAz, ({ delta }) => {
           const arrow = document.getElementById('compass-arrow');
           if (arrow) arrow.style.transform = `rotate(${delta.toFixed(0)}deg)`;
         });
+        registerCleanup('main', stopCompass);
       };
       if (typeof DeviceOrientationEvent.requestPermission === 'function') {
         // iOS 13+ requires explicit user gesture — wire to compass-wrap tap
@@ -630,7 +647,7 @@ export function refreshMainScores(weekData, spotAvgScores = null) {
   // Guard: if the main screen hasn't been built yet, fall through silently.
   if (!document.querySelector('.score-gauge-wrap')) return;
 
-  _spotAvgScores = spotAvgScores;
+  setSpotAvgScores(spotAvgScores);
 
   // Recompute physics sky colours for every day (same as initMainScreen does)
   for (const day of weekData) computeDaySkyColors(day);
@@ -670,6 +687,7 @@ export function refreshMainScores(weekData, spotAvgScores = null) {
   // 4. Restart live gradient so it picks up the new sky colours
   if (_stopLiveGradient) { _stopLiveGradient(); _stopLiveGradient = null; }
   _stopLiveGradient = startLiveGradient(today, getState().loc, getState().locGen);
+  registerCleanup('main', () => { if (_stopLiveGradient) { _stopLiveGradient(); _stopLiveGradient = null; } });
 
   // 5. Propagate sky colours to all score badges, strips, etc.
   repaintScoreColors();
@@ -1149,7 +1167,7 @@ function buildMainHTML(loc, city, weekData) {
     <div class="glass-strong score-card">
       <div class="score-top">
         <!-- Gauge arc (replaces plain number) -->
-        <div class="score-gauge-wrap" role="status" aria-live="polite" aria-label="ציון שקיעה: ${displayScore.toFixed(1)} מתוך 10" data-score-tier="${displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low'}">
+        <div class="score-gauge-wrap" role="status" aria-live="off" aria-label="ציון שקיעה: ${displayScore.toFixed(1)} מתוך 10" data-score-tier="${displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low'}">
           ${buildGaugeArc(displayScore, displayColor, 130)}
           <div class="score-desc">${displayLabel}</div>
           ${today.palette?.styleHe ? `<div class="palette-badge">✦ ${today.palette.styleHe}</div>` : ''}
@@ -1462,6 +1480,7 @@ function attachMainEvents() {
   // Abort any listeners attached during the previous render
   if (_mainEventsAC) _mainEventsAC.abort();
   _mainEventsAC = new AbortController();
+  registerCleanup('main', () => { if (_mainEventsAC) { _mainEventsAC.abort(); _mainEventsAC = null; } });
   const { signal } = _mainEventsAC;
   // ─── Quick-alert FAB — thumb-zone shortcut for 30-min pre-sunset alert ───
   const fab     = document.getElementById('quick-alert-fab');
@@ -1486,7 +1505,7 @@ function attachMainEvents() {
       window.dispatchEvent(new CustomEvent('twilight:toast', {
         detail: { msg: 'התראה נקבעה 30 דק׳ לפני שקיעה', type: 'success' }
       }));
-    });
+    }, { signal });
   }
 
   const refreshBtn = document.getElementById('refresh-btn');
@@ -1494,17 +1513,16 @@ function attachMainEvents() {
     refreshBtn.addEventListener('click', () => {
       haptic('medium');
       window.dispatchEvent(new CustomEvent('twilight:refresh'));
-    });
+    }, { signal });
   }
 
   // ─── Location search (autocomplete module) ───
-  if (_locationSearchCleanup) { _locationSearchCleanup(); _locationSearchCleanup = null; }
   const cityDisplay = document.getElementById('city-display');
   const searchBar   = document.getElementById('location-search-bar');
 
   if (cityDisplay && searchBar) {
     // Initialize the autocomplete search module
-    _locationSearchCleanup = initLocationSearch(searchBar, {
+    const searchCleanup = initLocationSearch(searchBar, {
       onSelect: (result) => {
         searchBar.classList.remove('open');
         cityDisplay.style.visibility = '';
@@ -1523,16 +1541,17 @@ function attachMainEvents() {
         cityDisplay.style.visibility = '';
       }
     });
+    if (searchCleanup) registerCleanup('main', searchCleanup);
 
     const openSearch = () => {
       searchBar.classList.add('open');
       cityDisplay.style.visibility = 'hidden';
       searchBar.querySelector('.loc-search-input')?.focus();
     };
-    cityDisplay.addEventListener('click', openSearch);
+    cityDisplay.addEventListener('click', openSearch, { signal });
 
     const searchBtn = document.getElementById('search-btn');
-    searchBtn?.addEventListener('click', openSearch);
+    searchBtn?.addEventListener('click', openSearch, { signal });
   }
 
   // ─── Score gauge tap → Tier-2 explainer tray ───
@@ -1545,7 +1564,7 @@ function attachMainEvents() {
       explainerEl.hidden = open;
       gaugeWrap.classList.toggle('gauge-explainer-open', !open);
       haptic('light');
-    });
+    }, { signal });
   }
 
   // ─── Main bell toggle ───
@@ -1556,7 +1575,7 @@ function attachMainEvents() {
       const open = mainAlertPanel.style.display !== 'none';
       mainAlertPanel.style.display = open ? 'none' : 'block';
       mainBell.classList.toggle('bell-btn--open', !open);
-    });
+    }, { signal });
   }
 
   // ─── Alert chip clicks (delegated) ───

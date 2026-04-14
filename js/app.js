@@ -22,6 +22,8 @@ import { initOnboarding }                      from './onboarding.js';
 import { scoreToLabel, distKm, deepFreeze } from './utils.js';
 import { getZoneForCoord } from './zones.js';
 import { getState, setState, bumpLocGen, bumpDataGen, isStale, isDataStale } from './store.js';
+import { logError, logInfo, initBootId } from './logger.js';
+import { setBootState, BOOT_STATES } from './bootState.js';
 
 // ─────────────────────────────────────────
 //  Score EMA — smooth scores across page loads to reduce noise from
@@ -80,7 +82,7 @@ function _applyScoreEMA(weekData, loc) {
 // ─────────────────────────────────────────
 function _scheduleSpotPreload(weekData, loc) {
   const run = () => {
-    preloadSpotsData(weekData, loc).catch(e => console.warn('[spots] preload failed:', e.message));
+    preloadSpotsData(weekData, loc).catch(e => logError({ scope: 'boot', action: 'spots-preload', error: e, severity: 'warn' }));
     // Also prefetch map tiles for the user's area so the Spot Finder map loads instantly
     prefetchAreaTiles(loc.lat, loc.lon);
   };
@@ -109,7 +111,9 @@ window.__twl_debug = window.__twl_debug || {
 //  Boot
 // ─────────────────────────────────────────
 async function boot() {
+  const bootId = initBootId();
   const _bootTime = Date.now();
+  setBootState(BOOT_STATES.LOADING);
 
   registerSW();
   window.addEventListener('twilight:updateReady', () => {
@@ -162,8 +166,9 @@ async function boot() {
   try {
     await Promise.race([loadAppData(), bootTimeout]);
   } catch (err) {
-    console.error('[boot] Failed:', err);
+    logError({ scope: 'boot', action: 'boot', error: err });
     const isTimeout = err?.message?.includes('timeout') || err?.message?.includes('Boot timeout');
+    setBootState(isTimeout ? BOOT_STATES.TIMEOUT : BOOT_STATES.ERROR);
     const isNetwork = err?.name === 'TypeError' || err?.message?.includes('fetch');
     const userMsg = isTimeout ? 'הזמן הקצוב חלף — בדוק חיבור לאינטרנט'
                   : isNetwork ? 'שגיאת רשת — בדוק חיבור לאינטרנט'
@@ -187,6 +192,7 @@ async function boot() {
   // Uses coordinate mismatch — not isFallback — to detect any state divergence.
   // Contract 1: skip after boot timeout to avoid stale state drift
   if (!getState().bootAborted) await syncLocationFromState();
+  if (!getState().bootAborted) setBootState(BOOT_STATES.READY);
 
   // ─── Screen change handler ───
   onScreenChange(async (id) => {
@@ -249,7 +255,7 @@ async function autoSeedIfNeeded() {
     const result = seedFromBacktest(data.entries);
     console.log(`[boot] auto-seed: +${result.added} entries, total ${result.total}`);
   } catch (e) {
-    console.warn('[boot] auto-seed skipped:', e.message);
+    logError({ scope: 'boot', action: 'auto-seed', error: e, severity: 'warn' });
   }
 }
 
@@ -389,7 +395,7 @@ async function loadAppData() {
       const freshSpotScores = calcNearbyAvgScore(null, ensembleData);
       refreshMainScores(ensembleData, freshSpotScores);
       console.log(`[boot] ensemble refinement applied (${refined._modelCount} models)`);
-    }).catch(err => console.warn('[boot] ensemble refinement failed:', err.message));
+    }).catch(err => logError({ scope: 'boot', action: 'ensemble', error: err, severity: 'warn' }));
   } else if (weather._isStale) {
     // Offline — apply EMA to whatever we have
     weekData = _applyScoreEMA(weekData, locSnap);
@@ -411,16 +417,19 @@ async function loadAppData() {
   if (unfilled.length > 0) {
     const ssHour = parseInt(weekData[0]?.sunset?.split(':')[0] || '18', 10);
     Promise.allSettled(
-      unfilled.slice(0, 3).map(dt =>
-        fetchActualForDate(dt, locSnap.lat, locSnap.lon, ssHour)
+      unfilled.slice(0, 3).map(entry => {
+        // Use the forecast location (stored per-entry), falling back to current boot location
+        const bfLat = entry.lat ?? locSnap.lat;
+        const bfLon = entry.lon ?? locSnap.lon;
+        return fetchActualForDate(entry.date, bfLat, bfLon, ssHour)
           .then(() => {
             if (isStale(gen)) return; // Contract 2: revalidate before learning write
-            processLearningForEntry(dt);
-          })
-      )
+            processLearningForEntry(entry.date);
+          });
+      })
     ).then(results => {
       const failed = results.filter(r => r.status === 'rejected').length;
-      if (failed > 0) console.warn(`[calibration] ${failed} backfill(s) failed`);
+      if (failed > 0) logError({ scope: 'boot', action: 'calibration-backfill', error: `${failed} backfill(s) failed`, severity: 'warn' });
     });
   }
 
@@ -429,7 +438,7 @@ async function loadAppData() {
       if (isStale(gen)) return; // Contract 2: revalidate before state write
       setState({ city });
       saveLocation(locSnap.lat, locSnap.lon, city);
-    }).catch(e => console.warn('[boot] city name fetch failed:', e.message));
+    }).catch(e => logError({ scope: 'boot', action: 'city-name', error: e, severity: 'warn' }));
   }
 
   } finally {
@@ -523,7 +532,7 @@ async function handleRefresh(e) {
       );
       setState({ weekData: ensembleData });
       refreshMainScores(ensembleData, calcNearbyAvgScore(null, ensembleData));
-    }).catch(err => console.warn('[refresh] ensemble failed:', err.message));
+    }).catch(err => logError({ scope: 'refresh', action: 'ensemble', error: err, severity: 'warn' }));
 
     showToast('נתונים עודכנו', 'success');
 
@@ -531,7 +540,7 @@ async function handleRefresh(e) {
     invalidatePreloadedSpots();
     _scheduleSpotPreload(weekData, getState().loc);
   } catch (err) {
-    console.error('[refresh]', err);
+    logError({ scope: 'refresh', action: 'handleRefresh', error: err });
     const msg = err?.message === 'EMPTY_WEATHER_DATA'
       ? 'אין נתונים זמינים כרגע'
       : err?.name === 'TypeError' || err?.message?.includes('fetch')
@@ -624,7 +633,7 @@ async function handleSetLocation(e) {
       );
       setState({ weekData: ensembleData });
       refreshMainScores(ensembleData, calcNearbyAvgScore(null, ensembleData));
-    }).catch(err => console.warn('[setLocation] ensemble failed:', err.message));
+    }).catch(err => logError({ scope: 'location', action: 'ensemble', error: err, severity: 'warn' }));
 
     updateThemeColor(weekData);
     showToast(`מיקום עודכן: ${getState().city}`, 'success');
@@ -641,7 +650,7 @@ async function handleSetLocation(e) {
       await initSpotsScreen(weekData);
     }
   } catch (err) {
-    console.error('[setLocation]', err?.message || err);
+    logError({ scope: 'location', action: 'setLocation', error: err });
     // Restore previous state so the app isn't stuck pointing at a failed location
     setState({ loc: prevLoc, city: prevCity });
     if (typeof window !== 'undefined' && window.__twl_debug) window.__twl_debug.locChangeFails++;

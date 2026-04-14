@@ -55,6 +55,7 @@ export function recordPrediction(date, predictedScore, params, lat, lon) {
     date,
     predicted: predictedScore,
     locBucket: getLocBucket(lat, lon),
+    lat, lon,
     params: {
       clouds:     params._cloudRaw,
       cloudsLow:  params._cloudLowRaw,
@@ -340,7 +341,7 @@ export function getUnfilledDates() {
       const age = Date.now() - e.ts;
       return age > 2 * 60 * 60 * 1000;
     })
-    .map(e => e.date);
+    .map(e => ({ date: e.date, lat: e.lat, lon: e.lon }));
 }
 
 // ─────────────────────────────────────────

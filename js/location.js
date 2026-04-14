@@ -164,7 +164,7 @@ export function watchSunsetBearing(sunsetAzimuthDeg, onUpdate) {
       heading = e.webkitCompassHeading;
     } else if (e.alpha != null) {
       // Android Chrome/Firefox — alpha is CCW from geographic North in [0, 360)
-      heading = (360 - e.alpha) % 360;
+      heading = ((360 - e.alpha) % 360) || 0;
     }
 
     if (heading == null) return;

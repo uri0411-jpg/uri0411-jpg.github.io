@@ -593,7 +593,7 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
   }
   // AOD: use direct API measurement when available; otherwise derive from (scaled) dustVal
   // so AOD stays consistent with dust after learning corrections are applied.
-  const aodVal = (_aodFromAPI != null && !isNaN(_aodFromAPI)) ? _aodFromAPI : dustVal / 220;
+  const aodVal = (_aodFromAPI != null && !isNaN(_aodFromAPI) && _aodFromAPI >= 0) ? _aodFromAPI : dustVal / 220;
 
   const cloudAnomaly = (baseline.clouds - _cloudsVal) / 30;
   const visAnomaly   = (_visibilityVal - baseline.visibility) / 10;
@@ -721,7 +721,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
 
   const srIdx = findHourIndex(ht, sunrise);
   const ssIdx = findHourIndex(ht, sunset);
-  const twIdx = Math.min(ssIdx >= 0 ? ssIdx + 1 : 0, ht.length - 1);
+  const twIdx = ssIdx >= 0 ? Math.min(ssIdx + 1, ht.length - 1) : -1;
 
   const wcode    = d.weathercode[dayIndex] || 0;
   const tempAtSS = ssIdx >= 0 ? (h.temperature_2m[ssIdx] || 25) : 25;
@@ -729,7 +729,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
   const aqTimes = airQuality?.hourly?.time;
   const aqSsIdx = aqTimes ? findHourIndex(aqTimes, sunset)  : -1;
   const aqSrIdx = aqTimes ? findHourIndex(aqTimes, sunrise) : -1;
-  const aqTwIdx = aqSsIdx >= 0 ? Math.min(aqSsIdx + 1, (aqTimes?.length || 1) - 1) : -1;
+  const aqTwIdx = (aqSsIdx >= 0 && ssIdx >= 0) ? Math.min(aqSsIdx + 1, (aqTimes?.length || 1) - 1) : -1;
 
   const baseOpts = { westernData };
 
@@ -805,14 +805,16 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
         humidity:           ssParams.humidity,
         dust:               ssParams.dust,
       });
-    } catch (_) {
+    } catch (e) {
+      console.warn('[score] engineResult failed:', e.message || e);
       return null; // safe fallback — use legacy score below
     }
   })();
 
-  // Use engineResult when available; fall back to legacy sunset score.
-  // effectiveSsScore is what the detail view displays — composite is derived
-  // from it so list score and detail scores stay in sync.
+  // SCORING AUTHORITY: scoreEngine.js (0–100) is the sole source of truth for
+  // the sunset component.  Legacy calcScore (0–1 certainty × drama) is only a
+  // fallback if the engine throws.  The composite (effectiveSsScore * 0.6 +
+  // twScore * 0.25 + srScore * 0.15) produces the final day.score (1–10).
   const effectiveSsScore = engineResult
     ? Math.round((engineResult.score / 10) * 10) / 10   // 0–100 → 1–10
     : ssScore;

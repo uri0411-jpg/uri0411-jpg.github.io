@@ -116,8 +116,8 @@ export function renderSunDisk(container, { solarElevation, solarAzimuth, turbidi
     opacity:         opacity.toFixed(2),
     pointerEvents:   'none',
     zIndex:          '0',
-    mixBlendMode:    'screen',
-    transition:      'left 4s ease, top 4s ease, opacity 8s ease',
+    mixBlendMode:    'lighten',
+    transition:      'left 2s ease, top 2s ease, opacity 2s ease',
   });
 
   // ── Turbidity atmospheric halo (wider than disk, opacity scales with turbidity) ──
@@ -142,8 +142,8 @@ export function renderSunDisk(container, { solarElevation, solarAzimuth, turbidi
       background:    `radial-gradient(circle, rgba(${glowR},${Math.min(glowG+20,255)},${Math.round(b*0.4)},${haloAlpha}) 0%, rgba(${r},${Math.round(g*0.5)},0,0) 70%)`,
       pointerEvents: 'none',
       zIndex:        '-1',
-      mixBlendMode:  'screen',
-      transition:    'left 4s ease, top 4s ease, opacity 8s ease',
+      mixBlendMode:  'lighten',
+      transition:    'left 2s ease, top 2s ease, opacity 2s ease',
       opacity:       opacity.toFixed(2),
     });
   } else {
