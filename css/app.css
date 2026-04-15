@@ -1316,20 +1316,25 @@ body.has-install-banner .screen { padding-top: 56px; }
   border-radius: var(--twl-radius-bar);
   position: relative;
 }
-/* ── Sky-window fill — physics-driven 7-stop sunset gradient (set inline) ── */
+/* ── Glowing-vessel fill — transparent body, score-tinted illumination ──
+   The body is fully transparent so the live bg-sunset + sky-canvas bleeds
+   through. Score color (live-updated via --score-color-rgb) drives all
+   illumination: inner rim glow, ember top, and outer halo. */
 .week-bar-fill {
   position: absolute;
   bottom: 0; left: 0; right: 0;
   min-height: 28%;
-  /* background-image injected inline from scoreToSkyBg().gradient */
-  background-color: rgba(12, 6, 2, 0.35);
+  background: transparent;
   box-shadow:
-    inset 0 0 0 1px rgba(255, 235, 195, 0.08),                /* subtle inner rim */
-    0 0 22px rgba(var(--score-color-rgb, 255, 100, 0), 0.30), /* outer halo (live-tinted) */
-    0 6px 18px rgba(0, 0, 0, 0.30);                            /* lift shadow */
+    inset 0 0 32px 4px rgba(var(--score-color-rgb, 255, 100, 0), 0.55),  /* deep inner rim glow */
+    inset 0 0 12px 1px rgba(var(--score-color-rgb, 255, 100, 0), 0.40),  /* tight inner highlight */
+    inset 0 0 0 1px rgba(255, 235, 195, 0.18),                            /* crisp inner edge */
+    0 0 26px rgba(var(--score-color-rgb, 255, 100, 0), 0.45),             /* outer halo */
+    0 0 60px rgba(var(--score-color-rgb, 255, 100, 0), 0.18),             /* far-field halo */
+    0 6px 18px rgba(0, 0, 0, 0.35);                                       /* lift shadow */
   border-radius: 0 0 var(--twl-radius-bar) var(--twl-radius-bar);
   transition: height var(--twl-motion-duration-slow) var(--twl-motion-ease-out),
-              background-image 0.6s linear;
+              box-shadow 0.6s linear;
   overflow: hidden;
 }
 /* Ember top line — 2.5px hot stripe with warm glow, live-tinted */

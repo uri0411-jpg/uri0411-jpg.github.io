@@ -633,24 +633,19 @@ export function buildGaugeArc(score, color, size = 120, skyBg = null) {
 
   const arcTarget = `${filled} ${gap}`;
 
-  // Sky vessel gradient — physics-driven 7-stop sunset (matches week bars)
-  // Falls back gracefully to dark amber tint if no skyBg supplied.
-  const skyStops  = skyBg?.stops   || ['#3a1a08', '#5a280a', '#7a3210', '#a04612', '#7a3210', '#4a200a', '#1a0a04'];
-  const skyOffsets = skyBg?.offsets || [0, 10, 28, 50, 68, 85, 100];
-  const skyGradStops = skyStops.map((hex, i) => `<stop offset="${skyOffsets[i]}%" stop-color="${hex}"/>`).join('');
+  // Note: skyBg param is no longer consumed — the vessel is now transparent
+  // so the live bg-sunset + sky-canvas bleeds through. Kept in signature
+  // for backward compatibility with callers.
+  void skyBg;
 
   return `
     <svg width="${size}" height="${size / 2 + 18}" viewBox="0 0 ${size} ${size / 2 + 18}" fill="none" xmlns="http://www.w3.org/2000/svg">
       <defs>
-        <!-- Sky vessel gradient: physics-derived 7-stop sunset -->
-        <linearGradient id="gauge-sky" x1="${cx}" y1="${cy - r}" x2="${cx}" y2="${cy}" gradientUnits="userSpaceOnUse">
-          ${skyGradStops}
-        </linearGradient>
-        <!-- Sector tint: live score-color overlay on top of the sky for the scored portion -->
+        <!-- Sector tint: live score-color glow on the scored portion (vessel body stays transparent) -->
         <linearGradient id="gauge-fill-grad" x1="${cx}" y1="${cy - r}" x2="${cx}" y2="${cy}" gradientUnits="userSpaceOnUse">
-          <stop class="gauge-grad-stop" offset="0%"   stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.22"/>
-          <stop class="gauge-grad-stop" offset="55%"  stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.08"/>
-          <stop class="gauge-grad-stop" offset="100%" stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.0"/>
+          <stop class="gauge-grad-stop" offset="0%"   stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.42"/>
+          <stop class="gauge-grad-stop" offset="55%"  stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.18"/>
+          <stop class="gauge-grad-stop" offset="100%" stop-color="rgb(${cr},${cg},${cb})" stop-opacity="0.04"/>
         </linearGradient>
         <!-- Glint: animated sweep gradient (moves left→right via SMIL) -->
         <linearGradient id="gauge-sweep" gradientUnits="userSpaceOnUse" x1="-70" y1="0" x2="-10" y2="0">
@@ -661,28 +656,25 @@ export function buildGaugeArc(score, color, size = 120, skyBg = null) {
           <animate attributeName="x1" values="-70; 200" dur="6s" repeatCount="indefinite" calcMode="linear"/>
           <animate attributeName="x2" values="-10; 260" dur="6s" repeatCount="indefinite" calcMode="linear"/>
         </linearGradient>
-        <!-- Subtle horizontal cloud banding inside the vessel -->
-        <pattern id="gauge-cloud-bands" x="0" y="0" width="${size}" height="12" patternUnits="userSpaceOnUse">
-          <rect x="0" y="9" width="${size}" height="3" fill="rgba(255,240,210,0.04)"/>
-        </pattern>
       </defs>
-      <!-- D-shape vessel: filled with physics sky gradient (the "window into sunset") -->
-      <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy} L ${startX} ${cy} Z"
-            fill="url(#gauge-sky)" />
-      <!-- Cloud banding overlay -->
-      <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy} L ${startX} ${cy} Z"
-            fill="url(#gauge-cloud-bands)" style="mix-blend-mode:screen" />
+      <!-- D-shape vessel body: transparent — the page's live sky bleeds through -->
+      <!-- Inner rim glow: thick blurred arc stroke seated on the curved edge,
+           creates score-color illumination spilling inward + outward -->
+      <path class="gauge-inner-rim" d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
+            stroke="rgba(${cr},${cg},${cb},0.42)" stroke-width="22" fill="none"
+            stroke-linecap="butt"
+            style="filter: blur(3px);" pointer-events="none" />
       <!-- Track border (outer arc, 1px) -->
       <path d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
-            stroke="rgba(245,224,190,0.07)" stroke-width="1" fill="none" />
+            stroke="rgba(245,224,190,0.10)" stroke-width="1" fill="none" />
       <!-- Sector tint: live score-color glow on the scored portion -->
       <path class="gauge-sector-fill" d="${sectorD}" fill="url(#gauge-fill-grad)" />
       <!-- Glint: sector path filled with animated sweep gradient -->
       <path class="gauge-glint-path" d="${sectorD}"
             fill="url(#gauge-sweep)" pointer-events="none" />
-      <!-- Inner halo arc (thick soft glow just below the ember line) -->
+      <!-- Inner halo arc (thick soft glow just below the ember line, scored portion only) -->
       <path class="gauge-halo" d="M ${startX} ${cy} A ${r} ${r} 0 0 1 ${endX} ${cy}"
-            stroke="rgba(${cr},${cg},${cb},0.14)" stroke-width="16" fill="none"
+            stroke="rgba(${cr},${cg},${cb},0.22)" stroke-width="16" fill="none"
             stroke-linecap="butt"
             stroke-dasharray="0 ${totalArc}"
             data-arc-target="${arcTarget}"
@@ -761,19 +753,45 @@ export function calcGoldenHourMin(lat, date) {
 // ─── Cinematic Bar Style ─────────────────────────────────────────────────────
 
 /**
- * Maps score to 5 discrete perceptual zones — semantic, not interpolated.
- * ≥8.5 sunsetGold    — vivid, peak golden hour
- * ≥7   warmOrange    — good sunset, warm cast
- * ≥5   neutralAmber  — decent, moderate interest
- * ≥3   coolGray      — weak, muted
- * <3   coolBlue      — poor, twilight blue
+ * Maps score to a continuous neon color via piecewise-linear interpolation
+ * between 6 perceptual anchors. Every 0.1 in score nudges the color smoothly,
+ * so 5.0 / 5.5 / 5.9 are visibly distinct (vs. the old 5-bucket step function).
+ *
+ * Anchors:
+ *   1.0 → deepBlue       — failed twilight
+ *   3.0 → coolBlue       — weak, twilight blue
+ *   5.0 → neutralAmber   — decent, moderate interest
+ *   7.0 → warmOrange     — good sunset, warm cast
+ *   8.5 → sunsetGold     — vivid, peak golden hour
+ *  10.0 → emberGold      — extreme spectacle
  */
+const NEON_ANCHORS = [
+  { s:  1.0, r:  60, g:  90, b: 150 }, // deepBlue
+  { s:  3.0, r:  74, g: 106, b: 154 }, // coolBlue
+  { s:  5.0, r: 200, g: 146, b:  42 }, // neutralAmber
+  { s:  7.0, r: 232, g: 115, b:  42 }, // warmOrange
+  { s:  8.5, r: 255, g: 179, b:  71 }, // sunsetGold
+  { s: 10.0, r: 255, g: 210, b: 110 }, // emberGold
+];
+
 function scoreToNeonColor(score) {
-  if (score >= 8.5) return { r: 255, g: 179, b:  71 }; // sunsetGold
-  if (score >= 7)   return { r: 232, g: 115, b:  42 }; // warmOrange
-  if (score >= 5)   return { r: 200, g: 146, b:  42 }; // neutralAmber
-  if (score >= 3)   return { r: 138, g: 122, b: 106 }; // coolGray
-  return               { r:  74, g: 106, b: 154 }; // coolBlue
+  const s = Math.max(1, Math.min(10, Number(score) || 5));
+  // Find bracket (a, b) such that a.s <= s <= b.s
+  let a = NEON_ANCHORS[0], b = NEON_ANCHORS[NEON_ANCHORS.length - 1];
+  for (let i = 0; i < NEON_ANCHORS.length - 1; i++) {
+    if (s >= NEON_ANCHORS[i].s && s <= NEON_ANCHORS[i + 1].s) {
+      a = NEON_ANCHORS[i];
+      b = NEON_ANCHORS[i + 1];
+      break;
+    }
+  }
+  const span = b.s - a.s;
+  const t = span > 0 ? (s - a.s) / span : 0;
+  return {
+    r: Math.round(a.r + (b.r - a.r) * t),
+    g: Math.round(a.g + (b.g - a.g) * t),
+    b: Math.round(a.b + (b.b - a.b) * t),
+  };
 }
 
 /**

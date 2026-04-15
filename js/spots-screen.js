@@ -1009,7 +1009,7 @@ function renderBestSpotHero() {
         <div style="font-size:10px;color:var(--gold);font-weight:700;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:6px">${heroTitle}</div>
         <div style="display:flex;align-items:center;gap:10px">
           <div style="display:flex;flex-direction:column;gap:4px;align-items:center">
-            <div class="score-badge" style="background:${heroBadgeBg};border:1px solid ${heroBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:rgba(255,255,255,0.97);filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden;width:44px;height:44px;font-size:15px" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${heroWcBg})"></div><span style="position:relative;z-index:3;text-shadow:0 0 8px rgba(255,255,255,0.6),0 1px 3px rgba(0,0,0,0.80)">${fmtScore(sc.combined)}</span>
+            <div class="score-badge" style="background:${heroBadgeBg};border:1px solid ${heroBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:${heroBarStyle.scoreColor};filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden;width:44px;height:44px;font-size:15px" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${heroWcBg})"></div><span style="position:relative;z-index:3;text-shadow:0 0 10px rgba(${hbr},${hbg},${hbb},0.70),0 1px 3px rgba(0,0,0,0.90)">${fmtScore(sc.combined)}</span>
             </div>
             <div style="font-size:9px;color:var(--gold-light);text-align:center">שמיים</div>
             <div class="score-badge score-badge-location" style="width:44px;height:36px;font-size:13px">${heroLoc ?? '—'}</div>
@@ -1220,7 +1220,7 @@ function renderSpotsList() {
           <div class="spot-header-right">
             <div style="display:flex;flex-direction:column;gap:4px;align-items:center;flex-shrink:0">
               <div>
-                <div class="score-badge" style="background:${cardBadgeBg};border:1px solid ${cardBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:rgba(255,255,255,0.97);filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${cardWcBg})"></div><span style="position:relative;z-index:3;font-size:14px;text-shadow:0 0 8px rgba(255,255,255,0.6),0 1px 3px rgba(0,0,0,0.80)">${fmtScore(sc.combined)}</span>
+                <div class="score-badge" style="background:${cardBadgeBg};border:1px solid ${cardBarStyle.scoreColor}55;border-top:1px solid rgba(255,255,255,0.30);color:${cardBarStyle.scoreColor};filter:saturate(1.45) brightness(1.18);position:relative;overflow:hidden" ${sc.combined >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${cardWcBg})"></div><span style="position:relative;z-index:3;font-size:14px;text-shadow:0 0 10px rgba(${cnr},${cng},${cnb},0.70),0 1px 3px rgba(0,0,0,0.90)">${fmtScore(sc.combined)}</span>
                 </div>
                 <div style="font-size:9px;text-align:center;color:var(--gold-light);margin-top:2px">שקיעה</div>
               </div>
