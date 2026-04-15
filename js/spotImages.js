@@ -34,9 +34,8 @@ const LANDSCAPE_KEYWORDS = [
 const NEGATIVE_KEYWORDS = [
   'map', 'diagram', 'logo', 'sign', 'plaque', 'icon', 'flag',
   'chart', 'aerial', 'satellite', 'svg', 'drawing', 'plan',
-  'building', 'architecture', 'street', 'urban', 'screenshot', 'webcam',
-  'monument', 'memorial', 'texture', 'pattern', 'coat of arms', 'emblem',
-  'museum', 'indoor', 'interior', 'stamp', 'coin', 'portrait',
+  'screenshot', 'webcam', 'texture', 'pattern', 'coat of arms', 'emblem',
+  'stamp', 'coin', 'portrait',
 ];
 
 const WARM_COLORS = ['orange', 'pink', 'purple', 'golden', 'red'];
@@ -84,7 +83,7 @@ export async function fetchSpotImage(spot) {
       (await tryCommonsTextSearch(spot))        ||
       (await tryWikidataP18(spot))              ||
       (await tryWikipediaSummary(spot))         ||
-      (await tryCommonsGeosearch(spot, 2000));
+      (await tryCommonsGeosearch(spot, 2000, { lenient: true }));
   } catch (e) {
     console.warn('[spotImages] lookup failed:', e);
   }
@@ -93,11 +92,11 @@ export async function fetchSpotImage(spot) {
   return result || tryTypeFallback(spot);
 }
 
-/** Cache key for a spot — v2 prefix to invalidate old cached misses */
+/** Cache key for a spot — v3 prefix to invalidate stale misses from strict filter era */
 function spotCacheKey(spot) {
   return spot._osmId
-    ? `spotimg2_osm_${spot._osmId}`
-    : `spotimg2_geo_${spot.lat.toFixed(4)}_${spot.lon.toFixed(4)}`;
+    ? `spotimg3_osm_${spot._osmId}`
+    : `spotimg3_geo_${spot.lat.toFixed(4)}_${spot.lon.toFixed(4)}`;
 }
 
 /** Invalidate cached image for a spot so next fetch retries the chain */
@@ -147,7 +146,7 @@ function scoreCandidate(page) {
 
   // Negative keyword matching (stronger penalty)
   for (const kw of NEGATIVE_KEYWORDS) {
-    if (text.includes(kw)) score -= 3;
+    if (text.includes(kw)) score -= 2;
   }
 
   // Featured / Quality image bonuses
@@ -174,18 +173,25 @@ function scoreCandidate(page) {
   return score;
 }
 
-/** Build imageinfo results into scored candidates */
-function buildCandidates(pages) {
+/** Build imageinfo results into scored candidates.
+ *  In lenient mode, skip the 200×150 minimum-size gate so we accept any valid
+ *  jpg/png — better a small real photo than an SVG drawing. */
+function buildCandidates(pages, { lenient = false } = {}) {
   return Object.values(pages)
     .filter(p => /\.(jpe?g|png)$/i.test(p.title || ''))
     .map(p => {
       const info = p.imageinfo?.[0];
       if (!info) return null;
+      let score = scoreCandidate(p);
+      if (lenient && score === -Infinity) {
+        // Size-gated out — revive as a weak candidate for last-resort use.
+        score = -10;
+      }
       return {
         url: info.thumburl || info.url,
         pageUrl: info.descriptionurl,
         credit: info.extmetadata?.Artist?.value?.replace(/<[^>]*>/g, '').trim() || 'Wikimedia Commons',
-        score: scoreCandidate(p),
+        score,
       };
     })
     .filter(c => c && c.score > -Infinity)
@@ -288,7 +294,7 @@ async function tryCommonsLandscapeCategory(spot) {
 }
 
 // ─── Source 5: Wikimedia Commons geosearch (geographic) ────────
-async function tryCommonsGeosearch(spot, radiusM) {
+async function tryCommonsGeosearch(spot, radiusM, { lenient = false } = {}) {
   const u = new URL('https://commons.wikimedia.org/w/api.php');
   u.searchParams.set('action', 'query');
   u.searchParams.set('generator', 'geosearch');
@@ -308,7 +314,7 @@ async function tryCommonsGeosearch(spot, radiusM) {
   const pages = data?.query?.pages;
   if (!pages) return null;
 
-  const candidates = buildCandidates(pages);
+  const candidates = buildCandidates(pages, { lenient });
   const best = candidates[0];
   if (!best) return null;
   return { url: best.url, credit: best.credit, pageUrl: best.pageUrl, sourceLabel: 'ויקישיתוף' };
@@ -319,7 +325,7 @@ async function tryCommonsTextSearch(spot) {
   const name = spot._nameEn || spot.name;
   if (!name) return null;
   return commonsSearch(
-    `"${name}" sunset OR sunrise OR landscape OR שקיעה OR נוף -map -diagram -aerial -logo -sign`
+    `"${name}" sunset OR sunrise OR landscape OR שקיעה OR נוף -map -diagram -logo -sign`
   );
 }
 
