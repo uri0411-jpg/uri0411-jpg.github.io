@@ -678,7 +678,7 @@ export function refreshMainScores(weekData, spotAvgScores = null) {
         }
       }));
     }
-    gaugeWrap.setAttribute('aria-label', `ציון שקיעה: ${displayScore.toFixed(1)} מתוך 10`);
+    gaugeWrap.setAttribute('aria-label', `ציון שקיעה: ${Math.round(displayScore)} מתוך 10`);
     gaugeWrap.dataset.scoreTier = displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low';
   }
 
@@ -1146,6 +1146,14 @@ function buildMainHTML(loc, city, weekData) {
   const trend = trendArrow(today.score, tomorrow?.score);
   const recommendation = getSmartRecommendation(today);
 
+  // Progressive disclosure feature flag — activate via ?disclose=1 in URL
+  const _useDisclosure = new URLSearchParams(location.search).has('disclose');
+  const _disclosureOpen = (() => {
+    try { return localStorage.getItem('twl_main_details_open') !== '0'; } catch { return true; }
+  })();
+  const _dStart = _useDisclosure ? `<details class="score-details-collapse" id="score-details" ${_disclosureOpen ? 'open' : ''}><summary class="score-details-toggle">פרטים נוספים</summary>` : '';
+  const _dEnd   = _useDisclosure ? `</details>` : '';
+
   return `
   <div class="home-content">
 
@@ -1180,10 +1188,10 @@ function buildMainHTML(loc, city, weekData) {
 
 
     <!-- ═══ TODAY SCORE CARD ═══ -->
-    <div class="glass-strong score-card">
+    <div class="glass-strong score-card${_useDisclosure ? ` score-card--disclosed${_disclosureOpen ? ' score-card--open' : ''}` : ''}">
       <div class="score-top">
         <!-- Gauge arc (replaces plain number) -->
-        <div class="score-gauge-wrap" role="status" aria-live="off" aria-label="ציון שקיעה: ${displayScore.toFixed(1)} מתוך 10" data-score-tier="${displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low'}">
+        <div class="score-gauge-wrap" role="status" aria-live="off" aria-label="ציון שקיעה: ${Math.round(displayScore)} מתוך 10" data-score-tier="${displayScore >= 7 ? 'high' : displayScore >= 4 ? 'mid' : 'low'}">
           ${buildGaugeArc(displayScore, displayColor, 130, scoreToSkyBg(displayScore, today.skyColors))}
           <div class="score-desc">${displayLabel}</div>
           ${today.palette?.styleHe ? `<div class="palette-badge">✦ ${today.palette.styleHe}</div>` : ''}
@@ -1242,6 +1250,9 @@ function buildMainHTML(loc, city, weekData) {
         </div>
         <span class="compass-label">כיוון השקיעה</span>
       </div>
+
+      <!-- Progressive disclosure toggle (only when ?disclose=1) -->
+      ${_useDisclosure ? `<button class="score-disclose-toggle" id="score-disclose-btn" aria-expanded="${_disclosureOpen}">${_disclosureOpen ? '▲ פחות פרטים' : '▼ פרטים נוספים'}</button>` : ''}
 
       <!-- Smart recommendation -->
       <div class="recommendation-row">
@@ -1367,10 +1378,10 @@ function renderDailyCards(weekData) {
       <!-- HEADER -->
       <div class="daily-header" onclick="toggleDaily(${i})" style="cursor:pointer;padding:14px 16px">
         <div style="display:flex;align-items:center;gap:10px">
-          <div class="score-badge" style="--score-color-rgb:${dsBarStyle.scoreColorRgb};background:${dsBadgeBg};border:1px solid rgba(${dnr},${dng},${dnb},0.35);color:${dsBarStyle.scoreColor};position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${dsWcBg})"></div><span style="position:relative;z-index:3;font-size:13px;text-shadow:0 0 10px rgba(${dnr},${dng},${dnb},0.70),0 1px 3px rgba(0,0,0,0.90)">${ds.toFixed(1)}</span></div>
+          <div class="score-badge" style="--score-color-rgb:${dsBarStyle.scoreColorRgb};background:${dsBadgeBg};border:1px solid rgba(${dnr},${dng},${dnb},0.35);color:${dsBarStyle.scoreColor};position:relative;overflow:hidden" ${ds >= 7 ? 'data-shimmer' : ''}><div class="score-badge-wc" style="background-image:url(${dsWcBg})"></div><span style="position:relative;z-index:3;font-size:13px;text-shadow:0 0 10px rgba(${dnr},${dng},${dnb},0.70),0 1px 3px rgba(0,0,0,0.90)">${Math.round(ds)}</span></div>
           <div>
             <div style="font-weight:700;font-size:15px;color:var(--cream)">${d.day} · ${d.shortDate}</div>
-            <div style="font-size:11px;color:var(--cream-faint)">${d.cond}</div>
+            <div style="font-size:11px;color:var(--cream-faint)">${d.scoreLabel} · <span style="opacity:0.75;font-size:10px">${d.cond}</span></div>
             <div style="display:flex;align-items:center;gap:4px;margin-top:3px">
               <div class="logo-circle-sm">${logoImg('twilight', 12)}</div>
               <span style="font-size:10px;color:var(--gold-light);font-weight:600">${d.twilight}</span>
@@ -1580,6 +1591,20 @@ function attachMainEvents() {
     searchBtn?.addEventListener('click', openSearch, { signal });
   }
 
+  // ─── Progressive disclosure toggle (feature-flagged via ?disclose=1) ───
+  const disclosBtn = document.getElementById('score-disclose-btn');
+  if (disclosBtn) {
+    disclosBtn.addEventListener('click', () => {
+      const card = document.querySelector('.score-card--disclosed');
+      if (!card) return;
+      const isOpen = card.classList.toggle('score-card--open');
+      disclosBtn.setAttribute('aria-expanded', String(isOpen));
+      disclosBtn.textContent = isOpen ? '▲ פחות פרטים' : '▼ פרטים נוספים';
+      try { localStorage.setItem('twl_main_details_open', isOpen ? '1' : '0'); } catch {}
+      haptic('light');
+    }, { signal });
+  }
+
   // ─── Score gauge tap → Tier-2 explainer tray ───
   const gaugeWrap    = document.querySelector('.score-gauge-wrap');
   const explainerEl  = document.getElementById('score-explainer');
@@ -1754,7 +1779,7 @@ function _showCompareOverlay(iA, iB) {
   const col = (d) => `
     <div style="flex:1;min-width:0">
       <div style="font-size:13px;font-weight:800;color:var(--cream);margin-bottom:8px">${d.day} ${d.shortDate}</div>
-      <div style="font-size:28px;font-weight:900;color:${scoreToBarStyle(d.score, d.skyColors).scoreColor};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)">/10</span></div>
+      <div style="font-size:28px;font-weight:900;color:${scoreToBarStyle(d.score, d.skyColors).scoreColor};font-family:var(--font-title);line-height:1;margin-bottom:4px">${d.score.toFixed(1)}<span style="font-size:12px;color:var(--cream-faint)" dir="rtl"> מתוך 10</span></div>
       <div style="font-size:10px;color:var(--cream-faint);margin-bottom:10px">${d.scoreLabel}</div>
       ${[
         ['שקיעה', d.ssScore.toFixed(1), d.sunset],

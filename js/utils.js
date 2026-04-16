@@ -617,7 +617,7 @@ export function buildGaugeArc(score, color, size = 120, skyBg = null) {
   const gap      = totalArc - filled;
   const startX = cx - r;
   const endX   = cx + r;
-  const displayScore = typeof score === 'number' ? score.toFixed(1) : score;
+  const displayScore = typeof score === 'number' ? Math.round(score) : score;
 
   // Extract RGB from "rgb(r, g, b)" for transparent fills
   const rgb = color.match(/\d+/g) || [212, 130, 10];
@@ -703,9 +703,9 @@ export function buildGaugeArc(score, color, size = 120, skyBg = null) {
         ${displayScore}
       </text>
       <text x="${cx}" y="${cy - 1}" text-anchor="middle"
-            style="font-family:var(--font-body);font-size:11px;font-weight:400;"
+            style="font-family:var(--font-body);font-size:11px;font-weight:400;" direction="rtl"
             fill="rgba(245,230,200,0.45)">
-        /10
+        מתוך 10
       </text>
     </svg>`;
 }

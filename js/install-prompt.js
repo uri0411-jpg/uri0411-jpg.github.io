@@ -3,7 +3,10 @@
 //  Prompts user to install PWA (hides address bar)
 // ═══════════════════════════════════════════
 
-const DISMISSED_KEY = 'twl_install_dismissed';
+const DISMISSED_KEY  = 'twl_install_dismissed';
+const SESSIONS_KEY   = 'twl_install_sessions';
+const DISMISS_TTL_MS = 30 * 24 * 60 * 60 * 1000; // 30 days
+const MIN_SESSIONS   = 3; // show only after 3rd cold load
 
 let _deferredPrompt = null; // Android/Chrome native install event
 
@@ -20,11 +23,31 @@ function isIOS() {
 }
 
 function isDismissed() {
-  try { return localStorage.getItem(DISMISSED_KEY) === '1'; } catch { return false; }
+  try {
+    const raw = localStorage.getItem(DISMISSED_KEY);
+    if (!raw) return false;
+    // Legacy '1' value — treat as dismissed-forever (no TTL)
+    if (raw === '1') return true;
+    const { dismissedAt } = JSON.parse(raw);
+    return Date.now() - dismissedAt < DISMISS_TTL_MS;
+  } catch { return false; }
 }
 
 function setDismissed() {
-  try { localStorage.setItem(DISMISSED_KEY, '1'); } catch {}
+  try { localStorage.setItem(DISMISSED_KEY, JSON.stringify({ dismissedAt: Date.now() })); } catch {}
+}
+
+/** Increment session counter. Returns new count. */
+export function bumpInstallSession() {
+  try {
+    const n = (parseInt(localStorage.getItem(SESSIONS_KEY) || '0', 10) || 0) + 1;
+    localStorage.setItem(SESSIONS_KEY, String(n));
+    return n;
+  } catch { return MIN_SESSIONS; } // fail-open: show if storage broken
+}
+
+function hasEnoughSessions() {
+  try { return parseInt(localStorage.getItem(SESSIONS_KEY) || '0', 10) >= MIN_SESSIONS; } catch { return true; }
 }
 
 // ─────────────────────────────────────────
@@ -149,15 +172,17 @@ export function initInstallPrompt() {
   // Already installed — nothing to do
   if (isStandalone()) return;
 
+  const canShow = () => !isDismissed() && hasEnoughSessions();
+
   // Capture Android/Chrome install event
   window.addEventListener('beforeinstallprompt', e => {
     e.preventDefault();
     _deferredPrompt = e;
-    if (!isDismissed()) showBanner();
+    if (canShow()) showBanner();
   });
 
   // iOS: show banner after short delay (no beforeinstallprompt on Safari)
-  if (isIOS() && !isDismissed()) {
+  if (isIOS() && canShow()) {
     setTimeout(showBanner, 2500);
   }
 
@@ -165,7 +190,7 @@ export function initInstallPrompt() {
   // (handles some desktop Chrome and edge cases)
   if (!isIOS()) {
     setTimeout(() => {
-      if (!_deferredPrompt && !isStandalone() && !isDismissed()) {
+      if (!_deferredPrompt && !isStandalone() && canShow()) {
         // Only show if browser supports installation at all (check via getInstalledRelatedApps)
         if ('getInstalledRelatedApps' in navigator) showBanner();
       }

@@ -16,7 +16,7 @@ import { registerSW }                          from './sw-register.js';
 import { clearExpired, getCacheAge, getStaleCacheWithAge, subscribe as subscribeCache, isZoneCacheFresh } from './cache.js';
 import { recordPrediction, fetchActualForDate, getUnfilledDates, processLearningForEntry } from './calibration.js';
 import { seedFromBacktest, getLearningStats, pinLearningSnapshot }  from './engine/learningEngine.js';
-import { initInstallPrompt }                   from './install-prompt.js';
+import { initInstallPrompt, bumpInstallSession } from './install-prompt.js';
 import { rearmSavedAlerts }                    from './notifications.js';
 import { initOnboarding }                      from './onboarding.js';
 import { scoreToLabel, distKm, deepFreeze } from './utils.js';
@@ -108,6 +108,30 @@ window.__twl_debug = window.__twl_debug || {
 // ─────────────────────────────────────────
 
 // ─────────────────────────────────────────
+//  DOM helpers
+// ─────────────────────────────────────────
+
+/**
+ * Update the city display span and optionally mark as fallback.
+ * When fallback=true, adds a "· שנה" hint that opens the location search on click.
+ * Safe to call before or after initMainScreen — no-ops if DOM not ready.
+ */
+function _updateCityDisplay(cityName, fallback = false) {
+  const el = document.querySelector('#city-display span');
+  if (!el) return;
+  if (fallback) {
+    el.innerHTML = `${cityName} <span style="font-size:10px;opacity:0.6;text-decoration:underline;cursor:pointer" id="city-change-hint">· שנה</span>`;
+    const hint = document.getElementById('city-change-hint');
+    if (hint) hint.addEventListener('click', e => {
+      e.stopPropagation();
+      document.getElementById('search-btn')?.click();
+    });
+  } else {
+    el.textContent = cityName;
+  }
+}
+
+// ─────────────────────────────────────────
 //  Boot
 // ─────────────────────────────────────────
 async function boot() {
@@ -153,6 +177,7 @@ async function boot() {
   clearExpired();
   rearmSavedAlerts();
   initNav();
+  bumpInstallSession();
   initInstallPrompt();
   initOnboarding();
 
@@ -322,12 +347,14 @@ async function loadAppData() {
     getGPS().then(async pos => {
       if (pos.permDenied) {
         showToast('הגישה למיקום נחסמה — ניתן לחפש מיקום ידנית', 'info');
-        setState({ city: 'תל אביב', locationResolved: true });
+        setState({ city: 'תל אביב', locationResolved: true, locationFallback: true });
+        _updateCityDisplay('תל אביב', true);
         return;
       }
       if (pos.isFallback) {
         showToast('לא ניתן לאתר מיקום — מציג תחזית לתל אביב', 'info');
-        setState({ locationResolved: true });
+        setState({ locationResolved: true, locationFallback: true });
+        _updateCityDisplay('תל אביב', true);
         return;
       }
       if (isStale(gen)) return; // Contract 2: GPS resolved after location changed
@@ -339,7 +366,8 @@ async function loadAppData() {
       }));
     }).catch(() => {
       showToast('לא ניתן לאתר מיקום — מציג תחזית לתל אביב', 'info');
-      setState({ locationResolved: true });
+      setState({ locationResolved: true, locationFallback: true });
+      _updateCityDisplay('תל אביב', true);
     });
     // Mark resolved for fallback — GPS will trigger setLocation event when ready
     setState({ locationResolved: true });
