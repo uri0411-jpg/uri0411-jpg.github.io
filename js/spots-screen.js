@@ -9,7 +9,7 @@ import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, a
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
-import { fetchSpotImage, invalidateSpotImage, pickGenericSunset, rejectSpotImageUrl, getStaticMapForSpot } from './spotImages.js';
+import { fetchSpotImage, invalidateSpotImage, pickGenericSunset, rejectSpotImageUrl, getStaticMapForSpot, subscribeSpotImage } from './spotImages.js';
 import { initLocationSearch } from './locationSearch.js';
 
 let _spots        = [];
@@ -1508,9 +1508,18 @@ window.toggleSpot = function(i) {
   if (!el) return;
   const isOpen = el.classList.toggle('open');
   if (ch) ch.style.transform = isOpen ? 'rotate(180deg)' : '';
-  // Lazy-load spot photo on first open
-  if (isOpen) _loadSpotPhoto(i);
+  if (isOpen) {
+    _loadSpotPhoto(i);
+  } else {
+    // Unsubscribe SWR updates when card is collapsed — no point updating
+    // a photo the user can't see.
+    _photoUnsubs.get(i)?.();
+    _photoUnsubs.delete(i);
+  }
 };
+
+// Map of spot index → unsubscribe function for SWR background notifications.
+const _photoUnsubs = new Map();
 
 function _loadSpotPhoto(i) {
   const container = document.getElementById(`spot-photo-${i}`);
@@ -1519,15 +1528,26 @@ function _loadSpotPhoto(i) {
   const spot = sorted[i];
   if (!spot) return;
   container.dataset.loaded = 'pending';
+
+  // Subscribe to background revalidation: if SWR finds a fresher photo
+  // while the card is open, silently swap it in.
+  _photoUnsubs.get(i)?.(); // cancel any previous subscription first
+  const unsub = subscribeSpotImage(spot, (fresh) => {
+    const c = document.getElementById(`spot-photo-${i}`);
+    if (!c || c.dataset.loaded !== 'ok') return;
+    // Only upgrade — don't downgrade from a real photo to a generic one.
+    const prev = c._spotPhotoResult;
+    if (prev?._isGenericSunset || prev?._isStaticMap || !prev?.score || (fresh.score ?? 0) > (prev.score ?? 0)) {
+      _renderSpotPhotoResult(c, spot, fresh, i);
+    }
+  });
+  _photoUnsubs.set(i, unsub);
+
   fetchSpotImage(spot).then(result => {
-    // Hard guarantee: never an empty container. fetchSpotImage already
-    // returns a generic sunset on miss, but defend in depth in case it ever
-    // resolves null (e.g., spot missing coords).
     if (!result || !result.url) result = pickGenericSunset(spot);
     container.dataset.loaded = 'ok';
     _renderSpotPhotoResult(container, spot, result, i);
   }).catch(() => {
-    // Network/JS exception → still render the generic sunset, never empty.
     const result = pickGenericSunset(spot);
     container.dataset.loaded = 'ok';
     _renderSpotPhotoResult(container, spot, result, i);
@@ -1633,6 +1653,7 @@ function _renderSpotPhotoResult(container, spot, result, i) {
   container.innerHTML = `
     <a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">
       <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async" width="640" height="360"
+        onload="window._checkImgDimensions(${i}, this)"
         onerror="window._handleImgError(${i}, this)">
       <div class="spot-photo-credit">${prefix}: ${label}${credit ? ' — ' + credit : ''}</div>
     </a>
@@ -1672,6 +1693,21 @@ window._retrySpotPhoto = function(i) {
     </div>`;
   haptic('light');
   _loadSpotPhoto(i);
+};
+
+// Preflight: called via onload on every real Wikimedia photo.
+// Silently rejects portrait (h > w×1.1) or tiny (w < 200) images
+// before the user even sees them, then falls back to generic sunset.
+window._checkImgDimensions = function(i, imgEl) {
+  if (!imgEl) return;
+  const w = imgEl.naturalWidth;
+  const h = imgEl.naturalHeight;
+  if (!w || !h) return; // browser didn't expose dimensions yet — ignore
+  const isPortrait = h > w * 1.1;
+  const isTiny     = w < 200;
+  if (isPortrait || isTiny) {
+    window._handleImgError(i, imgEl); // rejects URL + swaps to generic
+  }
 };
 
 // Hard-fail recovery: an <img> failed to load (404, CORS, network blip).

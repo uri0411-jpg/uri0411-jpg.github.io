@@ -15,7 +15,7 @@
 //    5. Cartoon SVG only when offline AND no cached anything.
 // ═══════════════════════════════════════════
 
-import { getCache, setCache } from './cache.js';
+import { getCache, setCache, swr, subscribe } from './cache.js';
 
 const CACHE_TTL_HIT_MIN  = 60 * 24 * 7;   // 7 days for hits
 const CACHE_TTL_MISS_MIN = 30;            // 30 min for misses — short so pipeline improvements reach users fast
@@ -81,41 +81,79 @@ export async function fetchSpotImage(spot) {
   const key = spotCacheKey(spot);
   const rejected = getRejectedUrls(spot);
 
-  // 1. Cache hit (fresh photo) — return immediately, but only if not user-rejected.
-  const cached = getCache(key);
-  if (cached && !cached._miss) {
-    const next = pickFromCachedWithAlternates(cached, rejected);
-    if (next) return next;
-    // Every cached candidate has been rejected — fall through to re-fetch.
-  }
-
-  // 2. Direct OSM image= tag — instant, no network, very high confidence.
+  // 2. Direct OSM image= tag — always instant, checked before cache so a
+  //    user-tagged photo always takes priority even over a cached result.
   const direct = tryDirectImageTag(spot);
   if (direct && !rejected.has(direct.url)) {
     setCache(key, direct, CACHE_TTL_HIT_MIN);
     return direct;
   }
 
-  // 3. Cached miss — go straight to generic sunset (no network).
+  // 1 + 4 combined via SWR:
+  //   • Fresh cache hit   → return immediately, no network.
+  //   • Stale cache hit   → return immediately AND revalidate in background;
+  //                         notify() fires when fresh result is ready so the
+  //                         UI can swap to a better photo without blocking.
+  //   • No cache (miss)   → must await the network fetch.
+  const { data: cached, revalidatePromise } = swr(
+    key,
+    () => _fetchFresh(spot, rejected),
+    CACHE_TTL_HIT_MIN
+  );
+
+  if (cached && !cached._miss) {
+    const next = pickFromCachedWithAlternates(cached, rejected);
+    if (next) return next;
+    // Every cached candidate rejected → let revalidatePromise bring fresh ones.
+  }
+
+  // Cached miss → skip network entirely, go straight to generic sunset.
   if (cached && cached._miss) return pickGenericSunset(spot);
 
-  // 4. Parallel fan-out across all sources within global budget.
+  // No usable cached data: await the network fetch.
+  if (revalidatePromise) {
+    try {
+      const fresh = await revalidatePromise;
+      if (fresh && !fresh._miss) {
+        return pickFromCachedWithAlternates(fresh, rejected) || pickGenericSunset(spot);
+      }
+    } catch (e) {
+      console.warn('[spotImages] fetch failed:', e);
+    }
+  }
+
+  return pickGenericSunset(spot);
+}
+
+/**
+ * Pure network fetch for SWR: runs raceForBest, stores result, returns it.
+ * Called by swr() as the fetcher; also called directly on cache-miss.
+ */
+async function _fetchFresh(spot, rejected = new Set()) {
   let bundle = null;
   try {
     bundle = await raceForBest(spot, GLOBAL_BUDGET_MS, rejected);
   } catch (e) {
     console.warn('[spotImages] fan-out failed:', e);
   }
-
   if (bundle && bundle.best) {
-    const stored = { ...bundle.best, alternates: bundle.alternates };
-    setCache(key, stored, CACHE_TTL_HIT_MIN);
-    return stored;
+    return { ...bundle.best, alternates: bundle.alternates };
   }
+  return { _miss: true };
+}
 
-  // 5. Nothing real found — short-cache the miss and serve the curated sunset pool.
-  setCache(key, { _miss: true }, CACHE_TTL_MISS_MIN);
-  return pickGenericSunset(spot);
+/**
+ * Subscribe to background-revalidation events for a spot's photo.
+ * When swr() finds a fresher result in the background, the callback fires
+ * with the new result so the UI can swap the photo without a full reload.
+ * Returns an unsubscribe function — call it when the card is hidden/destroyed.
+ */
+export function subscribeSpotImage(spot, cb) {
+  if (!spot) return () => {};
+  const key = spotCacheKey(spot);
+  return subscribe(key, (fresh) => {
+    if (fresh && !fresh._miss) cb(fresh);
+  });
 }
 
 /**
