@@ -8,7 +8,7 @@
 //   node -e "const f='sw.js',d=new Date().toISOString().slice(0,10).replace(/-/g,''); \
 //            require('fs').writeFileSync(f, require('fs').readFileSync(f,'utf8') \
 //            .replace(/BUILD_DATE = '\d+'/, \"BUILD_DATE = '\" + d + \"'\"))"
-const BUILD_DATE  = '20260416'; // YYYYMMDD — update per deploy
+const BUILD_DATE  = '20260416b'; // YYYYMMDD[suffix] — update per deploy
 const CACHE_NAME  = 'twl-v' + BUILD_DATE; // auto-namespaces cache per deploy
 const TILE_CACHE  = 'twl-tiles'; // persistent across deploys — managed by MAX_TILES
 const MAX_TILES   = 800;         // ~12MB at ~15KB/vector tile — better cache hit rate for region

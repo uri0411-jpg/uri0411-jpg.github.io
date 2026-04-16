@@ -1525,23 +1525,113 @@ function _loadSpotPhoto(i) {
       container.classList.add('spot-photo-empty');
       return;
     }
-    const credit = result.credit ? esc(result.credit).slice(0, 60) : '';
-    const page   = result.pageUrl || result.url;
-    const label  = result.sourceLabel || '';
     container.dataset.loaded = 'ok';
-    const isFallback = result._isFallback;
-    container.innerHTML = `
-      ${isFallback ? '<div class="spot-photo-link spot-photo-fallback">' :
-        `<a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">`}
-        <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async" width="640" height="360"
-          onerror="this.onerror=null;this.parentNode.parentNode.classList.add('spot-photo-empty');this.parentNode.remove();">
-        <div class="spot-photo-credit">${isFallback ? '' : `צילום: ${label}${credit ? ' — ' + credit : ''}`}</div>
-      ${isFallback ? '</div>' : '</a>'}`;
+    _renderSpotPhotoResult(container, spot, result, i);
   }).catch(() => {
     container.dataset.loaded = 'fail';
     container.classList.add('spot-photo-empty');
   });
 }
+
+function _renderSpotPhotoResult(container, spot, result, i) {
+  const credit = result.credit ? esc(result.credit).slice(0, 60) : '';
+  const page   = result.pageUrl || result.url;
+  const label  = result.sourceLabel || '';
+  const isStaticMap = !!result._isStaticMap;
+  const isFallback  = !!result._isFallback;
+
+  // Static map → render OSM tile mosaic + sunset-direction arrow + retry button.
+  if (isStaticMap) {
+    const ssAz = getSunsetAzimuth();
+    const dirLabel = _azDirLabel(ssAz);
+    const sunsetTime = _weekData?.[0]?.sunset || '';
+    const grid = result._tileGrid;
+    container.classList.add('spot-photo-staticmap');
+    const tilesHtml = grid ? grid.tiles.map(t =>
+      `<img class="spot-tile" src="${t.url}" alt="" loading="lazy" decoding="async"
+            style="grid-column:${t.gridCol + 1};grid-row:${t.gridRow + 1}"
+            onerror="this.style.background='rgba(40,28,18,0.8)';this.removeAttribute('src')">`
+    ).join('') : '';
+    // 3×3 grid → marker (and arrow) sit at the spot's actual position within the
+    // grid, which is always within the central third (≈33%–67%). No shift needed.
+    const markerLeft = grid ? (grid.markerX * 100).toFixed(2) : '50';
+    const markerTop  = grid ? (grid.markerY * 100).toFixed(2) : '50';
+    container.innerHTML = `
+      <a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">
+        <div class="spot-tile-grid" style="grid-template-columns:repeat(${grid?.cols || 3},1fr);grid-template-rows:repeat(${grid?.rows || 3},1fr)">
+          ${tilesHtml}
+        </div>
+        <div class="spot-photo-marker" style="left:${markerLeft}%;top:${markerTop}%" aria-hidden="true">
+          <svg width="20" height="20" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6" fill="#E25A3A" stroke="#fff" stroke-width="2"/></svg>
+        </div>
+        <div class="spot-photo-arrow" style="left:${markerLeft}%;top:${markerTop}%;transform: translate(-50%, -50%) rotate(${ssAz}deg)" aria-hidden="true">
+          <svg width="80" height="80" viewBox="0 0 80 80" fill="none">
+            <circle cx="40" cy="40" r="30" fill="rgba(255,180,80,0.12)" stroke="rgba(255,200,120,0.55)" stroke-width="1.5" stroke-dasharray="3 3"/>
+            <path d="M40 12 L50 32 L40 27 L30 32 Z" fill="#FFD088" stroke="#7A4818" stroke-width="1.2"/>
+          </svg>
+        </div>
+        <div class="spot-photo-credit">
+          מפת לוויין · השקיעה ${sunsetTime ? `ב־${sunsetTime} ` : ''}מכיוון ${dirLabel}
+        </div>
+      </a>
+      <button class="spot-photo-retry" onclick="event.stopPropagation();window._retrySpotPhoto(${i})" title="חפש שוב תמונה">
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+        חפש תמונה
+      </button>`;
+    return;
+  }
+
+  // Generic SVG fallback (offline) — non-clickable wrapper.
+  if (isFallback) {
+    container.innerHTML = `
+      <div class="spot-photo-link spot-photo-fallback">
+        <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async" width="640" height="360">
+        <div class="spot-photo-credit"></div>
+      </div>`;
+    return;
+  }
+
+  // Real photo from Wikimedia/etc.
+  container.innerHTML = `
+    <a href="${page}" target="_blank" rel="noopener" class="spot-photo-link">
+      <img src="${result.url}" alt="${esc(spot.name)}" loading="lazy" decoding="async" width="640" height="360"
+        onerror="this.onerror=null;this.parentNode.parentNode.classList.add('spot-photo-empty');this.parentNode.remove();">
+      <div class="spot-photo-credit">צילום: ${label}${credit ? ' — ' + credit : ''}</div>
+    </a>`;
+}
+
+function _azDirLabel(az) {
+  const a = ((az % 360) + 360) % 360;
+  if (a >= 247.5 && a < 292.5) return 'מערב';
+  if (a >= 202.5 && a < 247.5) return 'דרום־מערב';
+  if (a >= 292.5 && a < 337.5) return 'צפון־מערב';
+  if (a >= 157.5 && a < 202.5) return 'דרום';
+  if (a >= 337.5 || a < 22.5)  return 'צפון';
+  if (a >= 22.5 && a < 67.5)   return 'צפון־מזרח';
+  if (a >= 67.5 && a < 112.5)  return 'מזרח';
+  return 'דרום־מזרח';
+}
+
+window._retrySpotPhoto = function(i) {
+  const sorted = getFilteredSpots();
+  const spot = sorted[i];
+  if (!spot) return;
+  invalidateSpotImage(spot);
+  const container = document.getElementById(`spot-photo-${i}`);
+  if (!container) return;
+  // Reset and re-trigger load
+  container.dataset.loaded = '';
+  container.classList.remove('spot-photo-empty', 'spot-photo-staticmap');
+  container.innerHTML = `
+    <div class="spot-photo-skeleton">
+      <svg width="42" height="42" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.4">
+        <circle cx="12" cy="12" r="4"/>
+        <path d="M2 17l6-6 5 5 3-3 6 6"/>
+      </svg>
+    </div>`;
+  haptic('light');
+  _loadSpotPhoto(i);
+};
 window._toggleFav = function(i) {
   const sorted = getFilteredSpots();
   const s = sorted[i];

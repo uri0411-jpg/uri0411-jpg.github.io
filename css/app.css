@@ -2537,6 +2537,61 @@ html[dir="rtl"] { --screen-slide-dir: -1; }
   direction: rtl;
   pointer-events: none;
 }
+/* Static-map fallback (real OSM map of the spot, with sunset arrow overlay) */
+.spot-photo-staticmap .spot-tile-grid {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  filter: brightness(0.92) sepia(0.18) hue-rotate(-12deg) saturate(1.05);
+}
+.spot-photo-staticmap .spot-tile {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+  background: rgba(40,28,18,0.6);
+}
+.spot-photo-marker {
+  position: absolute;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+  filter: drop-shadow(0 1px 3px rgba(0,0,0,0.6));
+  z-index: 2;
+}
+.spot-photo-arrow {
+  position: absolute;
+  transform-origin: center;
+  pointer-events: none;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.55));
+  transition: transform 0.4s ease-out;
+  z-index: 1;
+}
+.spot-photo-retry {
+  position: absolute;
+  top: 8px;
+  inset-inline-end: 8px;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 5px 9px;
+  background: rgba(20,12,6,0.7);
+  border: 1px solid rgba(212,165,116,0.4);
+  border-radius: 8px;
+  color: var(--cream, #f5e6c8);
+  font-size: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  direction: rtl;
+  backdrop-filter: blur(6px);
+  -webkit-backdrop-filter: blur(6px);
+  z-index: 2;
+}
+.spot-photo-retry:hover {
+  background: rgba(40,24,12,0.85);
+  border-color: rgba(212,165,116,0.7);
+}
 
 /* Navigation buttons */
 .spot-nav-row {
