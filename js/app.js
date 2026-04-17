@@ -8,7 +8,7 @@ import { getGPS, saveLocation, loadLocation }  from './location.js';
 import { fetchWeek, fetchWeekFast, fetchWeekEnsemble, fetchCityName, fetchAirQuality, fetchWesternHorizon } from './api.js';
 import { calcWeekData }                        from './score.js';
 import { initMainScreen, showMainSkeleton, repaintScoreColors, refreshMainScores } from './main-screen.js';
-import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots, prefetchAreaTiles } from './spots-screen.js';
+import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots, prefetchAreaTiles, warmMapLibre } from './spots-screen.js';
 import { initSettingsScreen }                  from './settings-screen.js';
 import { initLearningScreen }                  from './learning-screen.js';
 import { showToast, showLoading }              from './ui.js';
@@ -85,6 +85,8 @@ function _scheduleSpotPreload(weekData, loc) {
     preloadSpotsData(weekData, loc).catch(e => logError({ scope: 'boot', action: 'spots-preload', error: e, severity: 'warn' }));
     // Also prefetch map tiles for the user's area so the Spot Finder map loads instantly
     prefetchAreaTiles(loc.lat, loc.lon);
+    // Warm MapLibre JS bundle so the first Spot Finder tap doesn't wait for ~800KB.
+    warmMapLibre();
   };
   if (typeof requestIdleCallback === 'function') {
     requestIdleCallback(run, { timeout: 8000 });

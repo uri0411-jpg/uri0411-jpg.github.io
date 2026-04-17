@@ -38,6 +38,8 @@ let _visibleCount = 15;
 let _loadingSpots = false; // guard against parallel loadSpots() calls
 let _searchCleanup = null;
 let _spotsWorker   = null; // lazy-init Web Worker for location quality
+let _extendedMode  = false; // true when user clicked "הצג 15 נוספים"
+let _loadingMore   = false; // guard against parallel "load more" taps
 
 // ─────────────────────────────────────────
 //  Spots quality Worker — offloads calcLocationQuality × N to a background thread.
@@ -115,6 +117,7 @@ function computeLocationQualityBatch(spots, sunsetAz) {
 //  Bundled locally → served cache-first by SW (no CDN latency)
 // ─────────────────────────────────────────
 let _mlLoadPromise = null; // dedup guard — only one load in-flight
+export function warmMapLibre() { return loadMapLibre().catch(() => {}); }
 function loadMapLibre() {
   if (_mlReady || typeof maplibregl !== 'undefined') { _mlReady = true; return Promise.resolve(); }
   if (_mlLoadPromise) return _mlLoadPromise;
@@ -375,30 +378,39 @@ export function calcNearbyAvgScore(spots, weekData) {
   return weekData.slice(0, 5).map(d => Math.round((d.score ?? 5.0) * 10) / 10);
 }
 
+// ─── Per-spot prep: scores + horizon warnings. Uses module _weekData/_loc. ───
+function _prepSpot(s, weekData = _weekData, lat = _loc?.lat, lon = _loc?.lon) {
+  s._allScores = calcSpotScores(s, weekData, lat, lon);
+  const inland      = s.lon > 34.92;
+  const lowElev     = s.elevation !== null && s.elevation < 60;
+  const unknownElev = s.elevation === null && s.lon > 35.0;
+  if (inland && s.type !== 'חוף' && (lowElev || unknownElev)) {
+    s._horizonWarning = lowElev
+      ? 'גובה נמוך — בדוק ראות מערבית'
+      : 'גובה לא ידוע — בדוק ראות מערבית';
+  }
+}
+
 // ─── Background pre-load (called by app.js right after boot) ───
 export async function preloadSpotsData(weekData, loc) {
   if (!loc) return;
   const radius = 25;
   try {
     const spots = await fetchSpots(loc.lat, loc.lon, radius);
-    spots.forEach(s => {
-      s._allScores = calcSpotScores(s, weekData, loc.lat, loc.lon);
-      const inland      = s.lon > 34.92;
-      const lowElev     = s.elevation !== null && s.elevation < 60;
-      const unknownElev = s.elevation === null && s.lon > 35.0;
-      if (inland && s.type !== 'חוף' && (lowElev || unknownElev)) {
-        s._horizonWarning = lowElev
-          ? 'גובה נמוך — בדוק ראות מערבית'
-          : 'גובה לא ידוע — בדוק ראות מערבית';
-      }
-    });
-    // Offload location quality computation to Worker
-    await computeLocationQualityBatch(spots, getSunsetAzimuth());
+    spots.forEach(s => _prepSpot(s, weekData, loc.lat, loc.lon));
+    // Publish immediately so an early tab-open hits the fast path.
     _preloadedSpots       = spots;
     _preloadedForLat      = loc.lat;
     _preloadedForLon      = loc.lon;
     _preloadedForRadius   = radius;
     _preloadedForWeekData = weekData;
+    // Location quality fills in via Worker; mutates spots in place.
+    computeLocationQualityBatch(spots, getSunsetAzimuth()).catch(() => {});
+    // Warm image cache for the top 3 spots (by distance — matches default sort).
+    // SWR-cached, silent failure: just fills localStorage so the first tap is instant.
+    for (let k = 0; k < Math.min(3, spots.length); k++) {
+      fetchSpotImage(spots[k]).catch(() => {});
+    }
   } catch (e) {
     console.warn('[spots] preload failed, will fetch on demand:', e);
     _preloadedSpots = null;
@@ -455,6 +467,7 @@ export function invalidatePreloadedSpots() {
   _preloadedForLon      = null;
   _preloadedForRadius   = null;
   _preloadedForWeekData = null;
+  _extendedMode         = false;
 }
 
 // ─── Best day label ──────────────────────
@@ -855,7 +868,21 @@ async function loadSpots() {
     renderSpotsList();
     updateMapMarkers(getFilteredSpots());
     drawEventArc();
-    checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+    // Preload may have dispatched the Worker batch without awaiting it. If any
+    // spot is missing location quality, re-run (idempotent) and re-render.
+    const needsQuality = _spots.some(s => s._locationQualitySunset == null);
+    if (needsQuality) {
+      computeLocationQualityBatch(_spots, getSunsetAzimuth()).then(() => {
+        renderBestSpotHero();
+        renderSpotsList();
+        updateMapMarkers(getFilteredSpots());
+        checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+      }).catch(() => {
+        checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+      });
+    } else {
+      checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+    }
     _loadingSpots = false;
     return;
   }
@@ -869,47 +896,26 @@ async function loadSpots() {
   if (countEl) countEl.textContent = '';
 
   try {
-    _spots = await fetchSpots(_loc.lat, _loc.lon, _radiusKm);
+    // Default: 15 spots. Extended mode (user clicked "load more") fetches 30.
+    const limit = _extendedMode ? 30 : 15;
+    _spots = await fetchSpots(_loc.lat, _loc.lon, _radiusKm, limit);
+    _spots.forEach(s => _prepSpot(s));
 
-    // ── Prepare spots: scores + horizon warnings (sync, lightweight) ──
-    function _prepSpot(s) {
-      s._allScores = calcSpotScores(s, _weekData, _loc.lat, _loc.lon);
-      const inland      = s.lon > 34.92;
-      const lowElev     = s.elevation !== null && s.elevation < 60;
-      const unknownElev = s.elevation === null && s.lon > 35.0;
-      if (inland && s.type !== 'חוף' && (lowElev || unknownElev)) {
-        s._horizonWarning = lowElev
-          ? 'גובה נמוך — בדוק ראות מערבית'
-          : 'גובה לא ידוע — בדוק ראות מערבית';
-      }
-    }
-
-    const FIRST_PAGE = 15;
-    const firstPage = _spots.slice(0, FIRST_PAGE);
-    firstPage.forEach(_prepSpot);
-
-    // Location quality for first page — Worker or batched fallback
-    const ssAz = getSunsetAzimuth();
-    await computeLocationQualityBatch(firstPage, ssAz);
-
+    // First paint: render with sync data (score/bearing/distance/horizon).
+    // Location quality arrives from Worker asynchronously; we re-render then.
     renderBestSpotHero();
     renderSpotsList();
     updateMapMarkers(getFilteredSpots());
     drawEventArc();
 
-    // ── Score remaining spots off main thread ──────────────────────────
-    const tail = _spots.slice(FIRST_PAGE);
-    if (tail.length) {
-      tail.forEach(_prepSpot);
-      computeLocationQualityBatch(tail, ssAz).then(() => {
-        renderBestSpotHero(); // hero may change once all spots are scored
-        renderSpotsList();
-        updateMapMarkers(getFilteredSpots());
-        checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
-      });
-    } else {
+    computeLocationQualityBatch(_spots, getSunsetAzimuth()).then(() => {
+      renderBestSpotHero(); // hero may change once location quality lands
+      renderSpotsList();
+      updateMapMarkers(getFilteredSpots());
       checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
-    }
+    }).catch(() => {
+      checkGeofenceAlert(_spots, _weekData?.[0]?.score ?? 0);
+    });
   } catch (e) {
     console.error('[spots] loadSpots failed:', e);
     _spots = [];
@@ -1360,6 +1366,24 @@ function renderSpotsList() {
       haptic('light');
       _visibleCount += 15;
       renderSpotsList();
+    });
+  } else if (!_extendedMode && _filterType === 'all' && sorted.length >= 15) {
+    // All 15 shown; offer to fetch another 15 from Overpass.
+    listEl.innerHTML += `
+      <button class="search-filter-btn spot-load-more" id="spots-load-more-fetch" style="width:100%;margin-top:8px" ${_loadingMore ? 'disabled' : ''}>
+        ${_loadingMore ? 'טוען...' : 'הצג 15 נוספים'}
+      </button>`;
+    document.getElementById('spots-load-more-fetch')?.addEventListener('click', async () => {
+      if (_loadingMore) return;
+      haptic('light');
+      _loadingMore = true;
+      invalidatePreloadedSpots();
+      _extendedMode = true;
+      try {
+        await loadSpots();
+      } finally {
+        _loadingMore = false;
+      }
     });
   }
 

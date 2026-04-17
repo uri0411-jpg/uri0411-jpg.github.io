@@ -375,41 +375,42 @@ export async function fetchCityName(lat, lon) {
 async function fetchOverpassWithFallback(query) {
   const body = `data=${encodeURIComponent(query)}`;
   const headers = { 'Content-Type': 'application/x-www-form-urlencoded' };
-  // Primary attempt — 25s to match Overpass server-side timeout
+  // 14s client timeout — 2s margin over the 12s server-side timeout in the query.
+  const CLIENT_TIMEOUT = 14000;
   try {
-    const res = await fetchWithTimeout(OVERPASS_URL, { method: 'POST', headers, body }, 25000);
+    const res = await fetchWithTimeout(OVERPASS_URL, { method: 'POST', headers, body }, CLIENT_TIMEOUT);
     if (res.ok) return res;
     throw new Error(`Overpass primary error ${res.status}`);
   } catch (err) {
     console.warn('[api] Overpass primary failed, trying fallback:', err.message);
   }
-  // Fallback server — 25s
   try {
-    const res2 = await fetchWithTimeout(OVERPASS_FALLBACK_URL, { method: 'POST', headers, body }, 25000);
+    const res2 = await fetchWithTimeout(OVERPASS_FALLBACK_URL, { method: 'POST', headers, body }, CLIENT_TIMEOUT);
     if (res2.ok) return res2;
     throw new Error(`Overpass fallback error ${res2.status}`);
   } catch (err2) {
     console.warn('[api] Overpass fallback also failed, retrying primary once:', err2.message);
   }
-  // One more retry on primary (Overpass often succeeds on 2nd try)
-  const res3 = await fetchWithTimeout(OVERPASS_URL, { method: 'POST', headers, body }, 25000);
+  const res3 = await fetchWithTimeout(OVERPASS_URL, { method: 'POST', headers, body }, CLIENT_TIMEOUT);
   if (!res3.ok) throw new Error(`Overpass retry error ${res3.status}`);
   return res3;
 }
 
 /**
- * Fetch viewpoints/peaks/cliffs/beaches within radiusKm
- * v3: capped at 50km, limit 30 results
+ * Fetch viewpoints/peaks/cliffs/beaches within radiusKm.
+ * limit: default 15 (fast first paint). Pass 30 for extended mode.
+ * Cache key includes limit, so the two modes don't collide.
  */
-export async function fetchSpots(lat, lon, radiusKm = 25) {
+export async function fetchSpots(lat, lon, radiusKm = 25, limit = 15) {
   const cappedRadius = Math.min(radiusKm, 50);
+  const cappedLimit = Math.min(Math.max(limit | 0, 1), 100);
   const radiusM = cappedRadius * 1000;
-  const cacheKey = `spots_${lat.toFixed(3)}_${lon.toFixed(3)}_${cappedRadius}`;
+  const cacheKey = `spots_${lat.toFixed(3)}_${lon.toFixed(3)}_${cappedRadius}_${cappedLimit}`;
   const cached = getCache(cacheKey);
   if (cached) return cached;
 
   const query = `
-    [out:json][timeout:25];
+    [out:json][timeout:12];
     (
       node["natural"="peak"](around:${radiusM},${lat},${lon});
       node["tourism"="viewpoint"](around:${radiusM},${lat},${lon});
@@ -458,7 +459,7 @@ export async function fetchSpots(lat, lon, radiusKm = 25) {
     })
     .filter(s => s.dist <= cappedRadius)
     .sort((a, b) => a.dist - b.dist)
-    .slice(0, 100);
+    .slice(0, cappedLimit);
 
   setCache(cacheKey, spots, CACHE_TTL.spots);
   return spots;
