@@ -27,7 +27,8 @@ globalThis.window = globalThis.window || {};
 
 // Import AFTER polyfill
 const { setCache, getCache, getStaleCache, getCacheAge, getStaleCacheWithAge,
-        clearExpired, clearAll, fetchWithDedup, subscribe, swr, isZoneCacheFresh
+        clearExpired, clearAll, fetchWithDedup, subscribe, swr, isZoneCacheFresh,
+        CACHE_VERSION
       } = await import('../js/cache.js');
 
 beforeEach(() => {
@@ -48,7 +49,7 @@ test('getCache: returns null for missing key', () => {
 
 test('getCache: returns null for expired entry', () => {
   // Inject an entry that expired 1 second ago
-  const entry = { _v: 1, data: { x: 1 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: { x: 1 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_expired', JSON.stringify(entry));
   const result = getCache('expired');
   assert.equal(result, null);
@@ -63,7 +64,7 @@ test('setCache: overwrites previous value', () => {
 // ── getStaleCache ────────────────────────────────────────────────────────────
 
 test('getStaleCache: returns data even if expired', () => {
-  const entry = { _v: 1, data: { v: 42 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: { v: 42 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_stale1', JSON.stringify(entry));
   const result = getStaleCache('stale1');
   assert.deepEqual(result, { v: 42 });
@@ -83,7 +84,7 @@ test('getCacheAge: returns age in minutes for fresh entry', () => {
 });
 
 test('getCacheAge: returns null for expired entry', () => {
-  const entry = { _v: 1, data: 'data', created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: 'data', created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_age-exp', JSON.stringify(entry));
   assert.equal(getCacheAge('age-exp'), null);
 });
@@ -104,7 +105,7 @@ test('getStaleCacheWithAge: returns data + metadata for fresh entry', () => {
 });
 
 test('getStaleCacheWithAge: marks expired entries', () => {
-  const entry = { _v: 1, data: { d: 2 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: { d: 2 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_swa2', JSON.stringify(entry));
   const result = getStaleCacheWithAge('swa2');
   assert.ok(result);
@@ -138,7 +139,7 @@ test('getStaleCache: rejects entry with wrong version', () => {
 test('clearExpired: removes expired entries, keeps fresh', () => {
   setCache('keep', 'fresh', 60);
   // Inject expired entry
-  const entry = { _v: 1, data: 'stale', created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: 'stale', created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_remove', JSON.stringify(entry));
   clearExpired();
   assert.ok(getStaleCache('keep'));
@@ -206,7 +207,7 @@ test('subscribe: callback receives data on notify', async () => {
   const unsub = subscribe('sub1', (data) => { received = data; });
 
   // Inject expired cache → SWR will revalidate in background
-  const entry = { _v: 1, data: 'old', created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: 'old', created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_sub1', JSON.stringify(entry));
   const fetcher = async () => 'fresh-data';
   const { revalidatePromise } = swr('sub1', fetcher, 60);
@@ -249,7 +250,7 @@ test('swr: no cache returns null + revalidatePromise', async () => {
 
 test('swr: stale cache returns data + isStale + revalidatePromise', async () => {
   // Inject expired cache
-  const entry = { _v: 1, data: 'old-data', created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: 'old-data', created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_swr-stale', JSON.stringify(entry));
   const result = swr('swr-stale', async () => 'new-data', 60);
   assert.equal(result.data, 'old-data');
@@ -273,7 +274,7 @@ test('isZoneCacheFresh: returns false for missing zone cache', () => {
 });
 
 test('isZoneCacheFresh: returns false for expired zone cache', () => {
-  const entry = { _v: 1, data: { temp: 20 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
+  const entry = { _v: CACHE_VERSION, data: { temp: 20 }, created: Date.now() - 120000, expires: Date.now() - 1000 };
   _store.set('twl_weather_zone_expired-zone', JSON.stringify(entry));
   assert.equal(isZoneCacheFresh('expired-zone'), false);
 });

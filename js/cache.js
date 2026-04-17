@@ -4,7 +4,7 @@
 // ═══════════════════════════════════════════
 
 const PREFIX = 'twl_';
-const CACHE_VERSION = 2; // Bumped to invalidate stale spotImages misses from v4 strict pipeline
+export const CACHE_VERSION = 2; // Bumped to invalidate stale spotImages misses from v4 strict pipeline
 
 /**
  * Store data with TTL.
