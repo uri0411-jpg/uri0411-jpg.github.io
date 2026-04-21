@@ -442,6 +442,7 @@ export function getLearningStats() {
     predicted:     e.predicted,
     reconstructed: e.reconstructed,
     userRating:    e.userRating,
+    locBucket:     e.locBucket,
   }));
 
   // Forecast API bias: mean (actual/forecast - 1) per parameter
@@ -491,6 +492,55 @@ export function getLearningStats() {
   }
   const forecastAccuracy = weightSum > 0 ? Math.round((1 - weightedErr / weightSum) * 100) : null;
 
+  // Per-location breakdown (coast/north/central/east)
+  const byLocation = {};
+  for (const e of entries) {
+    const bucket = e.locBucket || 'central';
+    if (!byLocation[bucket]) byLocation[bucket] = { samples: 0, errSum: 0, errCount: 0 };
+    byLocation[bucket].samples++;
+    if (e.forecastError != null) {
+      byLocation[bucket].errSum += Math.abs(e.forecastError);
+      byLocation[bucket].errCount++;
+    }
+  }
+  const locationSummary = Object.entries(byLocation).map(([bucket, v]) => ({
+    bucket,
+    samples:  v.samples,
+    meanAbsErr: v.errCount > 0 ? Math.round((v.errSum / v.errCount) * 10) / 10 : null,
+    // approximate accuracy: 1 - meanAbsErr / 9 (scale 1-10 → 0-1)
+    accuracy: v.errCount > 0
+      ? Math.max(0, Math.min(100, Math.round((1 - (v.errSum / v.errCount) / 4.5) * 100)))
+      : null,
+  })).sort((a, b) => b.samples - a.samples);
+
+  // Biggest learning moments: top-5 entries by |forecastError|, with narrative hint
+  const biggestLearningMoments = entries
+    .filter(e => e.forecastError != null && Math.abs(e.forecastError) >= 1.5)
+    .slice()
+    .sort((a, b) => Math.abs(b.forecastError) - Math.abs(a.forecastError))
+    .slice(0, 5)
+    .map(e => ({
+      date:         e.date,
+      locBucket:    e.locBucket,
+      predicted:    e.predicted,
+      reconstructed: e.reconstructed,
+      forecastError: e.forecastError,
+      dominantModel: e.dominantModel,
+    }));
+
+  // Active influence: derived purely from forecastBias magnitudes.
+  // If avg |bias| > 5%, the learning system is actively correcting today's forecast.
+  const activeBiases = [forecastBias.cloudBias, forecastBias.humidityBias,
+                        forecastBias.dustBias, forecastBias.visibilityBias]
+    .filter(v => v != null);
+  const maxBias = activeBiases.length
+    ? Math.max(...activeBiases.map(v => Math.abs(v)))
+    : 0;
+  const activeInfluence = state.sampleSize >= MIN_ACTIVE_SAMPLES && maxBias >= 0.05;
+
+  // Last-updated timestamp (ms epoch). Falls back to most-recent entry.ts.
+  const lastUpdated = state.lastUpdated || entries.at(-1)?.ts || 0;
+
   return {
     sampleSize:           state.sampleSize,
     validatedSamples,
@@ -513,6 +563,11 @@ export function getLearningStats() {
       ClearSkyModel: Math.round(state.ClearSkyModelBias * 10) / 10,
     },
     trend,
+    lastUpdated,
+    locationSummary,
+    biggestLearningMoments,
+    activeInfluence,
+    active:       state.sampleSize >= MIN_ACTIVE_SAMPLES,
   };
 }
 

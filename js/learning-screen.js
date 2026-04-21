@@ -1,20 +1,22 @@
 // ═══════════════════════════════════════════
 //  TWILIGHT — learning-screen.js
 //
-//  Dedicated full-screen view of the self-learning system.
-//  Every section has an expandable ? button with educational context
-//  explaining the mechanism behind the data, not just the value itself.
+//  Full-screen view of the self-learning system.
+//  v3 — restructured for clarity, storytelling, and mobile readability.
 //
 //  Layout:
-//    1. Header
-//    2. "How it works" — expandable 4-phase EMA primer
-//    3. KPI strip       — with educational accordion per metric
-//    4. Accuracy chart  — predicted vs actual + tooltips
-//    5. Bias panel      — forecast API corrections + conceptual intro
-//    6. Histogram       — error distribution + statistical explanation
-//    7. Params panel    — (advanced) learned weights with descriptions
-//    8. Entries table   — (advanced) filterable history
-//    9. Reset button
+//    1. Header with freshness indicator
+//    2. Today-influence banner (when bias corrections are actively applied)
+//    3. "How it works" — expandable 4-phase primer (regular mode)
+//    4. Natural-language summary
+//    5. KPI strip with per-card story
+//    6. Accuracy chart with RTL axis hints + tap-tooltips
+//    7. Bias panel — always shows % + arrow
+//    8. Histogram — ±0.5 center bin, softer skew heuristic
+//    9. Per-location breakdown (≥2 buckets)
+//   10. Biggest learning moments (Advanced, replaces raw table)
+//   11. Params panel (Advanced)
+//   12. Reset + Export buttons
 // ═══════════════════════════════════════════
 
 import { showToast, isAdvancedMode } from './ui.js';
@@ -24,6 +26,20 @@ import { getCalibrationStats } from './calibration.js';
 
 // Session state for open accordions (lost on screen re-render, which is fine)
 const _openSections = new Set();
+
+const LOC_LABELS_HE = {
+  coast:   'חוף הים',
+  north:   'צפון',
+  central: 'מרכז',
+  east:    'מזרח ובקעות',
+  jerusalem: 'ירושלים',
+};
+
+const MODEL_LABELS_HE = {
+  CloudModel:    'מודל עננים',
+  DustModel:     'מודל אבק',
+  ClearSkyModel: 'מודל שמיים נקיים',
+};
 
 // ─────────────────────────────────────────────
 //  Public entry point
@@ -49,8 +65,8 @@ function buildShell(lStats, cStats) {
   if (empty) {
     return `
     <div class="learning-content">
-      ${renderHeader()}
-      ${renderHowItWorks()}
+      ${renderHeader(lStats)}
+      ${renderHowItWorks(adv)}
       <div class="glass" style="padding:24px;text-align:center;font-size:13px;color:var(--cream-faint);line-height:1.9">
         אין עדיין נתוני למידה.<br>
         המערכת תתחיל ללמוד אחרי 10 שקיעות עם נתוני מזג אוויר בפועל.<br>
@@ -61,23 +77,26 @@ function buildShell(lStats, cStats) {
 
   return `
   <div class="learning-content">
-    ${renderHeader()}
-    ${renderHowItWorks()}
+    ${renderHeader(lStats)}
+    ${renderTodayInfluence(lStats)}
+    ${renderHowItWorks(adv)}
     ${renderNaturalSummary(lStats)}
     ${renderKPIs(lStats)}
     ${renderAccuracyChart(lStats)}
     ${renderBiasPanel(lStats)}
     ${renderHistogram(lStats)}
+    ${renderPerLocationPanel(lStats)}
+    ${adv ? renderBiggestMoments(lStats) : ''}
     ${adv ? renderParamsPanel(lStats) : ''}
-    ${adv ? renderEntriesTable(lStats) : ''}
-    ${renderResetBtn()}
+    ${renderActionButtons(adv)}
   </div>`;
 }
 
 // ─────────────────────────────────────────────
-//  Header
+//  Header with freshness indicator
 // ─────────────────────────────────────────────
-function renderHeader() {
+function renderHeader(lStats) {
+  const freshLabel = formatFreshness(lStats.lastUpdated);
   return `
   <div class="learning-header">
     <button class="learning-back-btn" id="learning-back-btn" aria-label="חזרה להגדרות">
@@ -86,14 +105,67 @@ function renderHeader() {
       </svg>
     </button>
     <div class="learning-title">מערכת הלמידה</div>
-    <div style="width:36px"></div>
+    <div class="learning-fresh-chip" aria-label="עודכן לאחרונה ${freshLabel}">${freshLabel}</div>
   </div>`;
 }
 
+function formatFreshness(ts) {
+  if (!ts) return 'טרם';
+  const ms = Date.now() - ts;
+  const days = Math.floor(ms / (24 * 3600 * 1000));
+  const hours = Math.floor(ms / (3600 * 1000));
+  if (days >= 30) return 'לפני חודש+';
+  if (days >= 7)  return `לפני ${days} ימים`;
+  if (days >= 2)  return `לפני ${days} ימים`;
+  if (days === 1) return 'אתמול';
+  if (hours >= 2) return `לפני ${hours} שעות`;
+  if (hours === 1) return 'לפני שעה';
+  return 'זה עתה';
+}
+
 // ─────────────────────────────────────────────
-//  Edu-accordion section label helper
-//  Renders:  [title text]  [?]
-//            [hidden edu text — toggled on ? click]
+//  Today-influence banner — dynamic story about live corrections
+// ─────────────────────────────────────────────
+function renderTodayInfluence(stats) {
+  if (!stats.activeInfluence) return '';
+
+  const b = stats.forecastBias;
+  const items = [];
+  if (b.cloudBias     != null && Math.abs(b.cloudBias) >= 0.05)
+    items.push(biasPhrase('עננות', b.cloudBias));
+  if (b.humidityBias  != null && Math.abs(b.humidityBias) >= 0.05)
+    items.push(biasPhrase('לחות', b.humidityBias));
+  if (b.visibilityBias != null && Math.abs(b.visibilityBias) >= 0.05)
+    items.push(biasPhrase('נראות', b.visibilityBias));
+  if (b.dustBias      != null && Math.abs(b.dustBias) >= 0.05)
+    items.push(biasPhrase('אבק', b.dustBias));
+  if (items.length === 0) return '';
+
+  const topItems = items.slice(0, 2).join(' · ');
+
+  return `
+  <div class="today-influence-banner glass" role="status">
+    <div class="today-influence-icon" aria-hidden="true">
+      <svg width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24">
+        <circle cx="12" cy="12" r="3"/>
+        <path d="M12 1v6M12 17v6M4.22 4.22l4.24 4.24M15.54 15.54l4.24 4.24M1 12h6M17 12h6M4.22 19.78l4.24-4.24M15.54 8.46l4.24-4.24"/>
+      </svg>
+    </div>
+    <div class="today-influence-body">
+      <div class="today-influence-title">הלמידה משפיעה על התחזית שלך כרגע</div>
+      <div class="today-influence-desc">${topItems}.</div>
+    </div>
+  </div>`;
+}
+
+function biasPhrase(paramHe, bias) {
+  const pct = Math.round(bias * 100);
+  if (pct > 0) return `${paramHe}: ה-API מזלזל ב-${pct}% — תיקנו כלפי מעלה`;
+  return `${paramHe}: ה-API מגזים ב-${Math.abs(pct)}% — תיקנו כלפי מטה`;
+}
+
+// ─────────────────────────────────────────────
+//  Edu-accordion helper
 // ─────────────────────────────────────────────
 let _sectionCounter = 0;
 function eduSection(title, eduHTML, opts = {}) {
@@ -102,61 +174,62 @@ function eduSection(title, eduHTML, opts = {}) {
   return `
   <div class="edu-section-label">
     <span>${title}</span>
-    <button class="edu-toggle-btn" data-edu="${id}" aria-expanded="${open}" aria-label="הסבר">?</button>
+    <button class="edu-toggle-btn" data-edu="${id}" aria-expanded="${open}" aria-label="הסבר על ${title}">?</button>
   </div>
   <div class="edu-explainer ${open ? 'open' : ''}" id="${id}">${eduHTML}</div>`;
 }
 
 // ─────────────────────────────────────────────
-//  "How it works" — expandable EMA primer
+//  "How it works" primer — simplified for non-technical users
 // ─────────────────────────────────────────────
-function renderHowItWorks() {
+function renderHowItWorks(adv) {
   const id = 'edu-how';
   const open = _openSections.has(id);
   return `
-  <button class="how-it-works-btn glass" id="how-it-works-btn" data-edu="${id}" aria-expanded="${open}">
-    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+  <button class="how-it-works-btn glass" id="how-it-works-btn" data-edu="${id}" aria-expanded="${open}" aria-label="איך המערכת לומדת">
+    <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
       <path d="M3 3v18h18"/><path d="M7 14l4-4 4 4 5-5"/>
     </svg>
     <span>איך TWILIGHT לומדת?</span>
-    <svg class="how-chevron ${open ? 'open' : ''}" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+    <svg class="how-chevron ${open ? 'open' : ''}" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true">
       <polyline points="6 9 12 15 18 9"/>
     </svg>
   </button>
   <div class="edu-explainer how-explainer ${open ? 'open' : ''}" id="${id}">
-    <p>אחרי כל שקיעה, TWILIGHT משווה את מה שניבאה לבין נתוני מזג האוויר בפועל שנאספו בדיעבד. ההפרש בין הניבוי למציאות מזין את מנגנון הכיול.</p>
-    <p>הלמידה מתבצעת ב-4 שלבים מצטברים, כל שלב מכוון היבט אחר של החישוב:</p>
+    <p>אחרי כל שקיעה, TWILIGHT משווה את מה שניבאה לבין נתוני מזג האוויר בפועל. ההפרש מזין את מנגנון הכיול — אם ניבאנו גבוה מדי שוב ושוב, המערכת מתאימה את עצמה.</p>
+    <p>הלמידה מתבצעת ב-4 שלבים, כל אחד מכוון היבט אחר:</p>
     <div class="how-steps">
       <div class="how-step">
         <span class="how-step-num">①</span>
         <div>
-          <strong>כיול כניסות</strong>
-          <div class="how-step-desc">ממשקי מזג האוויר (Open-Meteo) לא תמיד מדויקים לאזורך. TWILIGHT לומדת האם ה-API מגזים או מזלזל בענן, לחות, נראות ואבק — ומתקנת את הנתונים לפני כל חישוב.</div>
+          <strong>תיקון תחזיות</strong>
+          <div class="how-step-desc">ממשקי מזג האוויר לא תמיד מדויקים לאזורך. TWILIGHT לומדת האם ה-API מגזים או מזלזל בענן, לחות, נראות ואבק — ומתקנת את הנתונים לפני כל חישוב.</div>
         </div>
       </div>
       <div class="how-step">
         <span class="how-step-num">②</span>
         <div>
           <strong>כיול מודלים</strong>
-          <div class="how-step-desc">לכל שקיעה פועל מודל אחד מתוך שלושה: עננים, אבק, או שמיים נקיים. כל מודל מקבל הטיה מתכווננת משלו כדי לפצות על נטיות שיטתיות.</div>
+          <div class="how-step-desc">לכל שקיעה פועל מודל מתוך שלושה: עננים, אבק, או שמיים נקיים. כל מודל מקבל תיקון מספרי משלו כדי לפצות על נטיות שיטתיות.</div>
         </div>
       </div>
       <div class="how-step">
         <span class="how-step-num">③</span>
         <div>
           <strong>משקלי דרמה</strong>
-          <div class="how-step-desc">הציון משלב ענן, אבק ואטמוספרה. המערכת לומדת מה תורם יותר לשקיעות יפות <em>במקומך</em> — לחוף הים יש פרופיל אחר מהגליל.</div>
+          <div class="how-step-desc">הציון משלב ענן, אבק ואטמוספרה. המערכת לומדת מה תורם יותר לשקיעות יפות <em>באזורך</em> — לחוף הים פרופיל שונה מהגליל.</div>
         </div>
       </div>
       <div class="how-step">
         <span class="how-step-num">④</span>
         <div>
-          <strong>עקומות הצלצול</strong>
-          <div class="how-step-desc">לחות ~60% ואבק ~25µg/m³ נותנים שקיעות מיטביות בממוצע עולמי. אבל TWILIGHT לומדת את הערכים האופטימליים לאקלים המקומי שלך.</div>
+          <strong>נקודות מתיקות</strong>
+          <div class="how-step-desc">לחות ~60% ואבק ~25µg/m³ נחשבים אופטימליים בממוצע עולמי. TWILIGHT לומדת את הערכים האופטימליים לאקלים המקומי שלך.</div>
         </div>
       </div>
     </div>
-    <p class="how-ema-note">הלמידה מבוצעת באמצעות <strong>EMA — ממוצע נע אקספוננציאלי</strong>. כל דגימה חדשה משנה את הכיול ב-3–10% בלבד, כך שאין שינויים קיצוניים ממדידה בודדת אחת.</p>
+    <p class="how-ema-note">הלמידה הדרגתית — שקיעה אחת לא משנה הרבה, הרבה שקיעות משנות בצורה עקבית. שינוי קיצוני לא יקרה מדגימה בודדת.</p>
+    ${adv ? `<p class="how-adv-note"><strong>מצב מתקדם:</strong> הפאזות מבוססות EMA (Exponential Moving Average) עם α ∈ [0.03, 0.10]. כל דגימה תורמת 3–10% לכיול; 90–97% נשאר מהמצב הקודם.</p>` : ''}
   </div>`;
 }
 
@@ -190,7 +263,7 @@ function renderNaturalSummary(stats) {
 }
 
 // ─────────────────────────────────────────────
-//  KPI strip — with educational accordions
+//  KPI strip with per-card story
 // ─────────────────────────────────────────────
 function renderKPIs(stats) {
   const acc       = stats.forecastAccuracy;
@@ -202,14 +275,14 @@ function renderKPIs(stats) {
   const trendIcon  = stats.trend === 'improving' ? '↗' : stats.trend === 'worsening' ? '↘' : '→';
   const trendColor = stats.trend === 'improving' ? '#aaffcc' : stats.trend === 'worsening' ? '#ffaaaa' : 'var(--cream-faint)';
 
-  const accExplain = acc == null ? 'לא מספיק נתונים'
+  const accExplain = acc == null ? 'אין עדיין נתונים'
                    : acc >= 85  ? 'הניבויים קולעים ברוב המקרים'
-                   : acc >= 70  ? 'דיוק סביר, המערכת ממשיכה ללמוד'
-                   :              'המערכת עדיין לומדת את התנאים המקומיים';
+                   : acc >= 70  ? 'דיוק סביר, ממשיכים ללמוד'
+                   :              'עדיין לומדים את התנאים המקומיים';
 
   const sampleExplain = stats.sampleSize < 20  ? 'צריך לפחות 20 לדיוק טוב'
-                       : stats.sampleSize < 50 ? 'מצטבר מאגר נתונים'
-                       :                          'מאגר נתונים בוגר';
+                       : stats.sampleSize < 50 ? 'מאגר בבנייה'
+                       :                          'מאגר בוגר';
 
   const trendExplain = stats.trend === 'improving' ? 'הדיוק משתפר'
                      : stats.trend === 'worsening' ? 'ירידה לאחרונה'
@@ -219,40 +292,58 @@ function renderKPIs(stats) {
                     : stats.confidence >= 50 ? 'ביטחון בינוני'
                     :                           'עוד צריך נתונים';
 
-  // Educational texts per KPI
+  // Stories: one-line impact under the explain label
+  const accStory = acc == null ? ''
+                 : acc >= 85  ? 'סומכים על התחזיות במידה רבה'
+                 : acc >= 70  ? 'תחזיות שימושיות אך לא מושלמות'
+                 :              'התחזיות עדיין לא סומכים עליהן באזורך';
+
+  const sampleStory = stats.sampleSize < 20  ? 'כל שקיעה שתצפה בה מקרבת אותנו'
+                    : stats.sampleSize < 50  ? 'עוד מעט נתחיל לזהות דפוסים עונתיים'
+                    :                           'הלמידה כבר משפיעה על הציון שלך';
+
+  const trendStory = stats.trend === 'improving' ? 'השקיעות האחרונות שיפרו את המערכת'
+                   : stats.trend === 'worsening' ? 'אולי שינוי עונתי — תתכייל שוב'
+                   :                                'התחזיות עקביות לאורך זמן';
+
+  const confStory = stats.confidence >= 80 ? 'הכיול אמין ועדכני'
+                  : stats.confidence >= 50 ? 'הכיול נבנה, עוד לא מלא'
+                  :                           'המערכת עדיין בחימום';
+
   const kpiEdu = {
-    accuracy: `נמדד כממוצע משוקלל של 4 פרמטרים: ענן, לחות, נראות ואבק. בכל דגימה, TWILIGHT בודקת כמה קרוב הניבוי שלה לנתוני מד האוויר בפועל שנאספו בדיעבד מתחנות מדידה. ציון 85%+ = טוב; 70–84% = סביר; מתחת ל-70% = עוד בכיול.`,
-    samples:  `כל "דגימה" = שקיעה אחת שבה השווינו תחזית מקדימה למדידות בפועל. עד 10 דגימות — אין מספיק מידע לכיול אמין. בין 10 ל-50 — המערכת לומדת אבל עדיין לא התייצבה. מעל 50 — מאגר בוגר שמאפשר זיהוי דפוסים עונתיים.`,
-    trend:    `מחושב כהשוואה בין הדיוק הממוצע של 10 הדגימות האחרונות לבין 10 שלפניהן. מגמת ירידה לא בהכרח בעיה — עשויה לנבוע משינוי עונה, כשהתנאים שהמערכת למדה קיץ שונים מחורף. היא תתכייל מחדש.`,
-    conf:     `ציון מורכב: 70% מגיע מ"ביטחון כיול" (כמה עקביים ומעודכנים הפרמטרים הנלמדים) ו-30% מ"רמת פעילות" (כמה לאחרונה התבצעה דגימה). מתחת ל-50% = המערכת "ישנה" — לא עודכנה זמן רב.`,
+    accuracy: `נמדד כממוצע משוקלל של 4 פרמטרים: ענן, לחות, נראות ואבק. בכל דגימה, TWILIGHT בודקת כמה קרוב הניבוי שלה לנתוני מזג האוויר בפועל. ציון 85%+ = טוב; 70–84% = סביר; מתחת ל-70% = עוד בכיול.`,
+    samples:  `כל "דגימה" = שקיעה שבה השווינו תחזית למדידות בפועל. עד 10 — אין מספיק מידע לכיול אמין. 10–50 — המערכת לומדת אבל לא התייצבה. מעל 50 — מאגר בוגר המאפשר זיהוי דפוסים עונתיים.`,
+    trend:    `השוואה בין הדיוק הממוצע של 10 הדגימות האחרונות ל-10 שלפניהן. מגמת ירידה לא בהכרח בעיה — עשויה לנבוע משינוי עונה. המערכת תתכייל מחדש.`,
+    conf:     `ציון מורכב: כמה הכיול עדכני ומעודכן × כמה לאחרונה הצטברו דגימות. מתחת ל-50% = המערכת "ישנה" — לא עודכנה זמן רב.`,
   };
 
-  const kpi = (id, val, color, label, sub, eduText) => {
+  const kpi = (id, val, color, label, sub, story, eduText) => {
     const eduId = `edu-kpi-${id}`;
     const open = _openSections.has(eduId);
     return `
     <div class="glass learning-kpi">
       <div class="kpi-header-row">
         <div class="kpi-value" style="color:${color}">${val}</div>
-        <button class="edu-toggle-btn edu-toggle-sm" data-edu="${eduId}" aria-expanded="${open}">?</button>
+        <button class="edu-toggle-btn edu-toggle-sm" data-edu="${eduId}" aria-expanded="${open}" aria-label="הסבר על ${label}">?</button>
       </div>
       <div class="kpi-label">${label}</div>
       <div class="kpi-explain">${sub}</div>
+      ${story ? `<div class="kpi-story">${story}</div>` : ''}
       <div class="edu-explainer kpi-edu ${open ? 'open' : ''}" id="${eduId}">${eduText}</div>
     </div>`;
   };
 
   return `
   <div class="learning-kpi-grid">
-    ${kpi('acc',    acc != null ? acc + '%' : '—', accColor,          'דיוק תחזית', accExplain,    kpiEdu.accuracy)}
-    ${kpi('n',      stats.sampleSize,              'var(--cream)',     'דגימות',     sampleExplain, kpiEdu.samples)}
-    ${kpi('trend',  trendIcon,                     trendColor,        'מגמה',       trendExplain,  kpiEdu.trend)}
-    ${kpi('conf',   stats.confidence + '%',        'var(--gold)',      'ביטחון',     confExplain,   kpiEdu.conf)}
+    ${kpi('acc',    acc != null ? acc + '%' : '—', accColor,          'דיוק תחזית', accExplain,    accStory,    kpiEdu.accuracy)}
+    ${kpi('n',      stats.sampleSize,              'var(--cream)',     'דגימות',     sampleExplain, sampleStory, kpiEdu.samples)}
+    ${kpi('trend',  trendIcon,                     trendColor,        'מגמה',       trendExplain,  trendStory,  kpiEdu.trend)}
+    ${kpi('conf',   stats.confidence + '%',        'var(--gold)',      'ביטחון',     confExplain,   confStory,   kpiEdu.conf)}
   </div>`;
 }
 
 // ─────────────────────────────────────────────
-//  Accuracy chart — SVG with tap-tooltips
+//  Accuracy chart — readable labels + RTL axis hints
 // ─────────────────────────────────────────────
 function renderAccuracyChart(stats) {
   const ts = stats.timeSeries;
@@ -262,7 +353,7 @@ function renderAccuracyChart(stats) {
     <div class="glass" style="padding:16px;text-align:center;font-size:11px;color:var(--cream-faint)">מצטברים נתונים…</div>`;
   }
 
-  const W = 320, H = 140, padX = 8, padY = 12;
+  const W = 320, H = 150, padX = 16, padY = 14;
   const innerW = W - padX * 2;
   const innerH = H - padY * 2;
   const n = ts.length;
@@ -280,9 +371,10 @@ function renderAccuracyChart(stats) {
     if (e.userRating == null) return '';
     const cx = (padX + i * xStep).toFixed(1);
     const cy = yScale(e.userRating).toFixed(1);
-    return `<circle cx="${cx}" cy="${cy}" r="3" fill="#b39ddb"/>`;
+    return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#b39ddb"/>`;
   }).join('');
 
+  // Enlarged tap targets for mobile (28px wide)
   const hitAreas = ts.map((e, i) => {
     const cx = padX + i * xStep;
     const pred  = e.predicted     != null ? e.predicted.toFixed(1)     : '—';
@@ -290,16 +382,24 @@ function renderAccuracyChart(stats) {
     const err   = (e.predicted != null && e.reconstructed != null)
       ? (e.predicted - e.reconstructed).toFixed(1) : '—';
     const dateStr = e.date ? e.date.slice(5) : '';
-    return `<rect x="${(cx - 10).toFixed(1)}" y="0" width="20" height="${H}"
+    const aria = `תאריך ${dateStr}, ניבוי ${pred}, בפועל ${recon}, הפרש ${err}`;
+    return `<rect x="${(cx - 14).toFixed(1)}" y="0" width="28" height="${H}"
               fill="transparent" class="chart-hit"
+              role="button" tabindex="0" aria-label="${aria}"
               data-date="${dateStr}" data-pred="${pred}" data-recon="${recon}" data-err="${err}"/>`;
   }).join('');
 
   const grid = [3, 5, 7, 9].map(v => {
     const y = yScale(v).toFixed(1);
     return `<line x1="${padX}" y1="${y}" x2="${W-padX}" y2="${y}" stroke="rgba(245,220,180,0.08)" stroke-width="1" stroke-dasharray="2 4"/>
-            <text x="${W-padX-2}" y="${y-2}" font-size="8" fill="rgba(245,220,180,0.35)" text-anchor="end">${v}</text>`;
+            <text x="${W-padX-4}" y="${y-2}" font-size="10" fill="rgba(245,220,180,0.45)" text-anchor="end">${v}</text>`;
   }).join('');
+
+  // RTL axis hints: in RTL, "older" is on the right, "newer" on the left
+  const axisHints = `
+    <text x="${padX + 2}" y="${H - 2}" font-size="9" fill="rgba(245,220,180,0.5)" text-anchor="start">חדש</text>
+    <text x="${W - padX - 2}" y="${H - 2}" font-size="9" fill="rgba(245,220,180,0.5)" text-anchor="end">ישן</text>
+  `;
 
   const chartEdu = `
     <strong>קו זהב = מה TWILIGHT ניבאה.</strong> קו ירוק = מה שנמדד בפועל אחרי השקיעה.
@@ -309,10 +409,11 @@ function renderAccuracyChart(stats) {
   return `
   ${eduSection(`דיוק לאורך זמן (${n} דגימות אחרונות)`, chartEdu)}
   <div class="glass learning-chart-wrap">
-    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="none" class="learning-chart" id="learning-accuracy-chart">
+    <svg viewBox="0 0 ${W} ${H}" preserveAspectRatio="xMidYMid meet" class="learning-chart" id="learning-accuracy-chart" role="img" aria-label="גרף דיוק לאורך זמן">
       ${grid}
-      ${predPts  ? `<polyline points="${predPts}"  fill="none" stroke="var(--gold)" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.92"/>` : ''}
-      ${reconPts ? `<polyline points="${reconPts}" fill="none" stroke="#7eefb2"     stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.85"/>` : ''}
+      ${axisHints}
+      ${predPts  ? `<polyline points="${predPts}"  fill="none" stroke="var(--gold)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.94"/>` : ''}
+      ${reconPts ? `<polyline points="${reconPts}" fill="none" stroke="#7eefb2"     stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" opacity="0.88"/>` : ''}
       ${ratingDots}
       ${hitAreas}
     </svg>
@@ -327,11 +428,10 @@ function renderAccuracyChart(stats) {
 }
 
 // ─────────────────────────────────────────────
-//  Bias panel — with conceptual intro + scale meaning
+//  Bias panel — always shows percentage
 // ─────────────────────────────────────────────
 function renderBiasPanel(stats) {
   const { cloudBias, humidityBias, dustBias, visibilityBias } = stats.forecastBias;
-  const adv = isAdvancedMode();
 
   const biasEdu = `
     <strong>למה יש הטיה?</strong> ממשקי מזג האוויר (Open-Meteo, ERA5) מבוססים על מודלים אזוריים
@@ -348,26 +448,26 @@ function renderBiasPanel(stats) {
         <div class="bias-hint">אין נתונים</div>
       </div>`;
     }
-    const scale = 1 + val;
-    const arrow = scale > 1.05 ? '↑' : scale < 0.95 ? '↓' : '✓';
-    const color = (scale > 1.20 || scale < 0.80) ? '#ffaaaa'
-                : (scale > 1.10 || scale < 0.90) ? '#ffd580'
-                : '#aaffcc';
+    const pct = Math.round(val * 100);
+    const absPct = Math.abs(pct);
+    const arrow = pct > 5 ? '↑' : pct < -5 ? '↓' : '✓';
+    const color = absPct > 20 ? '#ffaaaa'
+                : absPct > 10 ? '#ffd580'
+                :                '#aaffcc';
 
-    // Directional human description
+    const display = absPct < 5
+      ? `${arrow}`
+      : `${pct > 0 ? '+' : '−'}${absPct}% ${arrow}`;
+
     let meaning;
-    if (Math.abs(val) < 0.05) {
-      meaning = `ה-API מדויק — אין תיקון נחוץ`;
-    } else if (val > 0) {
-      meaning = `ה-API מזלזל ב${paramHe} — TWILIGHT מגדילה את הנתון לפני החישוב`;
-    } else {
-      meaning = `ה-API מגזים ב${paramHe} — TWILIGHT מוצמתת את הנתון לפני החישוב`;
-    }
+    if (absPct < 5)       meaning = `ה-API מדויק — אין תיקון נחוץ`;
+    else if (pct > 0)     meaning = `ה-API מזלזל ב${paramHe} — הגדלנו את הנתון`;
+    else                  meaning = `ה-API מגזים ב${paramHe} — הקטנו את הנתון`;
 
     return `
     <div class="glass bias-card">
       <div class="bias-label">${label}</div>
-      <div class="bias-value" style="color:${color}">${adv ? scale.toFixed(2) + '× ' : ''}${arrow}</div>
+      <div class="bias-value" style="color:${color}">${display}</div>
       <div class="bias-hint">${meaning}</div>
     </div>`;
   };
@@ -375,15 +475,15 @@ function renderBiasPanel(stats) {
   return `
   ${eduSection('הטיית תחזית מול מציאות', biasEdu)}
   <div class="learning-bias-grid">
-    ${card('ענן',    cloudBias,      'עננים')}
-    ${card('לחות',  humidityBias,   'לחות')}
-    ${card('אבק',   dustBias,       'אבק')}
-    ${card('נראות', visibilityBias, 'נראות')}
+    ${card('עננות',  cloudBias,      'עננות')}
+    ${card('לחות',   humidityBias,   'לחות')}
+    ${card('אבק',    dustBias,       'אבק')}
+    ${card('נראות',  visibilityBias, 'נראות')}
   </div>`;
 }
 
 // ─────────────────────────────────────────────
-//  Histogram — with statistical context
+//  Histogram — ±0.5 center bin, softer skew heuristic
 // ─────────────────────────────────────────────
 function renderHistogram(stats) {
   const ts = stats.timeSeries;
@@ -398,7 +498,7 @@ function renderHistogram(stats) {
     { lo: -5,   hi: -3,   count: 0, label: '−3<' },
     { lo: -3,   hi: -1.5, count: 0, label: '−2'  },
     { lo: -1.5, hi: -0.5, count: 0, label: '−1'  },
-    { lo: -0.5, hi:  0.5, count: 0, label: '0'   },
+    { lo: -0.5, hi:  0.5, count: 0, label: '±0.5'   },
     { lo:  0.5, hi:  1.5, count: 0, label: '+1'  },
     { lo:  1.5, hi:  3,   count: 0, label: '+2'  },
     { lo:  3,   hi:  5,   count: 0, label: '+3<' },
@@ -410,21 +510,29 @@ function renderHistogram(stats) {
   }
 
   const max = Math.max(...bins.map(b => b.count), 1);
-  const bars = bins.map(b => {
-    const heightPct = (b.count / max) * 100;
-    return `
-      <div class="hist-col">
-        <div class="hist-bar" style="height:${heightPct}%"></div>
-        <div class="hist-label">${b.label}</div>
-      </div>`;
-  }).join('');
+  const maxIdx = bins.findIndex(b => b.count === max);
 
   const total      = errors.length;
   const centerBin  = bins[3].count;
   const centerPct  = Math.round(centerBin / total * 100);
   const avgErr     = (errors.reduce((s, e) => s + Math.abs(e), 0) / total).toFixed(1);
-  const leftHeavy  = (bins[0].count + bins[1].count + bins[2].count) > (bins[4].count + bins[5].count + bins[6].count) * 1.5;
-  const rightHeavy = (bins[4].count + bins[5].count + bins[6].count) > (bins[0].count + bins[1].count + bins[2].count) * 1.5;
+  const leftSum    = bins[0].count + bins[1].count + bins[2].count;
+  const rightSum   = bins[4].count + bins[5].count + bins[6].count;
+  const leftHeavy  = leftSum > rightSum * 1.2 && leftSum >= 3;
+  const rightHeavy = rightSum > leftSum * 1.2 && rightSum >= 3;
+
+  const bars = bins.map((b, i) => {
+    const heightPct = (b.count / max) * 100;
+    const avgTag = i === maxIdx && max >= 3
+      ? `<div class="hist-peak-tag">ממוצע |שגיאה| ${avgErr}</div>`
+      : '';
+    return `
+      <div class="hist-col">
+        ${avgTag}
+        <div class="hist-bar" style="height:${heightPct}%"></div>
+        <div class="hist-label">${b.label}</div>
+      </div>`;
+  }).join('');
 
   let summary;
   if (centerPct >= 50)        summary = `רוב הניבויים קולעים למטרה (${centerPct}% בטווח ±0.5 נקודות)`;
@@ -436,11 +544,11 @@ function renderHistogram(stats) {
 
   const histEdu = `
     <strong>ציר X</strong> = הפרש בין הניבוי לבפועל, בנקודות ציון.
-    עמודה ב-<strong>0</strong> = ניבוי מדויק.
-    עמודה ב-<strong>+2</strong> = TWILIGHT ניבאה 2 נקודות <em>מעל</em> מה שהיה בפועל.
+    עמודה ב-<strong>±0.5</strong> = ניבוי קולע (שגיאה עד חצי נקודה).
+    עמודה ב-<strong>+2</strong> = TWILIGHT ניבאה 2 נקודות <em>מעל</em> המציאות.
     <br><br>
     <strong>התפלגות בריאה</strong> נראית כפעמון סביב 0 — שגיאות לשני הכיוונים בשכיחות דומה.
-    <strong>בעייתית</strong> = רוב העמודות לצד אחד = הטיה שיטתית שה-EMA עדיין מנסה לתקן.`;
+    <strong>בעייתית</strong> = רוב העמודות לצד אחד = הטיה שיטתית שהמערכת עדיין מתקנת.`;
 
   return `
   ${eduSection('התפלגות שגיאת תחזית', histEdu)}
@@ -452,7 +560,81 @@ function renderHistogram(stats) {
 }
 
 // ─────────────────────────────────────────────
-//  Params panel — advanced, with descriptions
+//  Per-location panel — samples + accuracy per bucket
+// ─────────────────────────────────────────────
+function renderPerLocationPanel(stats) {
+  const locs = (stats.locationSummary || []).filter(l => l.samples > 0);
+  if (locs.length < 2) return '';
+
+  const edu = `
+    המערכת מפצלת את הלמידה לפי אזור גיאוגרפי (חוף, צפון, מרכז, מזרח).
+    כל אזור מקבל כיול נפרד כי תנאי האקלים שונים: לחות החוף ≠ יובש הנגב.
+    ככל שיותר שקיעות באזור — הדיוק שם משתפר.`;
+
+  const card = (loc) => {
+    const name = LOC_LABELS_HE[loc.bucket] || loc.bucket;
+    const accColor = loc.accuracy == null ? 'var(--cream-faint)'
+                   : loc.accuracy >= 80   ? 'var(--gold)'
+                   : loc.accuracy >= 65   ? '#ffd580'
+                   :                         '#ffaaaa';
+    const accText = loc.accuracy != null ? `${loc.accuracy}%` : '—';
+    return `
+    <div class="glass loc-card">
+      <div class="loc-name">${name}</div>
+      <div class="loc-accuracy" style="color:${accColor}">${accText}</div>
+      <div class="loc-samples">${loc.samples} דגימות${loc.meanAbsErr != null ? ` · שגיאה ${loc.meanAbsErr}` : ''}</div>
+    </div>`;
+  };
+
+  return `
+  ${eduSection('סיכום לפי אזור', edu)}
+  <div class="per-location-grid">${locs.map(card).join('')}</div>`;
+}
+
+// ─────────────────────────────────────────────
+//  Biggest learning moments (Advanced)
+// ─────────────────────────────────────────────
+function renderBiggestMoments(stats) {
+  const moments = stats.biggestLearningMoments || [];
+  if (moments.length === 0) return '';
+
+  const edu = `
+    רשימת חמש הדגימות שהפתיעו הכי הרבה — שקיעות שבהן הניבוי היה רחוק מהמציאות.
+    אלה הדגימות שמסבירות למה הפרמטרים שלמעלה זזו מברירת המחדל.
+    ככל שיש יותר הפתעות — המערכת לומדת מהר יותר.`;
+
+  const card = (m) => {
+    const loc = LOC_LABELS_HE[m.locBucket] || m.locBucket || '?';
+    const model = MODEL_LABELS_HE[m.dominantModel] || m.dominantModel;
+    const pred = m.predicted != null ? m.predicted.toFixed(1) : '—';
+    const recon = m.reconstructed != null ? m.reconstructed.toFixed(1) : '—';
+    const err = m.forecastError != null ? m.forecastError.toFixed(1) : '—';
+    const direction = m.forecastError > 0 ? 'למעלה' : 'למטה';
+    const dateStr = m.date ? m.date.slice(5) : '—';
+    return `
+    <div class="glass moment-card">
+      <div class="moment-left">
+        <div class="moment-date">${dateStr}</div>
+        <div class="moment-loc">${loc}</div>
+      </div>
+      <div class="moment-mid">
+        <div class="moment-err">${err > 0 ? '+' : ''}${err}</div>
+        <div class="moment-err-label">הפרש</div>
+      </div>
+      <div class="moment-right">
+        <div class="moment-nums">ניבוי ${pred} · בפועל ${recon}</div>
+        <div class="moment-narrative">${model} החמיץ ${direction}</div>
+      </div>
+    </div>`;
+  };
+
+  return `
+  ${eduSection(`רגעי למידה גדולים (${moments.length})`, edu)}
+  <div class="moment-list">${moments.map(card).join('')}</div>`;
+}
+
+// ─────────────────────────────────────────────
+//  Params panel (Advanced)
 // ─────────────────────────────────────────────
 function renderParamsPanel(stats) {
   const w  = stats.currentWeights;
@@ -460,15 +642,14 @@ function renderParamsPanel(stats) {
 
   const paramsEdu = `
     <strong>משקלי דרמה</strong> — נוסחת הדרמה משלבת שלושה מרכיבים:
-    (ענן × w₁) + (אבק × w₂) + (אטמוספרה × w₃). ב-TWILIGHT המשקלים לא קבועים —
-    היא לומדת מה תורם יותר לשקיעות יפות <em>במקומך</em> ספציפית.
+    (ענן × w₁) + (אבק × w₂) + (אטמוספרה × w₃). המשקלים לא קבועים —
+    המערכת לומדת מה תורם יותר לשקיעות יפות <em>באזורך</em>.
     <br><br>
-    <strong>עקומות הצלצול</strong> — לחות ~60% ואבק ~25µg/m³ נותנים שקיעות מיטביות
-    לפי מחקרים אופטיים. אבל ישראל מגוונת — בחוף הים אולי 55% עדיף, בנגב אולי 45%.
-    TWILIGHT לומדת את הנקודות האופטימליות לאזורך.
+    <strong>נקודות מתיקות</strong> — לחות ~60% ואבק ~25µg/m³ אופטימליים לפי מחקר.
+    ישראל מגוונת — בחוף אולי 55%, בנגב אולי 45%. המערכת לומדת מקומית.
     <br><br>
-    <strong>הטיות מודלים</strong> — כל אחד משלושת המודלים (עננים/אבק/שמיים נקיים)
-    מקבל תיקון מספרי ייחודי. ערך חיובי = המודל ניבא גבוה מדי, צריך להוריד.`;
+    <strong>הטיות מודלים</strong> — כל אחד משלושת המודלים מקבל תיקון ייחודי.
+    חיובי = המודל ניבא גבוה מדי, צריך להוריד.`;
 
   const paramDescriptions = {
     cloudDramaW:      'כמה עוצמה לתת לעננים ביצירת צבע',
@@ -506,7 +687,7 @@ function renderParamsPanel(stats) {
     ${param('dustDramaW',       'אבק',       w.dustDramaW,       0.27)}
     ${param('atmosphereDramaW', 'אטמוספרה', w.atmosphereDramaW, 0.27)}
 
-    <div class="param-group-title">אופטימום בלי</div>
+    <div class="param-group-title">נקודות מתיקות</div>
     ${param('humidityOptimum', 'לחות', w.humidityOptimum, 60, '%')}
     ${param('dustOptimum',     'אבק',  w.dustOptimum,     25, ' µg')}
 
@@ -518,69 +699,20 @@ function renderParamsPanel(stats) {
 }
 
 // ─────────────────────────────────────────────
-//  Entries table — advanced, with filter
+//  Action buttons: reset + (advanced) export
 // ─────────────────────────────────────────────
-function renderEntriesTable(stats) {
-  const ts = stats.timeSeries;
-  if (!ts || ts.length === 0) return '';
-
+function renderActionButtons(adv) {
   return `
-  <div class="settings-section-label" style="margin-top:6px">היסטוריית דגימות (${ts.length})</div>
-  <div class="entries-filter-row">
-    <button class="entries-filter-btn active" data-filter="all">הכל</button>
-    <button class="entries-filter-btn" data-filter="high-error">שגיאה גבוהה</button>
-    <button class="entries-filter-btn" data-filter="rated">עם דירוג</button>
-  </div>
-  <div class="glass entries-table" id="entries-table-wrap">
-    <div class="entries-row entries-head">
-      <div class="entries-cell entries-date">תאריך</div>
-      <div class="entries-cell entries-pred">ניבוי</div>
-      <div class="entries-cell entries-actual">בפועל</div>
-      <div class="entries-cell entries-err">שגיאה</div>
-      <div class="entries-cell entries-rating">דירוג</div>
-    </div>
-    <div class="entries-scroll" id="entries-scroll">${buildRows(ts, 'all')}</div>
-  </div>`;
-}
-
-function buildRows(ts, filter) {
-  return ts.slice().reverse().filter(e => {
-    if (filter === 'high-error') {
-      const err = (e.predicted != null && e.reconstructed != null)
-        ? Math.abs(e.predicted - e.reconstructed) : 0;
-      return err >= 1.5;
-    }
-    if (filter === 'rated') return e.userRating != null;
-    return true;
-  }).map(e => {
-    const err = (e.predicted != null && e.reconstructed != null)
-      ? Math.round((e.predicted - e.reconstructed) * 10) / 10 : null;
-    const errStr   = err == null ? '—' : (err > 0 ? '+' : '') + err.toFixed(1);
-    const errColor = err == null ? 'var(--cream-faint)'
-                   : Math.abs(err) < 0.5 ? '#aaffcc'
-                   : Math.abs(err) < 1.5 ? '#ffd580'
-                   :                        '#ffaaaa';
-    const rowClass = (err != null && Math.abs(err) >= 2) ? ' entries-row-bad' : '';
-    const dateShort = e.date ? e.date.slice(5) : '—';
-    return `
-      <div class="entries-row${rowClass}">
-        <div class="entries-cell entries-date">${dateShort}</div>
-        <div class="entries-cell entries-pred">${e.predicted     != null ? e.predicted.toFixed(1)     : '—'}</div>
-        <div class="entries-cell entries-actual">${e.reconstructed != null ? e.reconstructed.toFixed(1) : '—'}</div>
-        <div class="entries-cell entries-err" style="color:${errColor}">${errStr}</div>
-        <div class="entries-cell entries-rating">${e.userRating != null ? e.userRating.toFixed(1) : '—'}</div>
-      </div>`;
-  }).join('');
-}
-
-// ─────────────────────────────────────────────
-//  Reset button
-// ─────────────────────────────────────────────
-function renderResetBtn() {
-  return `
-  <div class="learning-reset-wrap">
-    <button class="learning-reset-btn" id="learning-reset-btn">
-      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-4.3"/></svg>
+  <div class="learning-actions-wrap">
+    ${adv ? `
+    <button class="learning-export-btn" id="learning-export-btn" aria-label="שתף התקדמות — העתק נתונים ללוח">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24" aria-hidden="true">
+        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/>
+      </svg>
+      העתק התקדמות
+    </button>` : ''}
+    <button class="learning-reset-btn" id="learning-reset-btn" aria-label="איפוס — פעולה הרסנית, מוחק את כל נתוני הלמידה">
+      <svg width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24" aria-hidden="true"><path d="M2.5 2v6h6M2.66 15.57a10 10 0 1 0 .57-4.3"/></svg>
       אפס נתוני למידה
     </button>
   </div>`;
@@ -593,13 +725,11 @@ function attachEvents(lStats) {
   const screen = document.getElementById('screen-learning');
 
   screen?.addEventListener('click', (e) => {
-    // Back button
     if (e.target.closest('#learning-back-btn')) {
       showScreen('settings');
       return;
     }
 
-    // Reset button
     if (e.target.closest('#learning-reset-btn')) {
       if (!confirm('לאפס את כל נתוני הלמידה? לא ניתן לשחזור.')) return;
       clearLearningData();
@@ -609,7 +739,11 @@ function attachEvents(lStats) {
       return;
     }
 
-    // Any ? / how-it-works accordion toggle
+    if (e.target.closest('#learning-export-btn')) {
+      exportStatsToClipboard(lStats);
+      return;
+    }
+
     const btn = e.target.closest('[data-edu]');
     if (btn) {
       e.stopPropagation();
@@ -622,7 +756,6 @@ function attachEvents(lStats) {
         _openSections.delete(id);
         panel.classList.remove('open');
         btn.setAttribute('aria-expanded', 'false');
-        // rotate chevron back if how-it-works
         const chevron = screen.querySelector('.how-chevron');
         if (chevron && id === 'edu-how') chevron.classList.remove('open');
       } else {
@@ -636,35 +769,54 @@ function attachEvents(lStats) {
     }
   });
 
-  // Chart tooltips
+  // Chart tooltips + keyboard support
   const chart   = document.getElementById('learning-accuracy-chart');
   const tooltip = document.getElementById('chart-tooltip');
   if (chart && tooltip) {
+    const showTip = (rect, ev) => {
+      const d = rect.dataset;
+      tooltip.innerHTML = `<strong>${d.date}</strong><br>ניבוי: ${d.pred} · בפועל: ${d.recon}<br>הפרש: ${d.err}`;
+      tooltip.style.display = 'block';
+      const chartRect = chart.getBoundingClientRect();
+      const x = ev ? ev.clientX : (rect.getBoundingClientRect().left + rect.getBoundingClientRect().width / 2);
+      tooltip.style.left = Math.min(Math.max(8, x - chartRect.left), chartRect.width - 170) + 'px';
+    };
     chart.querySelectorAll('.chart-hit').forEach(rect => {
-      rect.addEventListener('click', (ev) => {
-        ev.stopPropagation();
-        const d = rect.dataset;
-        tooltip.innerHTML = `<strong>${d.date}</strong><br>ניבוי: ${d.pred} · בפועל: ${d.recon}<br>הפרש: ${d.err}`;
-        tooltip.style.display = 'block';
-        const chartRect = chart.getBoundingClientRect();
-        tooltip.style.left = Math.min(ev.clientX - chartRect.left, chartRect.width - 140) + 'px';
+      rect.addEventListener('click', (ev) => { ev.stopPropagation(); showTip(rect, ev); });
+      rect.addEventListener('keydown', (ev) => {
+        if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); showTip(rect, null); }
       });
     });
     screen?.addEventListener('click', () => { tooltip.style.display = 'none'; });
   }
+}
 
-  // Table filter buttons (advanced mode)
-  const filterBtns = document.querySelectorAll('.entries-filter-btn');
-  const scrollWrap  = document.getElementById('entries-scroll');
-  if (filterBtns.length && scrollWrap && lStats) {
-    filterBtns.forEach(btn => {
-      btn.addEventListener('click', () => {
-        filterBtns.forEach(b => b.classList.remove('active'));
-        btn.classList.add('active');
-        scrollWrap.innerHTML = buildRows(lStats.timeSeries, btn.dataset.filter);
-      });
-    });
+function exportStatsToClipboard(stats) {
+  const payload = {
+    version: 1,
+    generated: new Date().toISOString(),
+    sampleSize: stats.sampleSize,
+    forecastAccuracy: stats.forecastAccuracy,
+    confidence: stats.confidence,
+    trend: stats.trend,
+    forecastBias: stats.forecastBias,
+    currentWeights: stats.currentWeights,
+    modelBiases: stats.modelBiases,
+    locationSummary: stats.locationSummary,
+  };
+  const text = JSON.stringify(payload, null, 2);
+  const copy = () => navigator.clipboard?.writeText(text);
+  try {
+    const p = copy();
+    if (p?.then) {
+      p.then(() => showToast('הנתונים הועתקו ללוח', 'info'))
+       .catch(() => showToast('ההעתקה נכשלה', 'error'));
+    } else {
+      showToast('הנתונים הועתקו ללוח', 'info');
+    }
+  } catch {
+    showToast('ההעתקה נכשלה', 'error');
   }
 }
 
-// ✓ learning-screen.js — educational accordions v2
+// ✓ learning-screen.js — v3 restructured

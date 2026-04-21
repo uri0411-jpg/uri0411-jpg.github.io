@@ -3636,6 +3636,256 @@ body.night-vision .quick-alert-fab {
   background: rgba(200, 60, 60, 0.08);
 }
 
+/* ═══════════════════════════════════════════
+   LEARNING SCREEN v3 — RESTRUCTURED
+═══════════════════════════════════════════ */
+
+/* Freshness chip in header */
+.learning-fresh-chip {
+  font-size: 10px;
+  color: var(--cream-faint);
+  background: rgba(245,220,180,0.06);
+  border: 1px solid rgba(245,220,180,0.12);
+  border-radius: 12px;
+  padding: 5px 10px;
+  white-space: nowrap;
+  line-height: 1;
+  font-weight: 500;
+}
+
+/* Today influence banner */
+.today-influence-banner {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 12px 14px;
+  background: linear-gradient(135deg, rgba(212,130,10,0.10), rgba(245,220,180,0.04));
+  border: 1px solid rgba(212,130,10,0.22);
+  border-right: 3px solid var(--gold);
+  border-radius: 10px;
+}
+.today-influence-icon {
+  color: var(--gold);
+  flex-shrink: 0;
+  margin-top: 2px;
+}
+.today-influence-body {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+.today-influence-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+}
+.today-influence-desc {
+  font-size: 11.5px;
+  color: var(--cream-dim);
+  line-height: 1.5;
+}
+
+/* KPI story line (under the explain sub) */
+.kpi-story {
+  font-size: 9px;
+  color: var(--gold);
+  opacity: 0.75;
+  margin-top: 2px;
+  line-height: 1.3;
+  text-align: center;
+  min-height: 12px;
+  font-weight: 500;
+}
+
+/* Advanced-only note inside how-it-works */
+.how-adv-note {
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px dashed rgba(245,220,180,0.15);
+  font-size: 10.5px;
+  color: var(--cream-faint);
+  line-height: 1.7;
+}
+
+/* Histogram peak tag */
+.hist-peak-tag {
+  font-size: 9px;
+  color: var(--gold);
+  white-space: nowrap;
+  margin-bottom: 2px;
+  opacity: 0.85;
+  font-weight: 600;
+}
+
+/* Per-location grid */
+.per-location-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+.loc-card {
+  padding: 12px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  text-align: center;
+}
+.loc-name {
+  font-size: 11px;
+  color: var(--cream-faint);
+  font-weight: 600;
+}
+.loc-accuracy {
+  font-size: 19px;
+  font-weight: 800;
+  font-family: var(--font-title);
+  line-height: 1.1;
+}
+.loc-samples {
+  font-size: 9.5px;
+  color: var(--cream-faint);
+  opacity: 0.85;
+}
+
+/* Moment cards (biggest learning moments) */
+.moment-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.moment-card {
+  display: grid;
+  grid-template-columns: auto auto 1fr;
+  gap: 12px;
+  padding: 10px 12px;
+  align-items: center;
+  border-right: 2px solid rgba(212,130,10,0.4);
+}
+.moment-left {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 48px;
+}
+.moment-date {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--cream);
+  font-variant-numeric: tabular-nums;
+}
+.moment-loc {
+  font-size: 9.5px;
+  color: var(--cream-faint);
+}
+.moment-mid {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 1px;
+  min-width: 46px;
+}
+.moment-err {
+  font-size: 16px;
+  font-weight: 800;
+  color: #ffaaaa;
+  font-variant-numeric: tabular-nums;
+  line-height: 1.1;
+}
+.moment-err-label {
+  font-size: 8.5px;
+  color: var(--cream-faint);
+  letter-spacing: 0.4px;
+}
+.moment-right {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+.moment-nums {
+  font-size: 11px;
+  color: var(--cream-dim);
+  font-variant-numeric: tabular-nums;
+}
+.moment-narrative {
+  font-size: 10px;
+  color: var(--cream-faint);
+  opacity: 0.9;
+}
+
+/* Action buttons wrap (reset + export) */
+.learning-actions-wrap {
+  display: flex;
+  justify-content: center;
+  gap: 10px;
+  padding: 8px 0 4px;
+  flex-wrap: wrap;
+}
+.learning-export-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--cream-dim);
+  background: rgba(245,220,180,0.06);
+  border: 1px solid rgba(245,220,180,0.18);
+  border-radius: 22px;
+  cursor: pointer;
+  font-family: inherit;
+  -webkit-tap-highlight-color: transparent;
+  transition: all 0.2s;
+}
+.learning-export-btn:active {
+  transform: scale(0.96);
+  background: rgba(245,220,180,0.12);
+}
+
+/* Mobile responsive — KPI grid 2-col + readable chart labels */
+@media (max-width: 420px) {
+  .learning-kpi-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .kpi-value {
+    font-size: 20px;
+  }
+  .learning-chart text {
+    font-size: 11px !important;
+  }
+  .today-influence-desc {
+    font-size: 11px;
+  }
+  .per-location-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+  .moment-card {
+    grid-template-columns: auto 1fr;
+    grid-auto-rows: auto;
+    gap: 6px 10px;
+  }
+  .moment-mid {
+    grid-column: 1;
+    grid-row: 2;
+    flex-direction: row;
+    gap: 6px;
+    align-items: baseline;
+  }
+  .moment-right {
+    grid-column: 2;
+    grid-row: 2;
+  }
+}
+
+@media (max-width: 340px) {
+  .per-location-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* Settings row hint */
 .settings-row-hint {
   font-size: 10px;
