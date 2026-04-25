@@ -23,6 +23,7 @@ import { showToast, isAdvancedMode } from './ui.js';
 import { showScreen } from './nav.js';
 import { getLearningStats, clearLearningData } from './engine/learningEngine.js';
 import { getCalibrationStats } from './calibration.js';
+import { getStreak } from './streak.js';
 
 // Session state for open accordions (lost on screen re-render, which is fine)
 const _openSections = new Set();
@@ -83,6 +84,7 @@ function buildShell(lStats, cStats) {
     ${renderNaturalSummary(lStats)}
     ${renderKPIs(lStats)}
     ${renderAccuracyChart(lStats)}
+    ${renderPerEventRmse(lStats)}
     ${renderBiasPanel(lStats)}
     ${renderHistogram(lStats)}
     ${renderPerLocationPanel(lStats)}
@@ -97,6 +99,14 @@ function buildShell(lStats, cStats) {
 // ─────────────────────────────────────────────
 function renderHeader(lStats) {
   const freshLabel = formatFreshness(lStats.lastUpdated);
+  const streak = getStreak();
+  const streakChip = streak.current >= 3
+    ? (() => {
+        const icon  = streak.current >= 30 ? '🌌' : streak.current >= 7 ? '🦅' : '🌅';
+        const label = streak.current >= 30 ? 'צייד שמיים' : streak.current >= 7 ? 'רצף שבועי' : 'רצף';
+        return `<div class="learning-streak-chip" aria-label="${label} ${streak.current} ימים">${icon} ${streak.current} ימים</div>`;
+      })()
+    : '';
   return `
   <div class="learning-header">
     <button class="learning-back-btn" id="learning-back-btn" aria-label="חזרה להגדרות">
@@ -105,6 +115,7 @@ function renderHeader(lStats) {
       </svg>
     </button>
     <div class="learning-title">מערכת הלמידה</div>
+    ${streakChip}
     <div class="learning-fresh-chip" aria-label="עודכן לאחרונה ${freshLabel}">${freshLabel}</div>
   </div>`;
 }
@@ -367,11 +378,14 @@ function renderAccuracyChart(stats) {
 
   const predPts  = buildPolyline('predicted');
   const reconPts = buildPolyline('reconstructed');
+  const eventColor = (ev) => ev === 'sunrise' ? '#ffd97a'
+                          : ev === 'dusk'    ? '#b39ddb'
+                          :                     '#ff9b6a'; // sunset
   const ratingDots = ts.map((e, i) => {
     if (e.userRating == null) return '';
     const cx = (padX + i * xStep).toFixed(1);
     const cy = yScale(e.userRating).toFixed(1);
-    return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="#b39ddb"/>`;
+    return `<circle cx="${cx}" cy="${cy}" r="3.5" fill="${eventColor(e.eventType)}"/>`;
   }).join('');
 
   // Enlarged tap targets for mobile (28px wide)
@@ -421,9 +435,51 @@ function renderAccuracyChart(stats) {
     <div class="learning-legend">
       <span><span class="legend-line" style="background:var(--gold)"></span>ניבוי</span>
       <span><span class="legend-line" style="background:#7eefb2"></span>בפועל</span>
-      <span><span class="legend-dot"  style="background:#b39ddb"></span>דירוג שלך</span>
+      <span><span class="legend-dot"  style="background:#ffd97a"></span>זריחה</span>
+      <span><span class="legend-dot"  style="background:#ff9b6a"></span>שקיעה</span>
+      <span><span class="legend-dot"  style="background:#b39ddb"></span>דמדומים</span>
     </div>
     <div class="chart-explain">לחץ על נקודה בגרף לפרטים</div>
+  </div>`;
+}
+
+// ─────────────────────────────────────────────
+//  Per-event RMSE — exposes which event the engine predicts best
+// ─────────────────────────────────────────────
+function renderPerEventRmse(stats) {
+  const r = stats.rmsePerEvent;
+  if (!r) return '';
+  const hasAny = ['sunrise', 'sunset', 'dusk'].some(ev => r[ev] != null);
+  if (!hasAny) return '';
+
+  const labels = { sunrise: '🌅 זריחה', sunset: '🌇 שקיעה', dusk: '🌌 דמדומים' };
+  const colors = { sunrise: '#ffd97a', sunset: '#ff9b6a', dusk: '#b39ddb' };
+  const card = (ev) => {
+    const v = r[ev];
+    const display = v != null ? v.toFixed(2) : '—';
+    const tone    = v == null ? 'var(--cream-faint)'
+                  : v < 1.0  ? '#aaffcc'
+                  : v < 2.0  ? '#ffd580'
+                  :            '#ffaaaa';
+    return `
+    <div class="glass bias-card" style="border-top:2px solid ${colors[ev]}">
+      <div class="bias-label">${labels[ev]}</div>
+      <div class="bias-value" style="color:${tone}">${display}</div>
+      <div class="bias-hint">${v == null ? 'אין דירוגים' : 'RMSE'}</div>
+    </div>`;
+  };
+
+  const edu = `
+    <strong>RMSE לפי אירוע</strong> מודד איזה אירוע המנוע חוזה הכי טוב.
+    ערך נמוך = ניבוי קרוב לדירוג שלך. כל אירוע (זריחה / שקיעה / דמדומים) נלמד בנפרד,
+    כך שהדירוגים שלך משפיעים רק על האירוע שדרגת.`;
+
+  return `
+  ${eduSection('דיוק לפי אירוע', edu)}
+  <div class="bias-grid">
+    ${card('sunrise')}
+    ${card('sunset')}
+    ${card('dusk')}
   </div>`;
 }
 

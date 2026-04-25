@@ -319,8 +319,9 @@ function calcDrama(params) {
   // Multiplicative synergy: cirrus + light dust creates electric orange-pink glow
   const synergy = cScore * aScore;
 
-  // Use learned drama weights (returns defaults 0.30/0.27/0.27 when < 10 samples)
-  const adj     = getLearningAdjustments(params.lat, params.lon, params.month);
+  // Use learned drama weights (returns defaults 0.30/0.27/0.27 when < 10 samples).
+  // Pulled per-event so sunrise/sunset/dusk learn independent weight profiles.
+  const adj     = getLearningAdjustments(params.lat, params.lon, params.month, params.eventType);
   const cloudW  = adj.formulaWeights.cloudDramaW;
   const dustW   = adj.formulaWeights.dustDramaW;
   const atmW    = adj.formulaWeights.atmosphereDramaW;
@@ -535,8 +536,9 @@ export function calcScore(params, extended = false) {
   const { bias } = getBiasCorrection(params.lat, params.lon);
   if (bias !== 0) score -= bias;
 
-  // Learning: per-model bias correction (additive, active only after 10+ sunsets)
-  const _ladj = getLearningAdjustments(params.lat, params.lon, params.month);
+  // Learning: per-model bias correction (additive, active only after 10+ samples).
+  // Per-event so sunrise/dusk get their own bias adjustment.
+  const _ladj = getLearningAdjustments(params.lat, params.lon, params.month, params.eventType);
   if (_ladj.active) {
     score += _ladj.modelBiases[inferModel(params)] || 0;
   }
@@ -561,7 +563,7 @@ export function calcScore(params, extended = false) {
 //  Build params for scoring
 // ─────────────────────────────────────────
 function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCode, tempAtSunset, options = {}) {
-  const { westernData = null, twilightMode = false } = options;
+  const { westernData = null, twilightMode = false, eventType = 'sunset' } = options;
 
   const solarEl = eventISO ? calcSolarElevation(lat, lon, new Date(eventISO)) : 3;
   const solarAz = eventISO ? calcSolarAzimuth(lat, lon, new Date(eventISO)) : 270;
@@ -580,8 +582,10 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
   const _aodFromAPI  = aq ? (aq.hourly?.aerosol_optical_depth?.[aqIdx] ?? null) : null;
   const ozoneVal = aq ? valAt(aq.hourly?.ozone,                 aqIdx, 0)                 : 0;
 
-  // Learning: apply forecast API input bias corrections + get learned bell peaks
-  const _ladj = getLearningAdjustments(lat, lon, month);
+  // Learning: apply forecast API input bias corrections + get learned bell peaks.
+  // Pass eventType so per-event bell peaks (humidityOptimum/dustOptimum) feed the
+  // right scoring path. Input scales are shared across events under the hood.
+  const _ladj = getLearningAdjustments(lat, lon, month, eventType);
   let _cloudsVal     = avgAround(h.cloudcover,          idx);
   let _humidityVal   = avgAround(h.relativehumidity_2m, idx);
   let _visibilityVal = avgAround(h.visibility,          idx) / 1000;
@@ -657,6 +661,7 @@ function buildScoreParams(h, idx, aq, aqIdx, lat, lon, eventISO, date, weatherCo
     cloudsLowWest,
     horizonGap,
     twilightMode,
+    eventType,
     weatherCode:      weatherCode || 0,
     tempAtSunset:     tempAtSunset || 25,
     // Learning: bell curve peaks passed through to aodScore + atmosphereScore
@@ -679,6 +684,7 @@ function _safeFallbackDay(dayIndex) {
   return {
     date, day: '', shortDate: date,
     score: 0, srScore: 0, ssScore: 0, twScore: 0, dramaLevel: 0, goldenHourMin: 0,
+    scores: { sunrise: 0, sunset: 0, dusk: 0 },
     certainty: 0, scoreLabel: 'אין נתונים',
     sunrise: '06:00', sunset: '19:00', twilight: '', purpleLightTime: '19:18',
     temp: '--°', tempMin: '--°', feelsLike: '--°',
@@ -734,11 +740,11 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
   const baseOpts = { westernData };
 
   // extended=true for ssResult — includes palette + afterglow
-  const ssParams = buildScoreParams(h, ssIdx, airQuality, aqSsIdx, lat, lon, sunset, date, wcode, tempAtSS, baseOpts);
+  const ssParams = buildScoreParams(h, ssIdx, airQuality, aqSsIdx, lat, lon, sunset, date, wcode, tempAtSS, { ...baseOpts, eventType: 'sunset' });
   const ssResult = calcScore(ssParams, true);
-  const srResult = calcScore(buildScoreParams(h, srIdx, airQuality, aqSrIdx, lat, lon, sunrise, date, wcode, tempAtSS, baseOpts));
+  const srResult = calcScore(buildScoreParams(h, srIdx, airQuality, aqSrIdx, lat, lon, sunrise, date, wcode, tempAtSS, { ...baseOpts, eventType: 'sunrise' }));
   // N6: twilight mode — high clouds weighted 1.6× for afterglow effect
-  const twResult = calcScore(buildScoreParams(h, twIdx, airQuality, aqTwIdx, lat, lon, sunset,  date, wcode, tempAtSS, { westernData, twilightMode: true }));
+  const twResult = calcScore(buildScoreParams(h, twIdx, airQuality, aqTwIdx, lat, lon, sunset,  date, wcode, tempAtSS, { westernData, twilightMode: true, eventType: 'dusk' }));
 
   // ── Physics layer (Pulse 2): turbidity, Mie/Rayleigh for gradient + golden window ──
   const physics = computeScattering({
@@ -748,6 +754,7 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
     aqi:           null,
     aod:           ssParams.aod,
     solarElevation: ssParams.solarElevation,
+    eventType:     'sunset',
   });
 
   // ── Golden Window (Pulse 2): physics-aware peak time prediction ──
@@ -886,6 +893,14 @@ export function calcDayData(dayIndex, weatherData, airQuality = null, lat = 32, 
   const dayData = {
     date, day: dateToHebDay(date), shortDate: shortDate(date),
     score, srScore, ssScore: effectiveSsScore, twScore, dramaLevel, goldenHourMin,
+    // Per-event scores object for v2 calibration / multi-event rating UI.
+    // Mirrors srScore/ssScore/twScore but in the canonical {sunrise,sunset,dusk}
+    // shape consumed by recordPrediction() and the rating widgets.
+    scores: {
+      sunrise: srScore,
+      sunset:  effectiveSsScore,
+      dusk:    twScore,
+    },
     certainty: ssResult.certainty,
     scoreLabel: scoreToLabel(score),
     sunrise: sunriseStr, sunset: sunsetStr, twilight: twilightRange(sunset), purpleLightTime,

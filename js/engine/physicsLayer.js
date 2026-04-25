@@ -178,13 +178,20 @@ export function computeScattering({
   aqi = null,
   aod = null,
   solarElevation = 5,
+  eventType = 'sunset',
 }) {
   // ── 1. Normalize raw inputs to 0-1 ─────────────────────────────────────
+
+  // Per-event tuning. Sunrise has a stable nocturnal boundary layer that
+  // accumulates dust/aerosols overnight — we boost effective dust optical
+  // depth ×1.15 (Stull 1988, "Boundary Layer Meteorology", §1.4).
+  const _dustEventScale = eventType === 'sunrise' ? 1.15 : 1.0;
+  const _dustEffective  = dust != null ? dust * _dustEventScale : null;
 
   // Dust: 0 µg/m³ = pristine, 150+ µg/m³ = heavy haze / sandstorm.
   // We use 150 as the upper bound because beyond this the sky is simply
   // opaque — no aesthetic benefit.
-  const dustNorm = dust != null ? normalize(dust, 0, 150) : null;
+  const dustNorm = _dustEffective != null ? normalize(_dustEffective, 0, 150) : null;
 
   // Humidity: hygroscopic growth of aerosol particles is highly non-linear.
   // Below ~60% RH the effect is negligible; above 80% RH particle radius grows
@@ -301,7 +308,11 @@ export function computeScattering({
   const m            = airMass(solarElevation);
   const rayleighBase  = Math.pow(1 - turbidity, 1.5);
   const elevBoost     = Math.log(m + 1) / Math.log(39); // 0→1 overhead→horizon
-  const rayleighSpread = clamp(rayleighBase * (1 + 0.30 * elevBoost));
+  // Dusk emphasis: Belt-of-Venus (anti-solar pink band) is purely Rayleigh-driven
+  // with no Mie contamination because the sun is below horizon; we boost the
+  // broad-sky gradient by 1.10× to reflect this physical regime change.
+  const _rayleighEventBoost = eventType === 'dusk' ? 1.10 : 1.0;
+  const rayleighSpread = clamp(rayleighBase * (1 + 0.30 * elevBoost) * _rayleighEventBoost);
 
   // ── 5. Atmospheric Clarity (Beer-Lambert proxy) ────────────────────────
   //

@@ -6,7 +6,9 @@
 import { scoreToSkyBg, scoreToBarStyle, scoreToLabel, shortDate, buildGaugeArc, getSmartRecommendation, trendArrow, addMinutes, scoreToSkyColor, getWatercolorBg } from './utils.js';
 import { scheduleAlert, cancelAlert, getSavedAlerts, requestNotificationPermission } from './notifications.js';
 import { logoImg, updateDynamicGradient, getCardBgLuma, isAdvancedMode } from './ui.js';
-import { recordUserRating, hasRatedToday } from './calibration.js';
+import { recordUserRating, hasRatedEvent } from './calibration.js';
+import { EVENT_LABELS_HE, EVENT_LABELS_HE_SHORT, RATING_WINDOWS_MIN, DUSK_OFFSET_MIN } from './config.js';
+import { recordRatingForStreak, getStreak } from './streak.js';
 import { haptic } from './nav.js';
 import { initDebugPanel } from './debugPanel.js';
 import { watchSunsetBearing } from './location.js';
@@ -699,97 +701,178 @@ export function refreshMainScores(weekData, spotAvgScores = null) {
 }
 
 // ─────────────────────────────────────────
-//  Countdown timer to next event
+//  Countdown timer + multi-event rating UI
+//
+//  v2 logic:
+//    - Compute event times for sunrise / sunset / dusk (= sunset + 25min)
+//    - For each event, derive its rating window: [event + start, event + end]
+//      from RATING_WINDOWS_MIN. While in-window AND not yet rated, show a
+//      rating card for that event. Multiple windows can overlap (e.g. dusk
+//      starts while sunset window is still open) → stack the cards.
+//    - When no rating window is active and a future event exists, show the
+//      countdown to that next event.
+//    - Once all 3 events rated for the day, show a thank-you banner.
 // ─────────────────────────────────────────
+function _getEventTimes(today) {
+  const todayDate = today.date;
+  const [srH, srM] = today.sunrise.split(':').map(Number);
+  const [ssH, ssM] = today.sunset.split(':').map(Number);
+  const sunriseTime = new Date(todayDate + 'T12:00:00');
+  sunriseTime.setHours(srH, srM, 0, 0);
+  const sunsetTime = new Date(todayDate + 'T12:00:00');
+  sunsetTime.setHours(ssH, ssM, 0, 0);
+  const duskTime = new Date(sunsetTime.getTime() + DUSK_OFFSET_MIN * 60 * 1000);
+  return { sunrise: sunriseTime, sunset: sunsetTime, dusk: duskTime };
+}
+
+function _isInRatingWindow(eventTime, eventType, now) {
+  const w = RATING_WINDOWS_MIN[eventType];
+  const start = eventTime.getTime() + w.start * 60 * 1000;
+  const end   = eventTime.getTime() + w.end   * 60 * 1000;
+  return now.getTime() >= start && now.getTime() <= end;
+}
+
+function _ratingGridHTML(eventType) {
+  // 10 buttons in 2 rows of 5 (RTL: high → low). Color tier mapped via class.
+  const tier = (n) => n <= 3 ? 'low' : n <= 6 ? 'mid' : n <= 8 ? 'high' : 'top';
+  const row1 = [10, 9, 8, 7, 6];
+  const row2 = [5, 4, 3, 2, 1];
+  const btn = n => `<button class="rating-btn rating-tier-${tier(n)}" data-rating="${n}" data-event="${eventType}" type="button" aria-label="${n} מתוך 10">${n}</button>`;
+  return `
+    <div class="rating-grid" role="radiogroup" aria-label="דירוג ${EVENT_LABELS_HE[eventType]}">
+      <div class="rating-row">${row1.map(btn).join('')}</div>
+      <div class="rating-row">${row2.map(btn).join('')}</div>
+    </div>`;
+}
+
+function _ratingCardHTML(eventType) {
+  const label = EVENT_LABELS_HE[eventType];
+  const cbId  = `rating-confidence-${eventType}`;
+  return `
+    <div class="rating-card" data-event="${eventType}">
+      <div class="rating-prompt">
+        <div class="logo-circle-sm">${logoImg(eventType === 'sunrise' ? 'sunrise' : eventType === 'sunset' ? 'sunset' : 'twilight', 16)}</div>
+        <span>איך הייתה ${label}?</span>
+      </div>
+      ${_ratingGridHTML(eventType)}
+      <label class="rating-confidence">
+        <input type="checkbox" id="${cbId}" checked>
+        <span>ראיתי את כל האירוע</span>
+      </label>
+    </div>`;
+}
+
 function startCountdown(today) {
   if (!today) return;
   const el = document.getElementById('countdown-timer');
   if (!el) return;
 
-  // Track the last phase rendered so the post-sunset "rating" / "thanks" state
-  // is written into the DOM exactly once — previously the 1s tick re-called
-  // innerHTML every second, detaching + re-attaching click handlers and
-  // producing a stars flicker. '' = not-yet-rendered; 'pre-sunrise', 'day',
-  // 'rating', 'rated' = stable phases.
-  let _lastPhase = '';
+  let _lastSig = '';
 
   function update() {
     const now = new Date();
-    const todayDate = today.date; // 'YYYY-MM-DD'
+    const todayDate = today.date;
+    const events = _getEventTimes(today);
 
-    // Parse sunrise and sunset times
-    const [srH, srM] = today.sunrise.split(':').map(Number);
-    const [ssH, ssM] = today.sunset.split(':').map(Number);
+    // Build per-event status: { time, inWindow, rated }
+    const status = {};
+    for (const ev of ['sunrise', 'sunset', 'dusk']) {
+      status[ev] = {
+        time:     events[ev],
+        inWindow: _isInRatingWindow(events[ev], ev, now),
+        rated:    hasRatedEvent(todayDate, ev),
+      };
+    }
 
-    const sunriseTime = new Date(todayDate + 'T12:00:00');
-    sunriseTime.setHours(srH, srM, 0, 0);
-    const sunsetTime = new Date(todayDate + 'T12:00:00');
-    sunsetTime.setHours(ssH, ssM, 0, 0);
+    // Active rating windows (not yet rated)
+    const active = ['sunrise', 'sunset', 'dusk'].filter(ev => status[ev].inWindow && !status[ev].rated);
 
-    let target, label, icon;
+    // Signature for change detection (avoid re-rendering identical DOM each second)
+    const sig = active.length > 0
+      ? `rate:${active.join(',')}`
+      : (() => {
+          const next = ['sunrise', 'sunset', 'dusk'].find(ev => status[ev].time > now && !status[ev].rated);
+          if (next) return `count:${next}:${Math.floor((status[next].time - now) / 1000)}`;
+          const allRated = ['sunrise', 'sunset', 'dusk'].every(ev => status[ev].rated);
+          return allRated ? 'all-rated' : 'idle';
+        })();
 
-    if (now < sunriseTime) {
-      target = sunriseTime; label = 'זריחה בעוד'; icon = 'sunrise';
-    } else if (now < sunsetTime) {
-      target = sunsetTime; label = 'שקיעה בעוד'; icon = 'sunset';
-    } else {
-      // After sunset — show rating widget if not yet rated
-      const alreadyRated = hasRatedToday(todayDate);
-      const phase = alreadyRated ? 'rated' : 'rating';
-      if (phase === _lastPhase) return; // already rendered — leave DOM + handlers untouched
-      _lastPhase = phase;
+    // The timer ticks the seconds digits within a "count:next:..." sig — so we
+    // re-render every second while counting down, but skip rerender when we're
+    // showing rating cards or the thanks panel (sig is stable).
+    const reuseDom = sig === _lastSig && !sig.startsWith('count:');
+    if (reuseDom) return;
+    const isCountdownTick = sig.startsWith('count:') && _lastSig.startsWith('count:') &&
+                            sig.split(':')[1] === _lastSig.split(':')[1];
+    _lastSig = sig;
 
-      if (alreadyRated) {
-        el.innerHTML = `
-          <div class="countdown-done">
-            <div class="logo-circle-sm">${logoImg('twilight', 16)}</div>
-            <span>תודה על הדירוג! נתראה מחר</span>
-          </div>`;
-      } else {
-        el.innerHTML = `
-          <div class="countdown-done" style="flex-direction:column;gap:8px">
-            <div style="display:flex;align-items:center;gap:8px">
-              <div class="logo-circle-sm">${logoImg('twilight', 16)}</div>
-              <span>איך הייתה השקיעה?</span>
-            </div>
-            <div class="rating-stars" id="rating-stars">
-              ${[1,2,3,4,5].map(n => `
-                <button class="rating-star" data-rating="${n * 2}" title="${n * 2}/10">
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
-                </button>
-              `).join('')}
-            </div>
-          </div>`;
-
-        // Attach rating handlers directly (innerHTML is synchronous)
-        document.querySelectorAll('#rating-stars .rating-star').forEach(btn => {
-          btn.addEventListener('click', () => {
-            const r = Number(btn.dataset.rating);
-            recordUserRating(todayDate, r);
-            _lastPhase = 'rated';
-            el.innerHTML = `
-              <div class="countdown-done">
-                <div class="logo-circle-sm">${logoImg('twilight', 16)}</div>
-                <span>דירגת ${r}/10 — תודה!</span>
+    // ─── Render: rating cards ────────────────────────────────────
+    if (active.length > 0) {
+      el.innerHTML = `<div class="rating-stack">${active.map(_ratingCardHTML).join('')}</div>`;
+      el.querySelectorAll('.rating-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+          const ev = btn.dataset.event;
+          const r  = Number(btn.dataset.rating);
+          const cb = el.querySelector(`#rating-confidence-${ev}`);
+          const conf = cb ? (cb.checked ? 1 : 0) : 1;
+          recordUserRating(todayDate, ev, r, conf);
+          haptic?.();
+          const streak = recordRatingForStreak(todayDate);
+          // Replace the just-rated card with a thank-you state in place
+          const card = el.querySelector(`.rating-card[data-event="${ev}"]`);
+          if (card) {
+            const evLabel = EVENT_LABELS_HE_SHORT[ev] || ev;
+            const streakNote = streak.unlocked === 'streak3'  ? ' • רצף 3 ימים!'
+                            : streak.unlocked === 'streak7'  ? ' • רצף שבועי!'
+                            : streak.unlocked === 'streak30' ? ' • חודש שלם — צייד שמיים!'
+                            : '';
+            card.outerHTML = `
+              <div class="rating-card rating-done" data-event="${ev}">
+                <span>דירגת את ${evLabel} ${r}/10 — תודה!${streakNote}</span>
               </div>`;
-          });
+          }
+          _lastSig = ''; // force re-evaluate next tick (more events may still be open)
         });
-      }
+      });
       return;
     }
-    _lastPhase = now < sunriseTime ? 'pre-sunrise' : 'day';
 
+    // ─── Render: all events rated ────────────────────────────────
+    if (sig === 'all-rated') {
+      el.innerHTML = `
+        <div class="countdown-done">
+          <div class="logo-circle-sm">${logoImg('twilight', 16)}</div>
+          <span>תודה על הדירוגים! נתראה מחר</span>
+        </div>`;
+      return;
+    }
+
+    // ─── Render: countdown to next event ─────────────────────────
+    const nextEv = ['sunrise', 'sunset', 'dusk'].find(ev => status[ev].time > now && !status[ev].rated);
+    if (!nextEv) {
+      // Nothing to count to (all events past + missed rating windows)
+      el.innerHTML = `
+        <div class="countdown-done">
+          <div class="logo-circle-sm">${logoImg('twilight', 16)}</div>
+          <span>נתראה מחר</span>
+        </div>`;
+      return;
+    }
+    const labelMap = { sunrise: 'זריחה בעוד', sunset: 'שקיעה בעוד', dusk: 'דמדומים בעוד' };
+    const iconMap  = { sunrise: 'sunrise', sunset: 'sunset', dusk: 'twilight' };
+    const target = status[nextEv].time;
     const diff = target - now;
     const hours = Math.floor(diff / 3600000);
     const mins  = Math.floor((diff % 3600000) / 60000);
     const secs  = Math.floor((diff % 60000) / 1000);
-
     el.innerHTML = `
       <div class="countdown-row">
-        <div class="logo-circle-sm">${logoImg(icon, 16)}</div>
-        <span class="countdown-label">${label}</span>
+        <div class="logo-circle-sm">${logoImg(iconMap[nextEv], 16)}</div>
+        <span class="countdown-label">${labelMap[nextEv]}</span>
         <span class="countdown-digits">${String(hours).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}</span>
       </div>`;
+    // suppress unused warning
+    void isCountdownTick;
   }
 
   update();

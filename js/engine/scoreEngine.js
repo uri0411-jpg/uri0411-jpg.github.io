@@ -253,9 +253,10 @@ export function computeScore({
   visibility = null,
   aqi = null,
   solarElevation = 5,
+  eventType = 'sunset',
 } = {}) {
   // Step 1: Run the physics layer
-  const physics = computeScattering({ dust, humidity, visibility, aqi, solarElevation });
+  const physics = computeScattering({ dust, humidity, visibility, aqi, solarElevation, eventType });
 
   // Step 2: Compute all three model scores unconditionally.
   // We then blend them using smoothstep weights so that conditions near the

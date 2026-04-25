@@ -462,25 +462,40 @@ async function loadAppData() {
   updateThemeColor(weekData);
 
   if (weekData[0]) {
-    recordPrediction(weekData[0].date, weekData[0].score, weekData[0], locSnap.lat, locSnap.lon);
+    // v2: pass per-event scores object {sunrise, sunset, dusk}
+    recordPrediction(weekData[0].date, weekData[0].scores ?? weekData[0].score, weekData[0], locSnap.lat, locSnap.lon);
   }
 
   if (isStale(gen)) return;
   const unfilled = getUnfilledDates();
   if (unfilled.length > 0) {
-    const ssHour = parseInt(weekData[0]?.sunset?.split(':')[0] || '18', 10);
-    Promise.allSettled(
-      unfilled.slice(0, 3).map(entry => {
-        // Use the forecast location (stored per-entry), falling back to current boot location
-        const bfLat = entry.lat ?? locSnap.lat;
-        const bfLon = entry.lon ?? locSnap.lon;
-        return fetchActualForDate(entry.date, bfLat, bfLon, ssHour)
-          .then(() => {
-            if (isStale(gen)) return; // Contract 2: revalidate before learning write
-            processLearningForEntry(entry.date);
-          });
-      })
-    ).then(results => {
+    // v2: backfill each missing event (sunrise/sunset/dusk) at its own hour.
+    // sunrise & sunset hours come from weekData[0]; dusk = sunset+25min ≈ same hour
+    // most days, but fetched separately so AOD/clouds at that timestamp differ.
+    const srHour = parseInt(weekData[0]?.sunrise?.split(':')[0] || '06', 10);
+    const ssHour = parseInt(weekData[0]?.sunset?.split(':')[0]  || '18', 10);
+    const duskHour = (() => {
+      const [h, m] = (weekData[0]?.sunset || '18:00').split(':').map(Number);
+      const t = (h * 60 + m + 25);
+      return Math.floor(t / 60) % 24;
+    })();
+    const eventHours = { sunrise: srHour, sunset: ssHour, dusk: duskHour };
+
+    const tasks = [];
+    for (const entry of unfilled.slice(0, 3)) {
+      const bfLat = entry.lat ?? locSnap.lat;
+      const bfLon = entry.lon ?? locSnap.lon;
+      for (const ev of (entry.missing ?? ['sunset'])) {
+        tasks.push(
+          fetchActualForDate(entry.date, bfLat, bfLon, eventHours[ev], ev)
+            .then(() => {
+              if (isStale(gen)) return;
+              processLearningForEntry(entry.date);
+            })
+        );
+      }
+    }
+    Promise.allSettled(tasks).then(results => {
       const failed = results.filter(r => r.status === 'rejected').length;
       if (failed > 0) logError({ scope: 'boot', action: 'calibration-backfill', error: `${failed} backfill(s) failed`, severity: 'warn' });
     });

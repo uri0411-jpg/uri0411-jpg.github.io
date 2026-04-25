@@ -178,4 +178,21 @@ export const CALIBRATION_MIN_DAYS = 14;
 export const CALIBRATION_KEY = 'twl_calibration';
 export const LEARNING_KEY    = 'twl_learning';
 
-// ✓ config.js v4
+// Multi-event rating system (v2 schema)
+export const CALIBRATION_SCHEMA_VERSION = 2;
+export const LEARNING_SCHEMA_VERSION    = 2;
+export const RATING_STREAK_KEY          = 'twl_rating_streak';
+export const EVENT_TYPES                = ['sunrise', 'sunset', 'dusk'];
+export const EVENT_LABELS_HE            = { sunrise: 'הזריחה', sunset: 'השקיעה', dusk: 'הדמדומים' };
+export const EVENT_LABELS_HE_SHORT      = { sunrise: 'זריחה',  sunset: 'שקיעה',  dusk: 'דמדומים'  };
+// Rating window per event (minutes relative to event time): allow rating from
+// (start) before to (end) after. Dusk window is shorter — once it's dark you can't see it.
+export const RATING_WINDOWS_MIN = {
+  sunrise: { start: -30, end: 240 },
+  sunset:  { start: -30, end: 240 },
+  dusk:    { start:  -5, end: 180 },
+};
+// Civil twilight ends ~25 min after sunset at temperate latitudes
+export const DUSK_OFFSET_MIN = 25;
+
+// ✓ config.js v5
