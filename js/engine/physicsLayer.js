@@ -258,7 +258,9 @@ export function computeScattering({
   // Range: ~0.05 (pristine) to ~2.0 (extreme dust storm). Normalized to 0-1.
   if (aod != null && !isNaN(aod) && aod >= 0) {
     const aodNorm = clamp(aod / 2.0);
-    contributions.aodReference = { raw: aod, normalized: aodNorm };
+    contributions.aodReference = { raw: aod, normalized: aodNorm, source: 'measured' };
+  } else {
+    contributions.aodReference = { raw: null, normalized: null, source: 'fallback' };
   }
 
   // ── 3. Mie Intensity ───────────────────────────────────────────────────
@@ -404,12 +406,16 @@ export function getContribution(physicsResult) {
   }
 
   if (contributions.aodReference) {
-    const { raw, normalized } = contributions.aodReference;
-    const diffPct = ((normalized - turbidity) / Math.max(turbidity, 0.01) * 100).toFixed(0);
-    lines.push(
-      `AOD (מדוד 550nm): ${raw.toFixed(3)} → norm=${(normalized * 100).toFixed(1)}%`,
-      `  vs turbidity composite: ${(turbidity * 100).toFixed(1)}%  (${diffPct > 0 ? '+' : ''}${diffPct}%)`
-    );
+    const { raw, normalized, source } = contributions.aodReference;
+    if (source === 'measured') {
+      const diffPct = ((normalized - turbidity) / Math.max(turbidity, 0.01) * 100).toFixed(0);
+      lines.push(
+        `AOD (מדוד 550nm): ${raw.toFixed(3)} → norm=${(normalized * 100).toFixed(1)}%`,
+        `  vs turbidity composite: ${(turbidity * 100).toFixed(1)}%  (${diffPct > 0 ? '+' : ''}${diffPct}%)`
+      );
+    } else {
+      lines.push(`AOD: לא זמין (הערכה מבוססת dust+visibility)`);
+    }
   }
 
   lines.push(
