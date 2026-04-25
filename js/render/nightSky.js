@@ -12,7 +12,7 @@
  * Jan 6, 2000 18:14 UTC). Phase shape uses a soft radial gradient terminator
  * (destination-out) rather than a hard geometric clip.
  *
- * Called every 30 s from startLiveGradient in main-screen.js.
+ * Called every 30 s from startSkyGradient in js/main-screen/sky-renderer.js.
  * nightFactor (0–1) is the shared scalar: 0 at civil twilight (−6°),
  * 1 at deep night (−26°). All opacity/brightness values derive from it
  * so the entire night scene fades in/out coherently.

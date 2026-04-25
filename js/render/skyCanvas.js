@@ -28,7 +28,7 @@
  *   • Injects <canvas id="sky-canvas"> into #sky-layers (sibling of .bg-sunset)
  *     so the blend mode's backdrop IS the photo.
  *   • z-index: 1, mix-blend-mode: hue — surgical hue-rotation of sky region only.
- *   • Re-renders on each live gradient update (called from startLiveGradient)
+ *   • Re-renders on each live gradient update (called from startSkyGradient)
  *
  * The 8 stops are obtained by sampling computeAtmosphere() at the current solar
  * elevation ± small offsets, approximating the effective solar angle seen from
@@ -218,7 +218,7 @@ export function renderSkyCanvas(container, sunAngle_rad, turbidity, angstromExp 
   // trees) and clip on the next frame — causing a visible flash.
   //
   // The graded render barrier in initMainScreen pre-loads the mask before
-  // startLiveGradient fires, so this guard is a safety net for the race
+  // startSkyGradient fires, so this guard is a safety net for the race
   // where the 300ms soft timeout expired before the mask was ready.
   // The next 30-second update() cycle will have the mask and render normally.
   if (!getSkyMaskSync()) {
