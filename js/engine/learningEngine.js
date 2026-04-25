@@ -703,6 +703,29 @@ export function clearLearningData() {
 }
 
 // ─────────────────────────────────────────────────────────────────
+//  removeLearningSample — drop a single (date, eventType) sample.
+//  Used by clearUserRating in calibration.js when the user retracts a
+//  rating. Removes the per-event entry and decrements sampleSize.
+//  EMA biases keep the old sample's residual contribution; future
+//  ratings will gradually pull the bias back toward truth.
+// ─────────────────────────────────────────────────────────────────
+export function removeLearningSample(date, eventType) {
+  if (!EVENT_TYPES.includes(eventType)) return false;
+  const data = loadLearning();
+  const key = `${date}::${eventType}`;
+  const idx = data.entries.findIndex(e => (e.key ?? `${e.date}::${e.eventType ?? 'sunset'}`) === key);
+  if (idx < 0) return false;
+  data.entries.splice(idx, 1);
+
+  const eventState = data.perEvent[eventType];
+  if (eventState && eventState.sampleSize > 0) eventState.sampleSize--;
+
+  saveLearning(data);
+  _adjCache = null;
+  return true;
+}
+
+// ─────────────────────────────────────────────────────────────────
 //  seedFromBacktest — bulk-import historical backtest entries.
 //  Backwards-compat: backtestEntries with no eventType default to 'sunset'.
 // ─────────────────────────────────────────────────────────────────

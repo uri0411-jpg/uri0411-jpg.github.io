@@ -1283,7 +1283,51 @@ html[dir="rtl"] { --screen-slide-dir: -1; }
   color: var(--cream-dim);
   background: rgba(212,165,116,0.08);
   border-color: rgba(212,165,116,0.2);
+  position: relative;
 }
+.rating-menu-trigger {
+  position: absolute;
+  top: 4px;
+  inset-inline-end: 8px;
+  background: transparent;
+  border: 0;
+  color: var(--cream-dim);
+  font-size: 18px;
+  line-height: 1;
+  padding: 4px 8px;
+  cursor: pointer;
+  opacity: 0.6;
+  border-radius: 8px;
+}
+.rating-menu-trigger:hover { opacity: 1; background: rgba(240,184,74,0.10); }
+.rating-menu {
+  position: absolute;
+  top: 32px;
+  inset-inline-end: 8px;
+  z-index: var(--twl-layer-ui);
+  background: rgba(30, 18, 8, 0.95);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 4px;
+  backdrop-filter: blur(12px);
+  display: flex;
+  flex-direction: column;
+  min-width: 140px;
+  animation: dropdownFadeIn 0.18s ease;
+}
+.rating-menu[hidden] { display: none; }
+.rating-menu-item {
+  background: transparent;
+  border: 0;
+  color: var(--cream);
+  text-align: right;
+  padding: 8px 12px;
+  font-family: var(--font-body);
+  font-size: 13px;
+  border-radius: 8px;
+  cursor: pointer;
+}
+.rating-menu-item:hover { background: rgba(240,184,74,0.12); }
 .rating-prompt {
   display: flex;
   align-items: center;

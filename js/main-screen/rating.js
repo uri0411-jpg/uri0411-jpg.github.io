@@ -7,13 +7,14 @@
 // ═══════════════════════════════════════════
 
 import { logoImg } from '../ui.js';
-import { recordUserRating, hasRatedEvent } from '../calibration.js';
+import { recordUserRating, hasRatedEvent, getUserRating, clearUserRating } from '../calibration.js';
 import { recordRatingForStreak } from '../streak.js';
 import { haptic } from '../nav.js';
 import { EVENT_LABELS_HE, EVENT_LABELS_HE_SHORT, RATING_WINDOWS_MIN, DUSK_OFFSET_MIN } from '../config.js';
 import { getLearningStats, MIN_ACTIVE_SAMPLES } from '../engine/learningEngine.js';
 
 let _countdownInterval = null;
+let _activeMenuClickAway = null;  // document-level click handler while a menu is open
 
 // ─────────────────────────────────────────
 //  Countdown timer + multi-event rating UI
@@ -77,6 +78,98 @@ function _ratingCardHTML(eventType) {
     </div>`;
 }
 
+function _ratingDoneHTML(eventType, ratingValue, streakNote = '') {
+  const evLabel = EVENT_LABELS_HE_SHORT[eventType] || eventType;
+  return `
+    <div class="rating-card rating-done" data-event="${eventType}">
+      <span>דירגת את ${evLabel} ${ratingValue}/10 — תודה!${streakNote}</span>
+      <button class="rating-menu-trigger" type="button" aria-label="אפשרויות דירוג ${evLabel}" data-event="${eventType}">⋯</button>
+      <div class="rating-menu" data-event="${eventType}" hidden>
+        <button class="rating-menu-item" type="button" data-action="delete" data-event="${eventType}">מחק דירוג</button>
+      </div>
+    </div>`;
+}
+
+function _closeAllRatingMenus() {
+  document.querySelectorAll('.rating-menu').forEach(m => { m.hidden = true; });
+  if (_activeMenuClickAway) {
+    document.removeEventListener('click', _activeMenuClickAway);
+    _activeMenuClickAway = null;
+  }
+}
+
+function _openRatingMenu(menu) {
+  document.querySelectorAll('.rating-menu').forEach(m => { if (m !== menu) m.hidden = true; });
+  menu.hidden = false;
+  if (_activeMenuClickAway) document.removeEventListener('click', _activeMenuClickAway);
+  _activeMenuClickAway = (e) => {
+    if (!menu.contains(e.target) && !e.target.closest('.rating-menu-trigger')) {
+      _closeAllRatingMenus();
+    }
+  };
+  // Defer attach so the click that opened the menu doesn't immediately close it
+  setTimeout(() => {
+    if (_activeMenuClickAway) document.addEventListener('click', _activeMenuClickAway);
+  }, 0);
+}
+
+// Attach a 400 ms long-press handler to `el`, with cancel on movement,
+// pointerup, pointerleave, pointercancel, and contextmenu.
+function _attachLongPress(el, callback, ms = 400) {
+  let timer = null;
+  let startX = 0, startY = 0;
+  const cancel = () => { if (timer) { clearTimeout(timer); timer = null; } };
+  el.addEventListener('pointerdown', (e) => {
+    if (e.target.closest('.rating-menu-trigger') || e.target.closest('.rating-menu')) return;
+    startX = e.clientX; startY = e.clientY;
+    cancel();
+    timer = setTimeout(() => { timer = null; callback(); }, ms);
+  });
+  el.addEventListener('pointerup',     cancel);
+  el.addEventListener('pointercancel', cancel);
+  el.addEventListener('pointerleave',  cancel);
+  el.addEventListener('pointermove', (e) => {
+    if (!timer) return;
+    if (Math.abs(e.clientX - startX) > 5 || Math.abs(e.clientY - startY) > 5) cancel();
+  });
+  el.addEventListener('contextmenu', (e) => { e.preventDefault(); cancel(); });
+}
+
+// Wire the ⋯ trigger, the menu items, and the long-press shortcut on a
+// single .rating-done card. `onMutated` is called after a successful delete
+// so the caller can invalidate its render cache and force a re-render.
+function _attachDoneCardHandlers(card, todayDate, onMutated) {
+  const ev      = card.dataset.event;
+  const trigger = card.querySelector('.rating-menu-trigger');
+  const menu    = card.querySelector('.rating-menu');
+  if (!trigger || !menu) return;
+
+  trigger.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (menu.hidden) _openRatingMenu(menu);
+    else _closeAllRatingMenus();
+  });
+
+  const deleteBtn = card.querySelector('[data-action="delete"]');
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      _closeAllRatingMenus();
+      const ok = await clearUserRating(todayDate, ev);
+      if (!ok) return;
+      haptic?.();
+      window.dispatchEvent(new CustomEvent('twilight:toast', {
+        detail: { msg: 'הדירוג נמחק', type: 'info' },
+      }));
+      onMutated?.();
+    });
+  }
+
+  _attachLongPress(card, () => {
+    if (menu.hidden) _openRatingMenu(menu);
+  });
+}
+
 export function startCountdown(today) {
   if (!today) return;
   const el = document.getElementById('countdown-timer');
@@ -99,12 +192,12 @@ export function startCountdown(today) {
       };
     }
 
-    // Active rating windows (not yet rated)
-    const active = ['sunrise', 'sunset', 'dusk'].filter(ev => status[ev].inWindow && !status[ev].rated);
+    // Events currently inside their rating window (rated or not)
+    const inWindow = ['sunrise', 'sunset', 'dusk'].filter(ev => status[ev].inWindow);
 
     // Signature for change detection (avoid re-rendering identical DOM each second)
-    const sig = active.length > 0
-      ? `rate:${active.join(',')}`
+    const sig = inWindow.length > 0
+      ? `win:${inWindow.map(ev => `${ev}:${status[ev].rated ? `done${getUserRating(todayDate, ev) ?? '?'}` : 'rate'}`).join(',')}`
       : (() => {
           const next = ['sunrise', 'sunset', 'dusk'].find(ev => status[ev].time > now && !status[ev].rated);
           if (next) return `count:${next}:${Math.floor((status[next].time - now) / 1000)}`;
@@ -121,9 +214,20 @@ export function startCountdown(today) {
                             sig.split(':')[1] === _lastSig.split(':')[1];
     _lastSig = sig;
 
-    // ─── Render: rating cards ────────────────────────────────────
-    if (active.length > 0) {
-      el.innerHTML = `<div class="rating-stack">${active.map(_ratingCardHTML).join('')}</div>`;
+    // Re-rendering the rating stack invalidates any open menu — make sure the
+    // document-level click-away listener is detached so it doesn't fire on a
+    // dead menu node.
+    _closeAllRatingMenus();
+
+    // ─── Render: rating cards (in-window: rate or done) ──────────
+    if (inWindow.length > 0) {
+      const cardsHtml = inWindow.map(ev =>
+        status[ev].rated
+          ? _ratingDoneHTML(ev, getUserRating(todayDate, ev) ?? '?')
+          : _ratingCardHTML(ev)
+      ).join('');
+      el.innerHTML = `<div class="rating-stack">${cardsHtml}</div>`;
+
       el.querySelectorAll('.rating-btn').forEach(btn => {
         btn.addEventListener('click', async () => {
           const ev = btn.dataset.event;
@@ -133,20 +237,23 @@ export function startCountdown(today) {
           await recordUserRating(todayDate, ev, r, conf);
           haptic?.();
           const streak = recordRatingForStreak(todayDate);
-          // Replace the just-rated card with a thank-you state in place
-          const card = el.querySelector(`.rating-card[data-event="${ev}"]`);
-          const evLabel = EVENT_LABELS_HE_SHORT[ev] || ev;
+          // Swap the just-rated card with the done state in place (the timer
+          // will re-render with the same content on its next tick — the swap
+          // is just for instant feedback)
+          const card = el.querySelector(`.rating-card[data-event="${ev}"]:not(.rating-done)`);
           if (card) {
             const streakNote = streak.unlocked === 'streak3'  ? ' • רצף 3 ימים!'
                             : streak.unlocked === 'streak7'  ? ' • רצף שבועי!'
                             : streak.unlocked === 'streak30' ? ' • חודש שלם — צייד שמיים!'
                             : '';
-            card.outerHTML = `
-              <div class="rating-card rating-done" data-event="${ev}">
-                <span>דירגת את ${evLabel} ${r}/10 — תודה!${streakNote}</span>
-              </div>`;
+            const tmp = document.createElement('div');
+            tmp.innerHTML = _ratingDoneHTML(ev, r, streakNote);
+            const newCard = tmp.firstElementChild;
+            card.replaceWith(newCard);
+            _attachDoneCardHandlers(newCard, todayDate, () => { _lastSig = ''; });
           }
           // Toast: how many more ratings until the per-event learning gate opens
+          const evLabel = EVENT_LABELS_HE_SHORT[ev] || ev;
           const eventCount = getLearningStats().samplesByEvent?.[ev] ?? 0;
           const remaining  = MIN_ACTIVE_SAMPLES - eventCount;
           const msg = remaining <= 0
@@ -154,9 +261,14 @@ export function startCountdown(today) {
             : remaining === 1
               ? `דירוג נשמר — עוד דירוג ${evLabel} אחד עד שהמערכת תתחיל ללמוד`
               : `דירוג נשמר — עוד ${remaining} דירוגי ${evLabel} עד שהמערכת תתחיל ללמוד`;
-          window.dispatchEvent(new CustomEvent('twilight-toast', { detail: { msg, type: 'info' }}));
+          window.dispatchEvent(new CustomEvent('twilight:toast', { detail: { msg, type: 'info' }}));
           _lastSig = ''; // force re-evaluate next tick (more events may still be open)
         });
+      });
+
+      // Wire menu (⋯ + long-press) for any rating-done cards in this render
+      el.querySelectorAll('.rating-done').forEach(card => {
+        _attachDoneCardHandlers(card, todayDate, () => { _lastSig = ''; });
       });
       return;
     }

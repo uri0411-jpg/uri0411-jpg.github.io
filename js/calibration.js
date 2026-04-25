@@ -187,6 +187,33 @@ export async function recordUserRating(date, eventType, rating, confidence = 1) 
 }
 
 // ─────────────────────────────────────────
+//  Clear a user rating for a specific event on a specific date.
+//  Mirrors recordUserRating: removes the entry from userRatings and
+//  drops the corresponding learning sample so the per-event sampleSize
+//  reflects reality.
+// ─────────────────────────────────────────
+export async function clearUserRating(date, eventType) {
+  if (!EVENT_TYPES.includes(eventType)) {
+    console.warn('[calibration] invalid eventType:', eventType);
+    return false;
+  }
+  const entries = loadCalibration();
+  const entry = entries.find(e => e.date === date);
+  if (!entry?.userRatings?.[eventType]) return false;
+
+  entry.userRatings[eventType] = null;
+  saveCalibration(entries);
+
+  try {
+    const { removeLearningSample } = await import('./engine/learningEngine.js');
+    removeLearningSample(date, eventType);
+  } catch (e) {
+    console.warn('[calibration] failed to remove learning sample:', e);
+  }
+  return true;
+}
+
+// ─────────────────────────────────────────
 //  Fetch actual conditions from Open-Meteo Historical
 //  for a specific event (sunrise/sunset/dusk). Hour passed in.
 // ─────────────────────────────────────────
@@ -468,6 +495,16 @@ export function hasRatedEvent(date, eventType) {
   const entries = loadCalibration();
   const entry = entries.find(e => e.date === date);
   return entry?.userRatings?.[eventType]?.value != null;
+}
+
+// ─────────────────────────────────────────
+//  Read the rating value for an event (1–10) or null if not rated.
+// ─────────────────────────────────────────
+export function getUserRating(date, eventType) {
+  if (!EVENT_TYPES.includes(eventType)) return null;
+  const entries = loadCalibration();
+  const entry = entries.find(e => e.date === date);
+  return entry?.userRatings?.[eventType]?.value ?? null;
 }
 
 // Backward-compat alias — many callers still use this name
