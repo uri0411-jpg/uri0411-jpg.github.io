@@ -8,7 +8,6 @@ import { loadLocation, getGPS, saveLocation, checkLocationPermission } from './l
 import { scoreToSkyBg, scoreToBarStyle, scoreToSkyColor, scoreToLabel, distKm, destPoint, getWatercolorBg } from './utils.js';
 import { showToast, showLoading, logoImg, esc, getCardBgLuma } from './ui.js';
 import { haptic } from './nav.js';
-import { decide } from './engine/decisionEngine.js';
 import { fetchSpotImage, invalidateSpotImage, pickGenericSunset, rejectSpotImageUrl, getStaticMapForSpot, subscribeSpotImage } from './spotImages.js';
 import { initLocationSearch } from './locationSearch.js';
 import { loadFavorites, loadVisited, isFavorite, isVisited, toggleFavorite, toggleVisited } from './spots/storage.js';
@@ -19,6 +18,7 @@ import {
   getNextEvent as _getNextEventPure,
 } from './spots/geo.js';
 import { fmtScore, calcSpotPotential, calcLocationQuality, calcSpotScores } from './spots/quality.js';
+import { bestDayLabel, buildSpotDecision } from './spots/decision.js';
 
 let _spots        = [];
 let _sortMode     = 'score';
@@ -252,77 +252,6 @@ export function invalidatePreloadedSpots() {
   _preloadedForRadius   = null;
   _preloadedForWeekData = null;
   _extendedMode         = false;
-}
-
-// ─── Best day label ──────────────────────
-function bestDayLabel(allScores) {
-  if (!allScores || allScores.length < 2) return null;
-  const dayNames = ['היום','מחר'];
-  const days = ['א׳','ב׳','ג׳','ד׳','ה׳','ו׳','ש׳'];
-  let bestIdx = 0, bestVal = allScores[0].combined;
-  for (let i = 1; i < allScores.length; i++) {
-    if (allScores[i].combined > bestVal) { bestVal = allScores[i].combined; bestIdx = i; }
-  }
-  if (bestIdx === 0) return null; // today is already best — no need for badge
-  let label;
-  if (bestIdx < 2) label = dayNames[bestIdx];
-  else {
-    const d = _weekData?.[bestIdx]?.date;
-    label = d ? 'יום ' + days[new Date(d + 'T12:00:00').getDay()] : '';
-  }
-  return { label, score: bestVal };
-}
-
-// ─── Per-spot decision badge (Pulse 3→Spot Finder) ──
-// Bridges legacy dayData → decisionEngine format, adds travel time per spot.
-function buildSpotDecision(spot, today) {
-  if (!today) return '';
-  const driveMin = spot._driveMin || 0;
-  const sc = spot._allScores?.[0]?.combined ?? today.score;
-
-  // Build weatherData in engine format
-  const weatherData = {
-    clouds:              (today._cloudRaw ?? 50) / 100,
-    cloudHeightCategory: today._cloudHighRaw > 40 ? 'high' : today._cloudLowRaw > 40 ? 'low' : 'mid',
-    horizonClearance:    Math.max(0, (100 - (today._cloudLowRaw ?? 50)) / 100),
-    dust:                today._dustRaw ?? 0,
-    humidity:            today._humidityRaw ?? 50,
-    visibility:          today._visibilityRaw ?? 10,
-    aqi:                 null,
-    solarElevation:      3,
-    sunsetTime:          today.sunset ? (() => {
-      const [h, m] = today.sunset.split(':').map(Number);
-      const d = new Date(today.date + 'T12:00:00');
-      d.setHours(h, m, 0, 0);
-      return d;
-    })() : new Date(),
-  };
-
-  let result;
-  try {
-    result = decide({
-      weatherData,
-      travelTimeMinutes: driveMin,
-      bufferMinutes: 10,
-      latitude: _loc?.lat ?? 32,
-    });
-  } catch {
-    return '';
-  }
-
-  const d = result.decision; // 'YES' | 'MAYBE' | 'NO'
-  const tier = d === 'YES' ? 'go' : d === 'MAYBE' ? 'maybe' : 'no';
-
-  let text;
-  if (d === 'YES') {
-    text = 'שווה לנסוע';
-  } else if (d === 'MAYBE') {
-    text = driveMin > 20 ? 'רק אם קרוב' : 'אפשרי';
-  } else {
-    text = driveMin > 0 ? 'לא שווה' : 'שקיעה חלשה';
-  }
-
-  return `<span class="spot-badge spot-decision-${tier}">${text}</span>`;
 }
 
 // ═════════════════════════════════════════
@@ -983,7 +912,7 @@ function renderSpotsList() {
     const locationBadgeVal = nextEvt.type === 'sunrise'
       ? s._locationQualitySunrise
       : s._locationQualitySunset;
-    const best = bestDayLabel(scores);
+    const best = bestDayLabel(scores, _weekData);
 
     const westOK = isWestFacing(bearing), eastOK = isEastFacing(bearing);
     let badge = '';
@@ -1031,7 +960,7 @@ function renderSpotsList() {
                 ${s.type} · ${dirLabel} ${compassArrow(bearing)}
               </div>
               <div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">
-                ${buildSpotDecision(s, today)}
+                ${buildSpotDecision(s, today, _loc)}
                 ${badge}
                 ${horizonBadge}
                 ${vis ? '<span class="spot-badge spot-badge-visited">✓ ביקרתי</span>' : ''}
