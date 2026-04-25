@@ -834,7 +834,8 @@ function attachEvents(lStats) {
       tooltip.innerHTML = `<strong>${d.date}</strong><br>ניבוי: ${d.pred} · בפועל: ${d.recon}<br>הפרש: ${d.err}`;
       tooltip.style.display = 'block';
       const chartRect = chart.getBoundingClientRect();
-      const x = ev ? ev.clientX : (rect.getBoundingClientRect().left + rect.getBoundingClientRect().width / 2);
+      const r = rect.getBoundingClientRect();
+      const x = ev ? ev.clientX : (r.left + r.width / 2);
       tooltip.style.left = Math.min(Math.max(8, x - chartRect.left), chartRect.width - 170) + 'px';
     };
     chart.querySelectorAll('.chart-hit').forEach(rect => {
