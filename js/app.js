@@ -7,7 +7,6 @@ import { initNav, showScreen, onScreenChange } from './nav.js';
 import { getGPS, saveLocation, loadLocation }  from './location.js';
 import { fetchWeek, fetchWeekFast, fetchWeekEnsemble, fetchCityName, fetchAirQuality, fetchWesternHorizon } from './api.js';
 import { calcWeekData }                        from './score.js';
-import { perfRecordDevice, perfTimeCalcWeekData, markFetchWeekFastResolved } from './perf-overlay.js';
 import { initMainScreen, showMainSkeleton, repaintScoreColors, refreshMainScores } from './main-screen.js';
 import { initSpotsScreen, calcNearbyAvgScore, preloadSpotsData, invalidatePreloadedSpots, prefetchAreaTiles, warmMapLibre } from './spots-screen.js';
 import { initSettingsScreen }                  from './settings-screen.js';
@@ -401,14 +400,12 @@ async function loadAppData() {
 
   // ── Phase 1: Render with primary weather model ──
   const weather = await weatherPromise;
-  markFetchWeekFastResolved();
-  perfRecordDevice();
   if (isStale(gen)) return; // location changed during await — abort
   if (isDataStale(dg)) return; // newer data fetch started — abort
   if (!weather?.daily?.time?.length || !weather?.hourly?.time?.length) {
     throw new Error('נתוני מזג אוויר ריקים — נסה שוב');
   }
-  let weekData = perfTimeCalcWeekData('phase1', () => calcWeekData(weather, null, locSnap.lat, locSnap.lon, null));
+  let weekData = calcWeekData(weather, null, locSnap.lat, locSnap.lon, null);
   setState({ weekData });
   await initMainScreen({ lat: locSnap.lat, lon: locSnap.lon }, getState().city, weekData, null);
 
@@ -424,7 +421,7 @@ async function loadAppData() {
 
   // Recalculate only if we got additional data
   if (airQ || westData) {
-    weekData = perfTimeCalcWeekData('phase2-enrich', () => calcWeekData(weather, airQ, locSnap.lat, locSnap.lon, westData));
+    weekData = calcWeekData(weather, airQ, locSnap.lat, locSnap.lon, westData);
     setState({ weekData });
   }
 
@@ -444,7 +441,7 @@ async function loadAppData() {
     fetchWeekEnsemble(locSnap.lat, locSnap.lon, weather, true).then(async refined => {
       if (!refined || isStale(gen)) return;
       const ensembleData = _applyScoreEMA(
-        perfTimeCalcWeekData('ensemble', () => calcWeekData(refined, airQ, locSnap.lat, locSnap.lon, westData)),
+        calcWeekData(refined, airQ, locSnap.lat, locSnap.lon, westData),
         locSnap
       );
       setState({ weekData: ensembleData });

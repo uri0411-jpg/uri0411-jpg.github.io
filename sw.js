@@ -59,7 +59,6 @@ const STATIC_ASSETS = [
   './js/main-screen/explainer.js',
   './js/main-screen/charts.js',
   './js/main-screen/sky-renderer.js',
-  './js/perf-overlay.js',
   './js/spots-screen.js',
   './js/spots/storage.js',
   './js/spots/geo.js',

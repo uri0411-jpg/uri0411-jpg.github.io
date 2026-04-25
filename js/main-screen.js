@@ -23,7 +23,6 @@ import { loadSkyMask } from './render/skyMask.js';
 import { initLocationSearch } from './locationSearch.js';
 import { getState, isStale } from './store.js';
 import { registerCleanup, runCleanup } from './lifecycle.js';
-import { markGaugePainted } from './perf-overlay.js';
 
 // ─────────────────────────────────────────
 //  Module-level sky mask preload — starts loading as soon as this
@@ -131,7 +130,6 @@ export async function initMainScreen(loc, city, weekData, spotAvgScores = null) 
     for (const arc of container.querySelectorAll('.gauge-arc-fill[data-arc-target], .gauge-halo[data-arc-target]')) {
       arc.style.strokeDasharray = arc.dataset.arcTarget;
     }
-    markGaugePainted();
   }));
 
   attachMainEvents();
