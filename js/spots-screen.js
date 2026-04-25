@@ -11,6 +11,7 @@ import { haptic } from './nav.js';
 import { decide } from './engine/decisionEngine.js';
 import { fetchSpotImage, invalidateSpotImage, pickGenericSunset, rejectSpotImageUrl, getStaticMapForSpot, subscribeSpotImage } from './spotImages.js';
 import { initLocationSearch } from './locationSearch.js';
+import { loadFavorites, loadVisited, isFavorite, isVisited, toggleFavorite, toggleVisited } from './spots/storage.js';
 
 let _spots        = [];
 let _sortMode     = 'score';
@@ -31,8 +32,6 @@ let _popupHandlerRegistered = false;
 let _mapStyleLoaded = false; // tracks whether MapLibre style 'load' has fired
 let _loc          = null;
 let _weekData     = null;
-let _favorites    = loadFavorites();
-let _visited      = loadVisited();
 let _mlReady      = false;
 let _visibleCount = 15;
 let _loadingSpots = false; // guard against parallel loadSpots() calls
@@ -141,29 +140,6 @@ function loadMapLibre() {
     document.head.appendChild(script);
   });
   return _mlLoadPromise;
-}
-
-// ─── Favorites ───────────────────────────
-const FAV_KEY = 'twl_fav_spots';
-function loadFavorites() { try { return JSON.parse(localStorage.getItem(FAV_KEY)) || []; } catch { return []; } }
-function saveFavorites() { try { localStorage.setItem(FAV_KEY, JSON.stringify(_favorites)); } catch {} }
-function isFavorite(name, lat, lon) { return _favorites.some(f => f.name === name && Math.abs(f.lat - lat) < 0.001); }
-function toggleFavorite(name, lat, lon) {
-  const idx = _favorites.findIndex(f => f.name === name && Math.abs(f.lat - lat) < 0.001);
-  if (idx >= 0) _favorites.splice(idx, 1); else _favorites.push({ name, lat, lon });
-  saveFavorites();
-}
-
-// ─── Visited ────────────────────────────
-const VIS_KEY = 'twl_visited_spots';
-function loadVisited() { try { return JSON.parse(localStorage.getItem(VIS_KEY)) || []; } catch { return []; } }
-function saveVisited() { try { localStorage.setItem(VIS_KEY, JSON.stringify(_visited)); } catch {} }
-function isVisited(name, lat, lon) { return _visited.some(v => v.name === name && Math.abs(v.lat - lat) < 0.001); }
-function toggleVisited(name, lat, lon) {
-  const idx = _visited.findIndex(v => v.name === name && Math.abs(v.lat - lat) < 0.001);
-  if (idx >= 0) _visited.splice(idx, 1);
-  else _visited.push({ name, lat, lon, date: new Date().toISOString().slice(0, 10) });
-  saveVisited();
 }
 
 // ─── Type icons ──────────────────────────
@@ -547,8 +523,8 @@ function buildSpotDecision(spot, today) {
 export async function initSpotsScreen(weekData) {
   if (weekData) _weekData = weekData;
   _loc = loadLocation();
-  _favorites = loadFavorites();
-  _visited = loadVisited();
+  loadFavorites();
+  loadVisited();
   _visibleCount = 15;
   const container = document.getElementById('screen-spots');
   if (!container) return;
